@@ -1,0 +1,15 @@
+from .settings import *
+
+
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'https://devona-startapp.uz/', 'testserver','devona-startapp.uz']
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'agrar_xulosa',
+        'USER': '',
+        'PASSWORD': '',
+        'HOST': 'localhost',
+        'PORT': 5432,
+    }
+}
