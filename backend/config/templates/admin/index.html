@@ -1,0 +1,90 @@
+{% extends "admin/index.html" %}
+{% load static %}
+
+{% block content %}
+{{ block.super }}
+
+<div style="margin-top: 30px;">
+    <h2>Tezkor statistikalar</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 20px;">
+        <div style="background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <h3 style="margin: 0 0 10px 0; color: #666; font-size: 14px;">Tasdiqlanmagan haydovchilar</h3>
+            <div style="font-size: 32px; font-weight: bold; color: #dc3545;">{{ quick_stats.unverified_drivers }}</div>
+            <a href="/admin/driver-verification/" style="color: #007bff; text-decoration: none; font-size: 12px;">Batafsil →</a>
+        </div>
+        
+        <div style="background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <h3 style="margin: 0 0 10px 0; color: #666; font-size: 14px;">Kutilayotgan buyurtmalar</h3>
+            <div style="font-size: 32px; font-weight: bold; color: #ffc107;">{{ quick_stats.pending_orders }}</div>
+        </div>
+        
+        <div style="background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <h3 style="margin: 0 0 10px 0; color: #666; font-size: 14px;">Faol buyurtmalar</h3>
+            <div style="font-size: 32px; font-weight: bold; color: #28a745;">{{ quick_stats.active_orders }}</div>
+        </div>
+        <div style="background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <h3 style="margin: 0 0 10px 0; color: #666; font-size: 14px;">Muammoli buyurtmalar</h3>
+            <div style="font-size: 32px; font-weight: bold; color: #dc3545;">{{ quick_stats.problem_orders }}</div>
+        </div>
+        
+        <div style="background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <h3 style="margin: 0 0 10px 0; color: #666; font-size: 14px;">Bugungi e'lonlar</h3>
+            <div style="font-size: 32px; font-weight: bold; color: #007bff;">{{ quick_stats.today_advertisements }}</div>
+        </div>
+        
+        <div style="background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <h3 style="margin: 0 0 10px 0; color: #666; font-size: 14px;">Bugungi to'lovlar</h3>
+            <div style="font-size: 32px; font-weight: bold; color: #28a745;">{{ quick_stats.today_payments }}</div>
+            <div style="font-size: 13px; color: #111; margin-top: 6px;">
+                {{ quick_stats.today_payment_amount|floatformat:0 }} so'm
+            </div>
+        </div>
+        <div style="background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <h3 style="margin: 0 0 10px 0; color: #666; font-size: 14px;">Haftalik yangi foydalanuvchilar</h3>
+            <div style="font-size: 32px; font-weight: bold; color: #007bff;">{{ quick_stats.new_users_week }}</div>
+        </div>
+        <div style="background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <h3 style="margin: 0 0 10px 0; color: #666; font-size: 14px;">Haftalik faol foydalanuvchilar</h3>
+            <div style="font-size: 32px; font-weight: bold; color: #6f42c1;">{{ quick_stats.active_users_week }}</div>
+        </div>
+        <div style="background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <h3 style="margin: 0 0 10px 0; color: #666; font-size: 14px;">Tasdiqlanmagan transportlar</h3>
+            <div style="font-size: 32px; font-weight: bold; color: #fd7e14;">{{ quick_stats.unverified_vehicles }}</div>
+        </div>
+    </div>
+
+    <h2 style="margin-top: 30px;">Operatsion holat</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-top: 20px;">
+        <div style="background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px;">
+            <div style="font-size: 14px; color: #666;">Haydovchisiz buyurtmalar</div>
+            <div style="font-size: 30px; font-weight: 700; color: #dc3545;">{{ system_health.orders_without_driver }}</div>
+        </div>
+        <div style="background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px;">
+            <div style="font-size: 14px; color: #666;">Kutilayotgan to'lovlar</div>
+            <div style="font-size: 30px; font-weight: 700; color: #ffc107;">{{ system_health.payments_pending }}</div>
+        </div>
+        <div style="background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px;">
+            <div style="font-size: 14px; color: #666;">Ochiq takliflar</div>
+            <div style="font-size: 30px; font-weight: 700; color: #007bff;">{{ system_health.bids_open }}</div>
+        </div>
+    </div>
+
+    <h2 style="margin-top: 30px;">Tezkor bo'limlar</h2>
+    <div style="margin-top: 15px; display: flex; flex-wrap: wrap; gap: 10px;">
+        {% for item in control_panel_links %}
+            <a
+              href="{{ item.url }}"
+              style="
+                display: inline-block;
+                padding: 10px 16px;
+                text-decoration: none;
+                border-radius: 6px;
+                font-weight: 600;
+                {% if item.kind == 'primary' %}background: #417690; color: #fff;{% elif item.kind == 'success' %}background: #198754; color: #fff;{% else %}background: #fff; color: #333; border: 1px solid #ddd;{% endif %}
+              ">
+                {{ item.title }}
+            </a>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

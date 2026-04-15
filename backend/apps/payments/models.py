@@ -29,15 +29,29 @@ class Payment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     paid_at = models.DateTimeField(null=True, blank=True)
+    refunded_at = models.DateTimeField(null=True, blank=True)
+    refund_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    refund_reason = models.TextField(blank=True, null=True)
 
     class Meta:
         db_table = 'payments'
         verbose_name = 'Payment'
         verbose_name_plural = 'Payments'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'payment_status', 'created_at']),
+            models.Index(fields=['order', 'payment_status']),
+            models.Index(fields=['payment_status', 'created_at']),
+            models.Index(fields=['transaction_id']),
+            models.Index(fields=['created_at']),
+        ]
 
     def __str__(self):
         return f"Payment {self.id} - {self.amount} {self.currency}"
+    
+    @property
+    def is_refunded(self):
+        return self.refunded_at is not None
 
 
 class PaymentHistory(models.Model):
@@ -52,6 +66,10 @@ class PaymentHistory(models.Model):
         verbose_name = 'Payment History'
         verbose_name_plural = 'Payment Histories'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['payment', 'created_at']),
+            models.Index(fields=['created_at']),
+        ]
 
     def __str__(self):
         return f"History for Payment {self.payment.id}"

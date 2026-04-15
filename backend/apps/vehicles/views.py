@@ -19,11 +19,26 @@ class VehicleListView(APIView):
 
     @extend_schema(request=VehicleCreateSerializer, responses={201: VehicleSerializer})
     def post(self, request):
-        serializer = VehicleCreateSerializer(data=request.data)
-        if serializer.is_valid():
-            vehicle = serializer.save(user=request.user)
-            return Response(VehicleSerializer(vehicle).data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            data = {}
+            for key, value in request.data.items():
+                if key != 'document_photos':
+                    data[key] = value
+            
+            if 'document_photos' in request.FILES:
+                document_photos = request.FILES.getlist('document_photos')
+                if document_photos:
+                    data['document_photos'] = document_photos
+            
+            serializer = VehicleCreateSerializer(data=data)
+            if serializer.is_valid():
+                vehicle = serializer.save(user=request.user)
+                return Response(VehicleSerializer(vehicle).data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({'error': str(e), 'detail': 'Transport vositasini qo\'shishda xatolik yuz berdi'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class VehicleDetailView(APIView):

@@ -1,0 +1,996 @@
+{% extends "admin/base_site.html" %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .cc-wrap { padding: 18px 0 8px; }
+  .cc-top { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
+  .cc-top h1 { margin:0; color:#0f172a; font-size:24px; }
+  .cc-top-meta { display:flex; align-items:center; gap:8px; color:#64748b; font-size:12px; font-weight:700; }
+  .cc-live-dot { width:8px; height:8px; border-radius:999px; background:#16a34a; box-shadow:0 0 0 6px rgba(22,163,74,.15); }
+  .cc-grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
+  .cc-card { background:#fff; border:1px solid #dbe4ee; border-radius:12px; padding:14px; box-shadow:0 4px 14px rgba(15,23,42,.06); }
+  .cc-title { font-size:12px; color:#64748b; margin:0 0 8px; text-transform:uppercase; letter-spacing:.05em; font-weight:700; }
+  .cc-value { font-size:28px; font-weight:800; color:#0f172a; margin:0; line-height:1.1; }
+  .cc-sub { margin-top:6px; color:#475569; font-size:12px; }
+  .cc-danger { color:#dc2626; } .cc-warn { color:#d97706; } .cc-ok { color:#16a34a; } .cc-info { color:#2563eb; }
+  .cc-section { margin-top:18px; }
+  .cc-section h2 { margin:0 0 10px; font-size:18px; color:#0f172a; }
+  .cc-links { display:flex; flex-wrap:wrap; gap:10px; }
+  .cc-link { border-radius:10px; padding:8px 12px; text-decoration:none; font-weight:700; border:1px solid #dbe4ee; background:#fff; color:#1f2937; }
+  .cc-link.primary { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
+  .cc-link.success { background:#15803d; color:#fff; border-color:#15803d; }
+  .cc-apps { display:grid; grid-template-columns: repeat(auto-fit,minmax(320px,1fr)); gap:14px; }
+  .cc-app { background:#fff; border:1px solid #dbe4ee; border-radius:12px; padding:12px; }
+  .cc-app h3 { margin:0 0 8px; font-size:14px; text-transform:uppercase; letter-spacing:.03em; color:#334155; }
+  .cc-model { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-top:1px solid #eef2f7; }
+  .cc-model:first-of-type { border-top:0; }
+  .cc-model a { text-decoration:none; font-weight:600; }
+  .cc-model-links a { font-size:12px; margin-left:8px; color:#2563eb; }
+  .cc-trend-grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap:14px; }
+  .cc-trend-card { background:#fff; border:1px solid #dbe4ee; border-radius:12px; padding:12px; }
+  .cc-trend-title { margin:0 0 10px; color:#334155; font-size:14px; font-weight:800; }
+  .cc-trend-row { display:grid; grid-template-columns: 48px 1fr 30px; align-items:center; gap:8px; margin-bottom:6px; }
+  .cc-trend-label { font-size:11px; color:#64748b; font-weight:700; }
+  .cc-trend-track { height:8px; background:#eef2f7; border-radius:999px; overflow:hidden; }
+  .cc-trend-fill { height:100%; border-radius:999px; }
+  .cc-trend-value { font-size:11px; color:#0f172a; text-align:right; font-weight:800; }
+  .cc-list-card { background:#fff; border:1px solid #dbe4ee; border-radius:12px; padding:12px; }
+  .cc-list-item { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 0; border-top:1px solid #eef2f7; }
+  .cc-list-item:first-child { border-top:0; }
+  .cc-pill { border-radius:999px; padding:3px 8px; font-size:11px; font-weight:800; }
+  .cc-pill-danger { background:#fee2e2; color:#991b1b; }
+  .cc-pill-warn { background:#fef3c7; color:#92400e; }
+  .cc-empty { color:#94a3b8; font-size:12px; padding:8px 0; }
+  .cc-kv { display:flex; justify-content:space-between; padding:8px 0; border-top:1px solid #eef2f7; font-size:13px; }
+  .cc-kv:first-of-type { border-top:0; }
+  .cc-kv-label { color:#64748b; font-weight:600; }
+  .cc-kv-value { color:#0f172a; font-weight:800; }
+  .cc-table-wrap { background:#fff; border:1px solid #dbe4ee; border-radius:12px; overflow:auto; }
+  .cc-table { width:100%; border-collapse:collapse; min-width:900px; }
+  .cc-table th, .cc-table td { border-top:1px solid #eef2f7; padding:8px 10px; text-align:left; font-size:12px; }
+  .cc-table thead th { border-top:0; background:#f8fafc; color:#334155; font-weight:800; }
+  .cc-filter-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:8px; margin-bottom:10px; }
+  .cc-filter-grid select { width:100%; border:1px solid #dbe4ee; border-radius:8px; padding:7px 8px; background:#fff; }
+  .cc-filter-actions { display:flex; gap:8px; margin-bottom:10px; }
+  .cc-btn { border-radius:8px; border:1px solid #dbe4ee; padding:7px 12px; text-decoration:none; font-weight:700; background:#fff; color:#1f2937; cursor:pointer; }
+  .cc-btn.primary { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
+  .cc-chart-grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(360px,1fr)); gap:12px; }
+  .cc-chart-card { background:#fff; border:1px solid #dbe4ee; border-radius:12px; padding:12px; }
+  .cc-chart-card h3 { margin:0 0 8px; font-size:14px; color:#334155; }
+  .cc-chart-box { position:relative; height:260px; }
+  .cc-fresh { display:inline-block; border-radius:999px; padding:2px 7px; font-size:11px; font-weight:800; }
+  .cc-fresh-fresh { background:#dcfce7; color:#166534; }
+  .cc-fresh-warm { background:#fef3c7; color:#92400e; }
+  .cc-fresh-stale { background:#fee2e2; color:#991b1b; }
+  #driverLiveMap { height: 320px; border-radius: 10px; border:1px solid #dbe4ee; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cc-wrap">
+  <div class="cc-top">
+    <h1>Logistika Control Center</h1>
+    <div class="cc-top-meta">
+      <span class="cc-live-dot"></span>
+      <span>Yangilangan: <span id="lastUpdatedLabel">{{ last_updated_at|date:"d.m.Y H:i:s" }}</span></span>
+      <a href="" class="cc-link" style="padding:4px 8px;">Yangilash</a>
+    </div>
+  </div>
+
+  <div class="cc-grid">
+    <div class="cc-card"><p class="cc-title">Tasdiqlanmagan haydovchilar</p><p class="cc-value cc-danger">{{ quick_stats.unverified_drivers }}</p></div>
+    <div class="cc-card"><p class="cc-title">Kutilayotgan buyurtmalar</p><p id="kpiPendingOrders" class="cc-value cc-warn">{{ quick_stats.pending_orders }}</p></div>
+    <div class="cc-card"><p class="cc-title">Faol buyurtmalar</p><p id="kpiActiveOrders" class="cc-value cc-ok">{{ quick_stats.active_orders }}</p></div>
+    <div class="cc-card"><p class="cc-title">Muammoli buyurtmalar</p><p id="kpiProblemOrders" class="cc-value cc-danger">{{ quick_stats.problem_orders }}</p></div>
+    <div class="cc-card"><p class="cc-title">Bugungi to'lovlar</p><p class="cc-value cc-ok">{{ quick_stats.today_payments }}</p><div class="cc-sub">{{ quick_stats.today_payment_amount|floatformat:0 }} so'm</div></div>
+    <div class="cc-card"><p class="cc-title">Haftalik yangi userlar</p><p class="cc-value cc-info">{{ quick_stats.new_users_week }}</p><div class="cc-sub">Faol userlar: {{ quick_stats.active_users_week }}</div></div>
+    <div class="cc-card"><p class="cc-title">Tasdiqlanmagan transport</p><p class="cc-value cc-warn">{{ quick_stats.unverified_vehicles }}</p></div>
+    <div class="cc-card"><p class="cc-title">Haydovchisiz buyurtmalar</p><p class="cc-value cc-danger">{{ system_health.orders_without_driver }}</p><div class="cc-sub">Pending to'lov: {{ system_health.payments_pending }} | Ochiq bid: {{ system_health.bids_open }}</div></div>
+  </div>
+
+  <div class="cc-section">
+    <h2>SLA / Alert Engine</h2>
+    <div class="cc-grid">
+      <div class="cc-card">
+        <p class="cc-title">Jami alertlar</p>
+        <p id="slaTotalAlerts" class="cc-value cc-danger">{{ sla_alerts.total_alerts }}</p>
+        <div class="cc-sub">Qizil/sariq signal monitoring</div>
+      </div>
+      <div class="cc-card">
+        <p class="cc-title">Stale lokatsiya (&gt;3 daqiqa)</p>
+        <p id="slaStaleLocation" class="cc-value cc-danger">{{ sla_alerts.stale_location_count }}</p>
+      </div>
+      <div class="cc-card">
+        <p class="cc-title">Kechikkan pending (&gt;2 soat)</p>
+        <p id="slaDelayedPending" class="cc-value cc-warn">{{ sla_alerts.delayed_pending_count }}</p>
+      </div>
+      <div class="cc-card">
+        <p class="cc-title">Route deviation (24 soat)</p>
+        <p id="slaRouteDeviation" class="cc-value cc-warn">{{ sla_alerts.route_deviation_count }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="cc-section">
+    <h2>Data quality monitor</h2>
+    <div class="cc-grid">
+      <div class="cc-card">
+        <p class="cc-title">Haydovchisiz orderlar</p>
+        <p id="dqNoDriver" class="cc-value cc-danger">{{ data_quality.orders_without_driver }}</p>
+      </div>
+      <div class="cc-card">
+        <p class="cc-title">Lokatsiyasiz faol orderlar</p>
+        <p id="dqNoLocation" class="cc-value cc-warn">{{ data_quality.orders_without_location }}</p>
+      </div>
+      <div class="cc-card">
+        <p class="cc-title">To'lovsiz completed orderlar</p>
+        <p id="dqNoPayment" class="cc-value cc-danger">{{ data_quality.completed_without_payment }}</p>
+      </div>
+      <div class="cc-card">
+        <p class="cc-title">Reytingsiz completed orderlar</p>
+        <p id="dqNoRating" class="cc-value cc-warn">{{ data_quality.completed_without_rating }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="cc-section">
+    <h2>Real-time shafyor lokatsiyasi</h2>
+    <div class="cc-filter-actions" style="justify-content:space-between; align-items:center; flex-wrap:wrap;">
+      <form method="get" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <input type="hidden" name="status" value="{{ filters.status }}">
+        <input type="hidden" name="dispatcher_id" value="{{ filters.dispatcher_id }}">
+        <input type="hidden" name="driver_id" value="{{ filters.driver_id }}">
+        <input type="hidden" name="client_id" value="{{ filters.client_id }}">
+        <input type="hidden" name="has_location" value="{{ filters.has_location }}">
+        <select name="replay_order_id">
+          <option value="">Replay order tanlang</option>
+          {% for o in replay_order_options %}
+            <option value="{{ o.id }}" {% if replay_order_id == o.id|stringformat:'s' %}selected{% endif %}>{{ o.label }}</option>
+          {% endfor %}
+        </select>
+        <select name="replay_hours">
+          <option value="1" {% if replay_hours == 1 %}selected{% endif %}>Oxirgi 1 soat</option>
+          <option value="2" {% if replay_hours == 2 %}selected{% endif %}>Oxirgi 2 soat</option>
+          <option value="3" {% if replay_hours == 3 %}selected{% endif %}>Oxirgi 3 soat</option>
+        </select>
+        <button class="cc-btn" type="submit">Replay yangilash</button>
+      </form>
+      <div class="cc-top-meta" style="gap:14px;">
+        <label><input id="mapToggleDrivers" type="checkbox" checked> Drivers</label>
+        <label><input id="mapToggleHeatmap" type="checkbox" checked> Heatmap</label>
+        <label><input id="mapToggleGeofence" type="checkbox" checked> Geofence</label>
+        <label><input id="mapToggleReplay" type="checkbox" checked> Route replay</label>
+      </div>
+    </div>
+    <div class="cc-filter-actions" style="align-items:center; flex-wrap:wrap;">
+      <button class="cc-btn" type="button" id="replayPlayBtn">Play</button>
+      <button class="cc-btn" type="button" id="replayPauseBtn">Pause</button>
+      <button class="cc-btn" type="button" id="replayResetBtn">Reset</button>
+      <select id="replaySpeedSelect">
+        <option value="1000">1x tezlik</option>
+        <option value="600">1.6x tezlik</option>
+        <option value="300">3x tezlik</option>
+      </select>
+      <select id="mapStyleSelect">
+        <option value="light">Light mapa</option>
+        <option value="dark">Dark mapa</option>
+        <option value="satellite">Satellite mapa</option>
+      </select>
+      <span id="replayStatusText" class="cc-top-meta">Replay: tayyor</span>
+    </div>
+    <div class="cc-filter-actions" style="align-items:center; gap:10px; flex-wrap:wrap;">
+      <label for="replayTimelineRange" class="cc-top-meta">Timeline</label>
+      <input id="replayTimelineRange" type="range" min="0" max="0" value="0" step="1" style="min-width:260px;">
+      <span id="replayTimelineText" class="cc-top-meta">0 / 0</span>
+      <button class="cc-btn" type="button" id="replayStartBtn">|&lt;</button>
+      <button class="cc-btn" type="button" id="replayEndBtn">&gt;|</button>
+    </div>
+    <div class="cc-list-card" style="margin-bottom:10px;">
+      <div id="driverLiveMap"></div>
+    </div>
+    <div class="cc-filter-actions" style="justify-content:space-between; align-items:center;">
+      <div class="cc-top-meta">Faol tabda har 20 soniyada yangilanadi.</div>
+      <label style="font-size:12px; color:#334155; font-weight:700;">
+        <input id="autoRefreshToggle" type="checkbox" checked style="vertical-align:middle;"> Auto-refresh
+      </label>
+    </div>
+    <div class="cc-table-wrap">
+      <table class="cc-table">
+        <thead>
+          <tr>
+            <th>Shafyor</th>
+            <th>Buyurtma</th>
+            <th>Dispatcher</th>
+            <th>Koordinata</th>
+            <th>Oxirgi yangilanish</th>
+            <th>Holat</th>
+            <th>Xarita</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in live_driver_locations %}
+          <tr>
+            <td>{{ item.driver.first_name }} {{ item.driver.last_name }} ({{ item.driver.phone }})</td>
+            <td>#{{ item.order.id }}</td>
+            <td>{% if item.dispatcher %}{{ item.dispatcher.first_name }} {{ item.dispatcher.last_name }}{% else %}—{% endif %}</td>
+            <td>{% if item.lat and item.lng %}{{ item.lat }}, {{ item.lng }}{% else %}N/A{% endif %}</td>
+            <td>
+              {% if item.last_update %}
+                {{ item.last_update|date:"d.m H:i:s" }}
+                {% if item.age_sec is not None %}<span style="color:#64748b;">({{ item.age_sec }}s oldin)</span>{% endif %}
+              {% else %}N/A{% endif %}
+            </td>
+            <td>
+              {% if item.freshness == 'fresh' %}
+                <span class="cc-fresh cc-fresh-fresh">Yangi</span>
+              {% elif item.freshness == 'warm' %}
+                <span class="cc-fresh cc-fresh-warm">E'tibor</span>
+              {% else %}
+                <span class="cc-fresh cc-fresh-stale">Eskirgan</span>
+              {% endif %}
+            </td>
+            <td>{% if item.map_url %}<a href="{{ item.map_url }}" target="_blank" rel="noopener">Xaritada ochish</a>{% else %}—{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7">Real-time lokatsiya ma'lumoti topilmadi.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="cc-section">
+    <h2>Real vaqtga yaqin grafiklar (backend data)</h2>
+    <div class="cc-chart-grid">
+      <div class="cc-chart-card">
+        <h3>7 kunlik trend: User / Buyurtma / To'lov</h3>
+        <div class="cc-chart-box"><canvas id="mainTrendChart"></canvas></div>
+      </div>
+      <div class="cc-chart-card">
+        <h3>14 kunlik tushum (so'm)</h3>
+        <div class="cc-chart-box"><canvas id="revenueChart"></canvas></div>
+      </div>
+      <div class="cc-chart-card">
+        <h3>Buyurtma status taqsimoti</h3>
+        <div class="cc-chart-box"><canvas id="statusChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cc-section">
+    <h2>Live operatsiyalar (siz so'ragan ko'rinish)</h2>
+    <form id="bulkActionForm" method="post" action="/admin/bulk/live-operations/" style="margin-bottom:8px;">
+      {% csrf_token %}
+      <input type="hidden" name="order_ids" id="bulkOrderIds">
+      <div class="cc-filter-grid">
+        <select name="bulk_action" id="bulkActionType">
+          <option value="">Bulk amalni tanlang</option>
+          <option value="assign_dispatcher">Dispatcher biriktirish</option>
+          <option value="reassign_dispatcher">Qayta biriktirish</option>
+          <option value="update_status">Status yangilash</option>
+        </select>
+        <select name="bulk_dispatcher_id" id="bulkDispatcherId">
+          <option value="">Dispatcher tanlang</option>
+          {% for d in dispatcher_options %}
+            <option value="{{ d.id }}">{{ d.first_name }} {{ d.last_name }} ({{ d.phone }})</option>
+          {% endfor %}
+        </select>
+        <select name="bulk_status_code" id="bulkStatusCode">
+          <option value="">Yangi status tanlang</option>
+          {% for s in bulk_status_options %}
+            <option value="{{ s.code }}">{{ s.name_ru|default:s.code }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="cc-filter-actions">
+        <button class="cc-btn" type="button" id="selectAllRowsBtn">Hammasini tanlash</button>
+        <button class="cc-btn primary" type="submit">Bulk bajarish</button>
+        <span id="selectedRowsCount" class="cc-top-meta">Tanlangan: 0</span>
+      </div>
+    </form>
+    <form method="get">
+      <div class="cc-filter-grid">
+        <select name="status">
+          <option value="">Barcha statuslar</option>
+          {% for s in status_options %}
+            <option value="{{ s.status__code }}" {% if filters.status == s.status__code %}selected{% endif %}>
+              {{ s.status__name_ru|default:s.status__code }}
+            </option>
+          {% endfor %}
+        </select>
+        <select name="dispatcher_id">
+          <option value="">Barcha dispatcherlar</option>
+          {% for d in dispatcher_options %}
+            <option value="{{ d.id }}" {% if filters.dispatcher_id == d.id|stringformat:'s' %}selected{% endif %}>
+              {{ d.first_name }} {{ d.last_name }} ({{ d.phone }})
+            </option>
+          {% endfor %}
+        </select>
+        <select name="driver_id">
+          <option value="">Barcha shafyorlar</option>
+          {% for d in driver_options %}
+            <option value="{{ d.id }}" {% if filters.driver_id == d.id|stringformat:'s' %}selected{% endif %}>
+              {{ d.first_name }} {{ d.last_name }} ({{ d.phone }})
+            </option>
+          {% endfor %}
+        </select>
+        <select name="client_id">
+          <option value="">Barcha klientlar</option>
+          {% for c in client_options %}
+            <option value="{{ c.id }}" {% if filters.client_id == c.id|stringformat:'s' %}selected{% endif %}>
+              {{ c.first_name }} {{ c.last_name }} ({{ c.phone }})
+            </option>
+          {% endfor %}
+        </select>
+        <select name="has_location">
+          <option value="">Lokatsiya: barchasi</option>
+          <option value="yes" {% if filters.has_location == 'yes' %}selected{% endif %}>Lokatsiya bor</option>
+          <option value="no" {% if filters.has_location == 'no' %}selected{% endif %}>Lokatsiya yo'q</option>
+        </select>
+      </div>
+      <div class="cc-filter-actions">
+        <button class="cc-btn primary" type="submit">Filtrlash</button>
+        <a class="cc-btn" href="/admin/">Filtrni tozalash</a>
+        <a class="cc-btn" href="/admin/export/live-operations.csv?status={{ filters.status }}&dispatcher_id={{ filters.dispatcher_id }}&driver_id={{ filters.driver_id }}&client_id={{ filters.client_id }}&has_location={{ filters.has_location }}">CSV export</a>
+        <a class="cc-btn" href="/admin/export/live-operations.xlsx?status={{ filters.status }}&dispatcher_id={{ filters.dispatcher_id }}&driver_id={{ filters.driver_id }}&client_id={{ filters.client_id }}&has_location={{ filters.has_location }}">Excel export</a>
+        <a class="cc-btn" href="/media/reports/daily_operations_report_latest.csv" target="_blank" rel="noopener">Kunlik report</a>
+        <a class="cc-btn" href="/media/reports/weekly_operations_report_latest.csv" target="_blank" rel="noopener">Haftalik report</a>
+      </div>
+    </form>
+    <div class="cc-table-wrap">
+      <table class="cc-table">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="tableSelectAll"></th>
+            <th>Buyurtma</th>
+            <th>Status</th>
+            <th>Shafyor</th>
+            <th>Lokatsiya</th>
+            <th>Klient</th>
+            <th>Dispatcher</th>
+            <th>Amal</th>
+          </tr>
+        </thead>
+        <tbody id="liveOperationsBody">
+          {% for row in active_rows %}
+          <tr>
+            <td><input type="checkbox" class="row-select" value="{{ row.order.id }}"></td>
+            <td>#{{ row.order.id }}</td>
+            <td>{{ row.status_name }}</td>
+            <td>{{ row.driver.first_name }} {{ row.driver.last_name }}</td>
+            <td>{% if row.lat and row.lng %}{{ row.lat }}, {{ row.lng }}{% else %}N/A{% endif %}</td>
+            <td>{{ row.client.first_name }} {{ row.client.last_name }}</td>
+            <td>{% if row.dispatcher %}{{ row.dispatcher.first_name }} {{ row.dispatcher.last_name }}{% else %}Tayinlanmagan{% endif %}</td>
+            <td><a href="/admin/orders/order/{{ row.order.id }}/change/">Ochish</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="8">Faol operatsiyalar yo'q</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="cc-section">
+    <h2>Dispatcher / Shafyor / Klient statistikasi va reytinglar</h2>
+    <div class="cc-trend-grid">
+      <div class="cc-list-card">
+        <p class="cc-trend-title">Dispatcherlar</p>
+        {% for d in dispatcher_stats %}
+          <div class="cc-kv">
+            <span class="cc-kv-label">{{ d.first_name }} {{ d.last_name }}</span>
+            <span class="cc-kv-value">Faol: {{ d.active_assignments }} | Jami: {{ d.assigned_count }}</span>
+          </div>
+        {% empty %}
+          <div class="cc-empty">Ma'lumot yo'q</div>
+        {% endfor %}
+      </div>
+      <div class="cc-list-card">
+        <p class="cc-trend-title">Shafyorlar</p>
+        {% for d in driver_stats %}
+          <div class="cc-kv">
+            <span class="cc-kv-label">{{ d.first_name }} {{ d.last_name }}</span>
+            <span class="cc-kv-value">Faol: {{ d.active_orders }} | Reyting: {{ d.avg_rating|default:0|floatformat:2 }} ({{ d.rating_count }})</span>
+          </div>
+        {% empty %}
+          <div class="cc-empty">Ma'lumot yo'q</div>
+        {% endfor %}
+      </div>
+      <div class="cc-list-card">
+        <p class="cc-trend-title">Klientlar</p>
+        {% for c in client_stats %}
+          <div class="cc-kv">
+            <span class="cc-kv-label">{{ c.first_name }} {{ c.last_name }}</span>
+            <span class="cc-kv-value">Faol: {{ c.active_orders }} | Reyting: {{ c.avg_rating|default:0|floatformat:2 }} ({{ c.rating_count }})</span>
+          </div>
+        {% empty %}
+          <div class="cc-empty">Ma'lumot yo'q</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="cc-section">
+    <h2>7 kunlik trend</h2>
+    <div class="cc-trend-grid">
+      <div class="cc-trend-card">
+        <p class="cc-trend-title">Yangi foydalanuvchilar</p>
+        {% for p in trend_points %}
+        <div class="cc-trend-row">
+          <div class="cc-trend-label">{{ p.label }}</div>
+          <div class="cc-trend-track"><div class="cc-trend-fill" style="width:{{ p.users_pct }}%; background:#2563eb;"></div></div>
+          <div class="cc-trend-value">{{ p.users }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="cc-trend-card">
+        <p class="cc-trend-title">Buyurtmalar</p>
+        {% for p in trend_points %}
+        <div class="cc-trend-row">
+          <div class="cc-trend-label">{{ p.label }}</div>
+          <div class="cc-trend-track"><div class="cc-trend-fill" style="width:{{ p.orders_pct }}%; background:#16a34a;"></div></div>
+          <div class="cc-trend-value">{{ p.orders }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="cc-trend-card">
+        <p class="cc-trend-title">Muvaffaqiyatli to'lovlar</p>
+        {% for p in trend_points %}
+        <div class="cc-trend-row">
+          <div class="cc-trend-label">{{ p.label }}</div>
+          <div class="cc-trend-track"><div class="cc-trend-fill" style="width:{{ p.payments_pct }}%; background:#d97706;"></div></div>
+          <div class="cc-trend-value">{{ p.payments }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="cc-section">
+    <h2>Operatsion queue</h2>
+    <div class="cc-trend-grid">
+      <div class="cc-list-card">
+        <p class="cc-trend-title">Muammoli buyurtmalar (oxirgilari)</p>
+        {% for order in recent_problem_orders %}
+          <div class="cc-list-item">
+            <div>
+              <a href="/admin/orders/order/{{ order.id }}/change/" style="font-weight:700; text-decoration:none;">Buyurtma #{{ order.id }}</a>
+              <div style="font-size:11px; color:#64748b;">{{ order.created_at|date:"d.m H:i" }}</div>
+            </div>
+            <span class="cc-pill cc-pill-danger">{{ order.status.code }}</span>
+          </div>
+        {% empty %}
+          <div class="cc-empty">Hozircha muammoli buyurtma yo'q</div>
+        {% endfor %}
+      </div>
+      <div class="cc-list-card">
+        <p class="cc-trend-title">Kutilayotgan haydovchi verifikatsiyasi</p>
+        {% for driver in pending_driver_reviews %}
+          <div class="cc-list-item">
+            <div>
+              <a href="/admin/users/user/{{ driver.id }}/change/" style="font-weight:700; text-decoration:none;">
+                {{ driver.first_name }} {{ driver.last_name }}
+              </a>
+              <div style="font-size:11px; color:#64748b;">{{ driver.phone }}</div>
+            </div>
+            <span class="cc-pill cc-pill-warn">Kutilmoqda</span>
+          </div>
+        {% empty %}
+          <div class="cc-empty">Kutilayotgan haydovchilar yo'q</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="cc-section">
+    <h2>Qo'shimcha boshqaruv bloklari</h2>
+    <div class="cc-trend-grid">
+      <div class="cc-list-card">
+        <p class="cc-trend-title">Moliya nazorati</p>
+        <div class="cc-kv"><span class="cc-kv-label">Bugungi tushum</span><span class="cc-kv-value">{{ finance_snapshot.completed_today_amount|floatformat:0 }} so'm</span></div>
+        <div class="cc-kv"><span class="cc-kv-label">Haftalik tushum</span><span class="cc-kv-value">{{ finance_snapshot.completed_week_amount|floatformat:0 }} so'm</span></div>
+        <div class="cc-kv"><span class="cc-kv-label">Pending to'lovlar</span><span class="cc-kv-value">{{ finance_snapshot.pending_count }}</span></div>
+        <div class="cc-kv"><span class="cc-kv-label">Refund qilingan</span><span class="cc-kv-value">{{ finance_snapshot.refunded_count }}</span></div>
+      </div>
+      <div class="cc-list-card">
+        <p class="cc-trend-title">Support / Aloqa nazorati</p>
+        <div class="cc-kv"><span class="cc-kv-label">O'qilmagan xabarlar</span><span class="cc-kv-value">{{ communication_snapshot.unread_messages }}</span></div>
+        <div class="cc-kv"><span class="cc-kv-label">O'qilmagan notification</span><span class="cc-kv-value">{{ communication_snapshot.unread_notifications }}</span></div>
+        <div class="cc-kv"><span class="cc-kv-label">Bugungi xabarlar</span><span class="cc-kv-value">{{ communication_snapshot.messages_today }}</span></div>
+        <div class="cc-kv"><span class="cc-kv-label">Bugungi notification</span><span class="cc-kv-value">{{ communication_snapshot.notifications_today }}</span></div>
+      </div>
+      <div class="cc-list-card">
+        <p class="cc-trend-title">Moderatsiya navbati</p>
+        <div class="cc-kv"><span class="cc-kv-label">Haydovchi verifikatsiyasi</span><span class="cc-kv-value">{{ moderation_queue.driver_verification_pending }}</span></div>
+        <div class="cc-kv"><span class="cc-kv-label">Transport verifikatsiyasi</span><span class="cc-kv-value">{{ moderation_queue.vehicle_verification_pending }}</span></div>
+        <div class="cc-kv"><span class="cc-kv-label">Ochiq bid muzokara</span><span class="cc-kv-value">{{ moderation_queue.open_bid_negotiations }}</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cc-section">
+    <h2>Tezkor amallar</h2>
+    <div class="cc-links">
+      {% for item in control_panel_links %}
+        <a href="{{ item.url }}" class="cc-link {{ item.kind }}">{{ item.title }}</a>
+      {% endfor %}
+      <a href="/admin/orders/order/?status__code__exact=pending" class="cc-link">Pending buyurtmalar</a>
+      <a href="/admin/orders/order/?driver__isnull__exact=1" class="cc-link">Haydovchisiz buyurtmalar</a>
+      <a href="/admin/payments/payment/?payment_status__exact=pending" class="cc-link">Pending to'lovlar</a>
+      <a href="/admin/chats/message/?is_read__exact=0" class="cc-link">O'qilmagan xabarlar</a>
+      <a href="/admin/notifications/notification/?is_read__exact=0" class="cc-link">O'qilmagan notification</a>
+      <a href="/admin/vehicles/vehicle/?is_verified__exact=0" class="cc-link">Tasdiqlanmagan transportlar</a>
+    </div>
+  </div>
+
+  <div class="cc-section">
+    <h2>Modullar</h2>
+    <div class="cc-apps">
+      {% for app in app_list %}
+      <div class="cc-app">
+        <h3>{{ app.name }}</h3>
+        {% for model in app.models %}
+        <div class="cc-model">
+          <a href="{{ model.admin_url }}">{{ model.name }}</a>
+          <div class="cc-model-links">
+            {% if model.add_url %}<a href="{{ model.add_url }}">Qo'shish</a>{% endif %}
+            {% if model.admin_url %}<a href="{{ model.admin_url }}">Boshqarish</a>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{{ chart_labels|json_script:"chart-labels" }}
+{{ users_series|json_script:"users-series" }}
+{{ orders_series|json_script:"orders-series" }}
+{{ payments_series|json_script:"payments-series" }}
+{{ revenue_labels|json_script:"revenue-labels" }}
+{{ revenue_series|json_script:"revenue-series" }}
+{{ status_labels|json_script:"status-labels" }}
+{{ status_series|json_script:"status-series" }}
+{{ live_driver_map_points|json_script:"live-driver-map-points" }}
+{{ heatmap_points|json_script:"heatmap-points" }}
+{{ geofence_data|json_script:"geofence-data" }}
+{{ route_replay_points|json_script:"route-replay-points" }}
+{{ admin_ws_token|json_script:"admin-ws-token" }}
+<script>
+  (function () {
+    if (typeof Chart === 'undefined') return;
+    const labels = JSON.parse(document.getElementById('chart-labels').textContent || '[]');
+    const usersSeries = JSON.parse(document.getElementById('users-series').textContent || '[]');
+    const ordersSeries = JSON.parse(document.getElementById('orders-series').textContent || '[]');
+    const paymentsSeries = JSON.parse(document.getElementById('payments-series').textContent || '[]');
+    const revenueLabels = JSON.parse(document.getElementById('revenue-labels').textContent || '[]');
+    const revenueSeries = JSON.parse(document.getElementById('revenue-series').textContent || '[]');
+    const statusLabels = JSON.parse(document.getElementById('status-labels').textContent || '[]');
+    const statusSeries = JSON.parse(document.getElementById('status-series').textContent || '[]');
+
+    const trendCanvas = document.getElementById('mainTrendChart');
+    if (trendCanvas) {
+      new Chart(trendCanvas, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            { label: 'User', data: usersSeries, borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,.18)', tension: 0.35, fill: true },
+            { label: 'Buyurtma', data: ordersSeries, borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,.12)', tension: 0.35, fill: true },
+            { label: "To'lov", data: paymentsSeries, borderColor: '#d97706', backgroundColor: 'rgba(217,119,6,.12)', tension: 0.35, fill: true }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } } }
+      });
+    }
+
+    const revenueCanvas = document.getElementById('revenueChart');
+    if (revenueCanvas) {
+      new Chart(revenueCanvas, {
+        type: 'bar',
+        data: {
+          labels: revenueLabels,
+          datasets: [{ label: "Tushum (so'm)", data: revenueSeries, backgroundColor: 'rgba(29,78,216,.7)', borderRadius: 6 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: { y: { beginAtZero: true } },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    const statusCanvas = document.getElementById('statusChart');
+    if (statusCanvas) {
+      new Chart(statusCanvas, {
+        type: 'doughnut',
+        data: {
+          labels: statusLabels,
+          datasets: [{
+            data: statusSeries,
+            backgroundColor: ['#2563eb','#16a34a','#d97706','#dc2626','#7c3aed','#0891b2','#f43f5e','#64748b']
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+      });
+    }
+
+    const mapPoints = JSON.parse(document.getElementById('live-driver-map-points').textContent || '[]');
+    const heatmapPoints = JSON.parse(document.getElementById('heatmap-points').textContent || '[]');
+    const geofenceData = JSON.parse(document.getElementById('geofence-data').textContent || '{}');
+    const replayPoints = JSON.parse(document.getElementById('route-replay-points').textContent || '[]');
+    const mapEl = document.getElementById('driverLiveMap');
+    if (mapEl && typeof L !== 'undefined') {
+      const map = L.map(mapEl).setView([41.2995, 69.2401], 10);
+      const lightLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap, &copy; CARTO'
+      });
+      const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap, &copy; CARTO'
+      });
+      const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri'
+      });
+      lightLayer.addTo(map);
+
+      const markerGroup = (L.markerClusterGroup ? L.markerClusterGroup() : L.layerGroup());
+      const replayLayer = L.layerGroup();
+      const geofenceLayer = L.layerGroup();
+      const points = mapPoints.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+      points.forEach((p) => {
+        const color = p.freshness === 'fresh' ? '#16a34a' : (p.freshness === 'warm' ? '#d97706' : '#dc2626');
+        const icon = L.divIcon({
+          className: '',
+          html: `<div style="width:14px;height:14px;border-radius:999px;background:${color};border:2px solid #fff;box-shadow:0 0 0 2px ${color}55;"></div>`,
+          iconSize: [14, 14],
+          iconAnchor: [7, 7]
+        });
+        const marker = L.marker([p.lat, p.lng], { icon });
+        marker.bindPopup(
+          `<b>${p.driver_name || 'Shafyor'}</b><br/>Tel: ${p.driver_phone || '-'}<br/>Buyurtma: #${p.order_id}<br/>Dispatcher: ${p.dispatcher_name || '—'}<br/>Yangilanish: ${p.age_sec != null ? p.age_sec + 's oldin' : 'N/A'}`
+        );
+        markerGroup.addLayer(marker);
+      });
+
+      const heatInput = heatmapPoints
+        .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng))
+        .map((p) => [p.lat, p.lng, Number.isFinite(p.weight) ? p.weight : 0.6]);
+      const heatLayer = (typeof L.heatLayer === 'function')
+        ? L.heatLayer(heatInput, { radius: 25, blur: 18, maxZoom: 17 })
+        : null;
+
+      const replayLatLngs = replayPoints
+        .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng))
+        .map((p) => [p.lat, p.lng]);
+      if (replayLatLngs.length) {
+        L.polyline(replayLatLngs, { color: '#2563eb', weight: 4, opacity: 0.9 }).addTo(replayLayer);
+      }
+      let replayMarker = null;
+      if (replayLatLngs.length) {
+        replayMarker = L.circleMarker(replayLatLngs[0], {
+          radius: 6,
+          color: '#1d4ed8',
+          fillColor: '#1d4ed8',
+          fillOpacity: 1
+        }).bindPopup('Replay start').addTo(replayLayer);
+      }
+
+      const addGeofence = (entry, color) => {
+        if (!entry || !Number.isFinite(entry.lat) || !Number.isFinite(entry.lng)) return;
+        L.circle([entry.lat, entry.lng], {
+          radius: Number(entry.radius || 300),
+          color,
+          weight: 2,
+          fillOpacity: 0.08,
+        }).bindPopup(`${entry.label || 'Geofence'} (${Math.round(Number(entry.radius || 0))}m)`).addTo(geofenceLayer);
+        L.circleMarker([entry.lat, entry.lng], { radius: 5, color, fillColor: color, fillOpacity: 1 }).addTo(geofenceLayer);
+      };
+      addGeofence(geofenceData.pickup, '#16a34a');
+      addGeofence(geofenceData.destination, '#dc2626');
+
+      map.addLayer(markerGroup);
+      if (heatLayer) map.addLayer(heatLayer);
+      map.addLayer(geofenceLayer);
+      map.addLayer(replayLayer);
+
+      const fitPoints = [];
+      points.forEach((p) => fitPoints.push([p.lat, p.lng]));
+      replayLatLngs.forEach((p) => fitPoints.push(p));
+      if (geofenceData.pickup && Number.isFinite(geofenceData.pickup.lat) && Number.isFinite(geofenceData.pickup.lng)) fitPoints.push([geofenceData.pickup.lat, geofenceData.pickup.lng]);
+      if (geofenceData.destination && Number.isFinite(geofenceData.destination.lat) && Number.isFinite(geofenceData.destination.lng)) fitPoints.push([geofenceData.destination.lat, geofenceData.destination.lng]);
+      if (fitPoints.length) {
+        map.fitBounds(L.latLngBounds(fitPoints).pad(0.2));
+      }
+
+      const bindLayerToggle = (id, layer) => {
+        const el = document.getElementById(id);
+        if (!el || !layer) return;
+        el.addEventListener('change', () => {
+          if (el.checked) map.addLayer(layer);
+          else map.removeLayer(layer);
+        });
+      };
+      bindLayerToggle('mapToggleDrivers', markerGroup);
+      bindLayerToggle('mapToggleHeatmap', heatLayer);
+      bindLayerToggle('mapToggleGeofence', geofenceLayer);
+      bindLayerToggle('mapToggleReplay', replayLayer);
+
+      let replayIndex = 0;
+      let replayTimer = null;
+      const replayStatusText = document.getElementById('replayStatusText');
+      const replaySpeedSelect = document.getElementById('replaySpeedSelect');
+      const replayTimelineRange = document.getElementById('replayTimelineRange');
+      const replayTimelineText = document.getElementById('replayTimelineText');
+      const replayStartBtn = document.getElementById('replayStartBtn');
+      const replayEndBtn = document.getElementById('replayEndBtn');
+      const mapStyleSelect = document.getElementById('mapStyleSelect');
+      const baseLayers = { light: lightLayer, dark: darkLayer, satellite: satelliteLayer };
+      let activeBaseLayer = lightLayer;
+      const setReplayStatus = (text) => {
+        if (replayStatusText) replayStatusText.textContent = text;
+      };
+      const setTimeline = () => {
+        if (!replayTimelineRange || !replayTimelineText) return;
+        const max = Math.max(0, replayLatLngs.length - 1);
+        replayTimelineRange.max = String(max);
+        replayTimelineRange.value = String(Math.min(replayIndex, max));
+        replayTimelineText.textContent = `${Math.min(replayIndex + 1, replayLatLngs.length)} / ${replayLatLngs.length}`;
+      };
+      const moveReplayTo = (idx) => {
+        if (!replayMarker || !replayLatLngs.length) return;
+        replayIndex = Math.max(0, Math.min(idx, replayLatLngs.length - 1));
+        replayMarker.setLatLng(replayLatLngs[replayIndex]);
+        const pointMeta = replayPoints[replayIndex];
+        const ts = pointMeta && pointMeta.ts ? pointMeta.ts : '';
+        replayMarker.bindPopup(`Replay nuqta: ${replayIndex + 1}/${replayLatLngs.length} ${ts}`);
+        setTimeline();
+      };
+      const replayStep = () => {
+        if (!replayMarker || !replayLatLngs.length) return;
+        moveReplayTo(replayIndex);
+        replayMarker.openPopup();
+        setReplayStatus(`Replay: ${replayIndex + 1}/${replayLatLngs.length}`);
+        replayIndex += 1;
+        if (replayIndex >= replayLatLngs.length) {
+          clearInterval(replayTimer);
+          replayTimer = null;
+          replayIndex = replayLatLngs.length - 1;
+          setTimeline();
+          setReplayStatus('Replay: yakunlandi');
+        }
+      };
+      const startReplay = () => {
+        if (!replayMarker || replayLatLngs.length < 2 || replayTimer) return;
+        const speed = Number(replaySpeedSelect ? replaySpeedSelect.value : 1000) || 1000;
+        replayTimer = setInterval(replayStep, speed);
+      };
+      const pauseReplay = () => {
+        if (replayTimer) {
+          clearInterval(replayTimer);
+          replayTimer = null;
+          setReplayStatus(`Replay: pauza (${replayIndex + 1}/${replayLatLngs.length})`);
+        }
+      };
+      const resetReplay = () => {
+        if (replayTimer) {
+          clearInterval(replayTimer);
+          replayTimer = null;
+        }
+        moveReplayTo(0);
+        setReplayStatus('Replay: reset');
+      };
+      const replayPlayBtn = document.getElementById('replayPlayBtn');
+      const replayPauseBtn = document.getElementById('replayPauseBtn');
+      const replayResetBtn = document.getElementById('replayResetBtn');
+      if (replayPlayBtn) replayPlayBtn.addEventListener('click', startReplay);
+      if (replayPauseBtn) replayPauseBtn.addEventListener('click', pauseReplay);
+      if (replayResetBtn) replayResetBtn.addEventListener('click', resetReplay);
+      if (replayTimelineRange) {
+        replayTimelineRange.addEventListener('input', () => {
+          if (replayTimer) pauseReplay();
+          moveReplayTo(Number(replayTimelineRange.value || 0));
+          setReplayStatus('Replay: slider');
+        });
+      }
+      if (replayStartBtn) replayStartBtn.addEventListener('click', () => moveReplayTo(0));
+      if (replayEndBtn) replayEndBtn.addEventListener('click', () => moveReplayTo(Math.max(0, replayLatLngs.length - 1)));
+      if (mapStyleSelect) {
+        mapStyleSelect.addEventListener('change', () => {
+          const value = mapStyleSelect.value || 'light';
+          const nextLayer = baseLayers[value] || lightLayer;
+          if (activeBaseLayer) map.removeLayer(activeBaseLayer);
+          nextLayer.addTo(map);
+          activeBaseLayer = nextLayer;
+        });
+      }
+      setTimeline();
+    }
+
+    const byId = (id) => document.getElementById(id);
+    const setText = (id, value) => {
+      const el = byId(id);
+      if (el) el.textContent = String(value ?? 0);
+    };
+    const updateLiveTable = (rows) => {
+      const body = byId('liveOperationsBody');
+      if (!body) return;
+      if (!rows || !rows.length) {
+        body.innerHTML = '<tr><td colspan="8">Faol operatsiyalar yo\'q</td></tr>';
+        return;
+      }
+      body.innerHTML = rows.map((row) => {
+        const locationText = (row.lat && row.lng) ? `${row.lat}, ${row.lng}` : 'N/A';
+        return `
+          <tr>
+            <td><input type="checkbox" class="row-select" value="${row.id}"></td>
+            <td>#${row.id}</td>
+            <td>${row.status_name || '-'}</td>
+            <td>${row.driver_name || '-'}</td>
+            <td>${locationText}</td>
+            <td>${row.client_name || '-'}</td>
+            <td>${row.dispatcher_name || 'Tayinlanmagan'}</td>
+            <td><a href="${row.admin_url}">Ochish</a></td>
+          </tr>
+        `;
+      }).join('');
+    };
+    const refreshWidgets = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const url = `/admin/live-data/?${params.toString()}`;
+      const res = await fetch(url, { credentials: 'same-origin' });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data) return;
+      setText('lastUpdatedLabel', data.last_updated_at || '-');
+      setText('kpiPendingOrders', data.quick_stats?.pending_orders);
+      setText('kpiActiveOrders', data.quick_stats?.active_orders);
+      setText('kpiProblemOrders', data.quick_stats?.problem_orders);
+      setText('slaTotalAlerts', data.sla_alerts?.total_alerts);
+      setText('slaStaleLocation', data.sla_alerts?.stale_location_count);
+      setText('slaDelayedPending', data.sla_alerts?.delayed_pending_count);
+      setText('slaRouteDeviation', data.sla_alerts?.route_deviation_count);
+      setText('dqNoDriver', data.data_quality?.orders_without_driver);
+      setText('dqNoLocation', data.data_quality?.orders_without_location);
+      setText('dqNoPayment', data.data_quality?.completed_without_payment);
+      setText('dqNoRating', data.data_quality?.completed_without_rating);
+      updateLiveTable(data.active_rows || []);
+    };
+    const autoRefreshToggle = byId('autoRefreshToggle');
+    let refreshTimer = null;
+    const startRefresh = () => {
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+          refreshWidgets();
+        }
+      }, 15000);
+    };
+    const stopRefresh = () => {
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = null;
+    };
+    if (autoRefreshToggle) {
+      autoRefreshToggle.addEventListener('change', () => {
+        if (autoRefreshToggle.checked) startRefresh();
+        else stopRefresh();
+      });
+      if (autoRefreshToggle.checked) startRefresh();
+    }
+    const connectWs = () => {
+      const tokenEl = byId('admin-ws-token');
+      const token = tokenEl ? JSON.parse(tokenEl.textContent || '""') : '';
+      if (!token) return;
+      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const wsUrl = `${protocol}://${window.location.host}/ws/dispatcher/tracking/?token=${encodeURIComponent(token)}`;
+      let socket = null;
+      try {
+        socket = new WebSocket(wsUrl);
+      } catch (e) {
+        return;
+      }
+      socket.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data || '{}');
+          if (payload.type === 'location_update' || payload.type === 'route_deviation' || payload.type === 'geofence_event' || payload.type === 'ops_refresh') {
+            refreshWidgets();
+          }
+        } catch (e) {
+          // no-op
+        }
+      };
+      socket.onclose = () => {
+        setTimeout(connectWs, 5000);
+      };
+    };
+    connectWs();
+
+    const refreshSelectedCounter = () => {
+      const selectedCount = document.querySelectorAll('.row-select:checked').length;
+      const badge = byId('selectedRowsCount');
+      if (badge) badge.textContent = `Tanlangan: ${selectedCount}`;
+    };
+
+    const tableSelectAll = byId('tableSelectAll');
+    if (tableSelectAll) {
+      tableSelectAll.addEventListener('change', () => {
+        document.querySelectorAll('.row-select').forEach((el) => {
+          el.checked = tableSelectAll.checked;
+        });
+        refreshSelectedCounter();
+      });
+    }
+    const selectAllRowsBtn = byId('selectAllRowsBtn');
+    if (selectAllRowsBtn) {
+      selectAllRowsBtn.addEventListener('click', () => {
+        const rows = Array.from(document.querySelectorAll('.row-select'));
+        const allChecked = rows.length && rows.every((el) => el.checked);
+        rows.forEach((el) => { el.checked = !allChecked; });
+        if (tableSelectAll) tableSelectAll.checked = !allChecked;
+        refreshSelectedCounter();
+      });
+    }
+    document.addEventListener('change', (event) => {
+      if (event.target && event.target.classList && event.target.classList.contains('row-select')) {
+        refreshSelectedCounter();
+      }
+    });
+    const bulkForm = byId('bulkActionForm');
+    if (bulkForm) {
+      bulkForm.addEventListener('submit', async (event) => {
+        const selected = Array.from(document.querySelectorAll('.row-select:checked')).map((el) => el.value);
+        if (!selected.length) {
+          event.preventDefault();
+          alert('Bulk amal uchun kamida bitta order tanlang.');
+          return;
+        }
+        const action = byId('bulkActionType')?.value;
+        if (!action) {
+          event.preventDefault();
+          alert('Bulk amal turini tanlang.');
+          return;
+        }
+        event.preventDefault();
+        byId('bulkOrderIds').value = selected.join(',');
+        const formData = new FormData(bulkForm);
+        const csrfToken = bulkForm.querySelector('input[name="csrfmiddlewaretoken"]')?.value;
+        try {
+          const res = await fetch(bulkForm.action, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin',
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              ...(csrfToken ? { 'X-CSRFToken': csrfToken } : {})
+            }
+          });
+          const data = await res.json();
+          alert(data?.message || 'Bulk amal bajarildi.');
+          await refreshWidgets();
+          if (tableSelectAll) tableSelectAll.checked = false;
+          refreshSelectedCounter();
+        } catch (e) {
+          alert('Bulk amalda xatolik yuz berdi.');
+        }
+      });
+    }
+    refreshSelectedCounter();
+  })();
+</script>
+{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+{% endblock %}

@@ -2,6 +2,8 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
+from datetime import timedelta
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -267,3 +269,54 @@ class AdminDriverEarningsStatisticsTest(TestCase):
         self.assertEqual(driver_data['total_earnings'], 80000.0)
         self.assertEqual(driver_data['pending_orders'], 1)
         self.assertEqual(driver_data['in_progress_orders'], 1)
+
+
+class DriverDocumentAPITest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.driver = User.objects.create_user(
+            phone='998901111111',
+            password='testpass123',
+            first_name='Doc',
+            last_name='Driver',
+            is_driver=True,
+            is_verified=True
+        )
+        self.dispatcher = User.objects.create_user(
+            phone='998902222222',
+            password='testpass123',
+            first_name='Disp',
+            last_name='User',
+            is_dispatcher=True
+        )
+        self.docs_url = '/api/auth/driver-documents/'
+        self.monitoring_url = '/api/auth/driver-documents/monitoring/'
+
+    def test_driver_can_create_and_list_documents(self):
+        self.client.force_authenticate(user=self.driver)
+        payload = {
+            'document_type': 'driver_license',
+            'document_number': 'DL-555',
+            'expires_at': (timezone.now().date() + timedelta(days=10)).isoformat(),
+        }
+        create_response = self.client.post(self.docs_url, payload, format='json')
+        self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(create_response.data['document_type'], 'driver_license')
+
+        list_response = self.client.get(self.docs_url)
+        self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(list_response.data), 1)
+
+    def test_dispatcher_can_view_document_monitoring(self):
+        from apps.users.models import DriverDocument
+        DriverDocument.objects.create(
+            user=self.driver,
+            document_type='passport',
+            document_number='PP-100',
+            expires_at=timezone.now().date() - timedelta(days=1),
+        )
+        self.client.force_authenticate(user=self.dispatcher)
+        response = self.client.get(self.monitoring_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(response.data['count'], 1)
+        self.assertGreaterEqual(response.data['expired_count'], 1)

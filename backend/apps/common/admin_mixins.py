@@ -4,6 +4,8 @@ from django.core.exceptions import PermissionDenied
 
 class OperatorMixin:
     def _is_operator_only(self, request):
+        if not request.user.is_authenticated:
+            return False
         return request.user.is_operator and not request.user.is_admin and not request.user.is_superuser
 
     def has_module_permission(self, request):

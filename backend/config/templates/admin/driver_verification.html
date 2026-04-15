@@ -1,0 +1,198 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+    .drivers-container {
+        display: grid;
+        gap: 20px;
+    }
+    .driver-card {
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .driver-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+    .driver-info h3 {
+        margin: 0 0 5px 0;
+        color: #417690;
+    }
+    .driver-info p {
+        margin: 5px 0;
+        color: #666;
+    }
+    .status-badge {
+        display: inline-block;
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+    .status-ready {
+        background: #d4edda;
+        color: #155724;
+    }
+    .status-pending {
+        background: #fff3cd;
+        color: #856404;
+    }
+    .status-missing {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    .documents-section {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid #eee;
+    }
+    .documents-section h4 {
+        margin: 0 0 10px 0;
+        color: #417690;
+    }
+    .doc-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .doc-item .icon {
+        width: 20px;
+        margin-right: 10px;
+    }
+    .doc-item .check {
+        color: #28a745;
+    }
+    .doc-item .cross {
+        color: #dc3545;
+    }
+    .action-buttons {
+        margin-top: 15px;
+        display: flex;
+        gap: 10px;
+    }
+    .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 14px;
+    }
+    .btn-verify {
+        background: #28a745;
+        color: white;
+    }
+    .btn-reject {
+        background: #dc3545;
+        color: white;
+    }
+    .btn-view {
+        background: #007bff;
+        color: white;
+    }
+    .document-images {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 10px;
+    }
+    .document-images {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 10px;
+    }
+    .document-images img {
+        width: 150px;
+        height: 150px;
+        object-fit: contain;
+        border: 2px solid #ddd;
+        border-radius: 4px;
+        cursor: pointer;
+        background: #f5f5f5;
+        padding: 5px;
+    }
+    .document-images img:hover {
+        border-color: #007bff;
+        transform: scale(1.05);
+        transition: all 0.2s;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Haydovchilar hujjatlarini tasdiqlash</h1>
+
+<div class="drivers-container">
+    {% for item in drivers %}
+    <div class="driver-card">
+        <div class="driver-header">
+            <div class="driver-info">
+                <h3>{{ item.driver.first_name }} {{ item.driver.last_name }}</h3>
+                <p>Telefon: {{ item.driver.phone }}</p>
+                <p>Ro'yxatdan o'tgan: {{ item.driver.created_at|date:"d.m.Y H:i" }}</p>
+            </div>
+            <div>
+                {% if item.has_documents and item.has_verified_vehicles %}
+                <span class="status-badge status-ready">Tayyor</span>
+                {% elif item.has_documents or item.has_vehicles %}
+                <span class="status-badge status-pending">Kutilmoqda</span>
+                {% else %}
+                <span class="status-badge status-missing">Hujjatlar yo'q</span>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="documents-section">
+            <h4>Hujjatlar holati:</h4>
+            
+            <div class="doc-item">
+                <span class="icon">{% if item.has_documents %}<span class="check">✓</span>{% else %}<span class="cross">✗</span>{% endif %}</span>
+                <span>Shaxsiy hujjatlar: {{ item.document_count }} ta</span>
+            </div>
+            
+            <div class="doc-item">
+                <span class="icon">{% if item.has_vehicles %}<span class="check">✓</span>{% else %}<span class="cross">✗</span>{% endif %}</span>
+                <span>Mashinalar: {{ item.vehicle_count }} ta</span>
+            </div>
+            
+            <div class="doc-item">
+                <span class="icon">{% if item.has_verified_vehicles %}<span class="check">✓</span>{% else %}<span class="cross">✗</span>{% endif %}</span>
+                <span>Tasdiqlangan mashinalar: {{ item.verified_vehicle_count }} ta</span>
+            </div>
+            
+            {% if item.document_urls %}
+            <div class="document-images">
+                {% for photo_url in item.document_urls %}
+                <img src="{{ photo_url }}" alt="Hujjat" onclick="window.open('{{ photo_url }}', '_blank')" style="max-width: 200px; max-height: 200px;">
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color: #999; font-style: italic;">Hujjat rasmlari yo'q</p>
+            {% endif %}
+        </div>
+        
+        <div class="action-buttons">
+            <a href="/admin/users/user/{{ item.driver.id }}/change/" class="btn btn-view" target="_blank">Batafsil ko'rish</a>
+            <form method="post" action="/admin/driver-verification/" style="display: inline;">
+                {% csrf_token %}
+                <input type="hidden" name="driver_id" value="{{ item.driver.id }}">
+                <button type="submit" class="btn btn-verify" onclick="return confirm('{{ item.driver.first_name }} {{ item.driver.last_name }} ni tasdiqlashni xohlaysizmi?');">Tasdiqlash</button>
+            </form>
+        </div>
+    </div>
+    {% empty %}
+    <div class="driver-card">
+        <p>Tasdiqlash kerak bo'lgan haydovchilar yo'q</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,158 @@
+{% extends "admin/base_site.html" %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .op-wrap { padding:16px 0; }
+  .op-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; gap:10px; }
+  .op-head h1 { margin:0; color:#0f172a; font-size:24px; }
+  .op-meta { color:#64748b; font-size:12px; font-weight:700; }
+  .op-grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin-bottom:16px; }
+  .op-card { background:#fff; border:1px solid #dbe4ee; border-radius:12px; padding:12px; }
+  .op-k { font-size:12px; color:#64748b; text-transform:uppercase; letter-spacing:.04em; font-weight:700; }
+  .op-v { margin-top:4px; font-size:28px; font-weight:800; color:#0f172a; }
+  .op-section { margin-top:16px; }
+  .op-section h2 { margin:0 0 10px; font-size:18px; color:#0f172a; }
+  .op-table-wrap { background:#fff; border:1px solid #dbe4ee; border-radius:12px; overflow:auto; }
+  .op-table { width:100%; border-collapse:collapse; min-width:900px; }
+  .op-table th, .op-table td { border-top:1px solid #eef2f7; padding:9px 10px; text-align:left; font-size:13px; }
+  .op-table thead th { border-top:0; background:#f8fafc; color:#334155; font-weight:800; }
+  .op-pill { display:inline-block; border-radius:999px; padding:3px 8px; font-size:11px; font-weight:800; }
+  .op-pill-green { background:#dcfce7; color:#166534; }
+  .op-pill-yellow { background:#fef3c7; color:#92400e; }
+  .op-pill-red { background:#fee2e2; color:#991b1b; }
+  .op-pill-blue { background:#dbeafe; color:#1e40af; }
+  .op-two { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width: 1200px){ .op-two { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="op-wrap">
+  <div class="op-head">
+    <h1>Operations Intelligence</h1>
+    <div class="op-meta">Yangilangan: {{ last_updated_at|date:"d.m.Y H:i:s" }}</div>
+  </div>
+
+  <div class="op-grid">
+    <div class="op-card"><div class="op-k">Driver rating (o'rtacha)</div><div class="op-v">{{ rating_overview.driver_avg|floatformat:2 }}</div></div>
+    <div class="op-card"><div class="op-k">Driver rating (soni)</div><div class="op-v">{{ rating_overview.driver_count }}</div></div>
+    <div class="op-card"><div class="op-k">Client rating (o'rtacha)</div><div class="op-v">{{ rating_overview.client_avg|floatformat:2 }}</div></div>
+    <div class="op-card"><div class="op-k">Client rating (soni)</div><div class="op-v">{{ rating_overview.client_count }}</div></div>
+    <div class="op-card"><div class="op-k">Rating bugun / hafta / oy</div><div class="op-v">{{ rating_overview.today_count }} / {{ rating_overview.week_count }} / {{ rating_overview.month_count }}</div></div>
+  </div>
+
+  <div class="op-section">
+    <h2>Faol operatsiyalar: qaysi shafyor qayerda va qaysi buyurtmada</h2>
+    <div class="op-table-wrap">
+      <table class="op-table">
+        <thead>
+          <tr>
+            <th>Buyurtma</th>
+            <th>Status</th>
+            <th>Shafyor</th>
+            <th>Lokatsiya</th>
+            <th>Klient</th>
+            <th>Dispatcher</th>
+            <th>Amal</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in active_rows %}
+          <tr>
+            <td>#{{ row.order.id }}</td>
+            <td><span class="op-pill op-pill-blue">{{ row.status_name }}</span></td>
+            <td>{{ row.driver.first_name }} {{ row.driver.last_name }} ({{ row.driver.phone }})</td>
+            <td>
+              {% if row.lat and row.lng %}
+                {{ row.lat }}, {{ row.lng }}
+              {% else %}
+                <span class="op-pill op-pill-yellow">Lokatsiya yo'q</span>
+              {% endif %}
+            </td>
+            <td>{{ row.client.first_name }} {{ row.client.last_name }} ({{ row.client.phone }})</td>
+            <td>
+              {% if row.dispatcher %}
+                {{ row.dispatcher.first_name }} {{ row.dispatcher.last_name }}
+              {% else %}
+                <span class="op-pill op-pill-red">Tayinlanmagan</span>
+              {% endif %}
+            </td>
+            <td><a href="/admin/orders/order/{{ row.order.id }}/change/">Ochish</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7">Faol operatsiyalar topilmadi.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="op-section op-two">
+    <div>
+      <h2>Dispatcher statistikasi</h2>
+      <div class="op-table-wrap">
+        <table class="op-table" style="min-width:100%;">
+          <thead><tr><th>Dispatcher</th><th>Jami</th><th>Faol</th><th>Yakunlangan</th></tr></thead>
+          <tbody>
+            {% for d in dispatcher_stats %}
+            <tr>
+              <td>{{ d.first_name }} {{ d.last_name }} ({{ d.phone }})</td>
+              <td>{{ d.assigned_count }}</td>
+              <td>{{ d.active_assignments }}</td>
+              <td>{{ d.completed_assignments }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4">Ma'lumot yo'q</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div>
+      <h2>Shafyor statistikasi va reytinglari</h2>
+      <div class="op-table-wrap">
+        <table class="op-table" style="min-width:100%;">
+          <thead><tr><th>Shafyor</th><th>Jami</th><th>Faol</th><th>Yakunlangan</th><th>Reyting</th></tr></thead>
+          <tbody>
+            {% for d in driver_stats %}
+            <tr>
+              <td>{{ d.first_name }} {{ d.last_name }} ({{ d.phone }})</td>
+              <td>{{ d.total_orders }}</td>
+              <td>{{ d.active_orders }}</td>
+              <td>{{ d.completed_orders }}</td>
+              <td>{{ d.avg_rating|default:0|floatformat:2 }} ({{ d.rating_count }})</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5">Ma'lumot yo'q</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="op-section">
+    <h2>Klient statistikasi va reytinglari</h2>
+    <div class="op-table-wrap">
+      <table class="op-table">
+        <thead><tr><th>Klient</th><th>Jami buyurtma</th><th>Faol</th><th>Yakunlangan</th><th>Reyting</th><th>Amal</th></tr></thead>
+        <tbody>
+          {% for c in client_stats %}
+          <tr>
+            <td>{{ c.first_name }} {{ c.last_name }} ({{ c.phone }})</td>
+            <td>{{ c.total_orders }}</td>
+            <td>{{ c.active_orders }}</td>
+            <td>{{ c.completed_orders }}</td>
+            <td>{{ c.avg_rating|default:0|floatformat:2 }} ({{ c.rating_count }})</td>
+            <td><a href="/admin/users/user/{{ c.id }}/change/">Profil</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6">Ma'lumot yo'q</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

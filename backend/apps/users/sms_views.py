@@ -2,12 +2,19 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
+from rest_framework.throttling import AnonRateThrottle
 from drf_spectacular.utils import extend_schema
 from apps.common.services import generate_sms_code, send_sms_code, save_sms_code, verify_sms_code
 
 
+class SMSThrottle(AnonRateThrottle):
+    """Throttle for SMS endpoints."""
+    rate = '5/hour'
+
+
 class SendSMSCodeView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [SMSThrottle]
 
     @extend_schema(responses={200: {'type': 'object', 'properties': {'message': {'type': 'string'}}}})
     def post(self, request):
@@ -27,6 +34,7 @@ class SendSMSCodeView(APIView):
 
 class VerifySMSView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [SMSThrottle]
 
     @extend_schema(responses={200: {'type': 'object', 'properties': {'message': {'type': 'string'}}}})
     def post(self, request):

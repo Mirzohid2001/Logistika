@@ -26,6 +26,24 @@ def send_sms_code(phone, code):
         return False
 
 
+def send_notification_sms(phone, message):
+    try:
+        url = f"{settings.ESKIZ_API_URL}/message/sms/send"
+        data = {
+            'mobile_phone': phone,
+            'message': message,
+            'from': '4546',
+        }
+        headers = {
+            'Authorization': f'Bearer {get_eskiz_token()}',
+            'Content-Type': 'application/json',
+        }
+        response = requests.post(url, json=data, headers=headers)
+        return response.status_code == 200
+    except Exception as e:
+        return False
+
+
 def get_eskiz_token():
     cache_key = 'eskiz_token'
     token = cache.get(cache_key)

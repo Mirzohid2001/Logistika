@@ -5,6 +5,8 @@ from django.contrib.auth import get_user_model
 from .models import Bid
 from apps.advertisements.models import Advertisement
 from apps.locations.models import Country, City
+from apps.vehicles.models import Vehicle
+from apps.orders.models import OrderStatus
 
 User = get_user_model()
 
@@ -23,7 +25,9 @@ class BidModelTest(TestCase):
             password='testpass123',
             first_name='Driver',
             last_name='User',
-            is_driver=True
+            is_driver=True,
+            is_verified=True,
+            document_photos=['driver_doc.jpg']
         )
         self.country = Country.objects.create(
             name_ru='Узбекистан',
@@ -45,18 +49,21 @@ class BidModelTest(TestCase):
             description_ru='Тестовое описание',
             description_en='Test description',
             description_uz='Test tavsif',
-            height=10.5,
-            width=5.5,
-            length=2.5,
             weight=100.0,
             proposed_cost=50000.00,
             departure_address='Test departure',
-            departure_country=self.country,
             departure_city=self.city,
             destination_address='Test destination',
-            destination_country=self.country,
             destination_city=self.city,
-            client_phone='998901234567'
+        )
+        Vehicle.objects.create(
+            user=self.driver_user,
+            model='Volvo FH',
+            make='Volvo',
+            number='10A001AA',
+            cargo_volume=40,
+            load_capacity=5000,
+            is_verified=True
         )
 
     def test_bid_creation(self):
@@ -89,7 +96,9 @@ class BidAPITest(TestCase):
             password='testpass123',
             first_name='Driver',
             last_name='User',
-            is_driver=True
+            is_driver=True,
+            is_verified=True,
+            document_photos=['driver_doc.jpg']
         )
         self.country = Country.objects.create(
             name_ru='Узбекистан',
@@ -111,18 +120,21 @@ class BidAPITest(TestCase):
             description_ru='Тестовое описание',
             description_en='Test description',
             description_uz='Test tavsif',
-            height=10.5,
-            width=5.5,
-            length=2.5,
             weight=100.0,
             proposed_cost=50000.00,
             departure_address='Test departure',
-            departure_country=self.country,
             departure_city=self.city,
             destination_address='Test destination',
-            destination_country=self.country,
             destination_city=self.city,
-            client_phone='998901234567'
+        )
+        Vehicle.objects.create(
+            user=self.driver_user,
+            model='MAN TGX',
+            make='MAN',
+            number='10A002AA',
+            cargo_volume=45,
+            load_capacity=6000,
+            is_verified=True
         )
 
     def test_create_bid(self):
@@ -164,6 +176,25 @@ class BidAPITest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
+    def test_non_owner_cannot_get_advertisement_bids(self):
+        Bid.objects.create(
+            advertisement=self.advertisement,
+            client=self.client_user,
+            driver=self.driver_user,
+            proposed_amounts=[{'amount': '50000', 'by': 'driver', 'timestamp': None}],
+            last_counter_by='driver'
+        )
+        outsider = User.objects.create_user(
+            phone='998901234599',
+            password='testpass123',
+            first_name='Out',
+            last_name='Sider',
+        )
+        self.client.force_authenticate(user=outsider)
+        url = f'/api/bids/advertisement/{self.advertisement.id}/'
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
 
 class BidWorkflowTest(TestCase):
     def setUp(self):
@@ -180,7 +211,9 @@ class BidWorkflowTest(TestCase):
             password='testpass123',
             first_name='Driver',
             last_name='User',
-            is_driver=True
+            is_driver=True,
+            is_verified=True,
+            document_photos=['driver_doc.jpg']
         )
         self.country = Country.objects.create(
             name_ru='Узбекистан',
@@ -202,18 +235,29 @@ class BidWorkflowTest(TestCase):
             description_ru='Тестовое описание',
             description_en='Test description',
             description_uz='Test tavsif',
-            height=10.5,
-            width=5.5,
-            length=2.5,
             weight=100.0,
             proposed_cost=50000.00,
             departure_address='Test departure',
-            departure_country=self.country,
             departure_city=self.city,
             destination_address='Test destination',
-            destination_country=self.country,
             destination_city=self.city,
-            client_phone='998901234567'
+        )
+        Vehicle.objects.create(
+            user=self.driver_user,
+            model='Actros',
+            make='Mercedes',
+            number='10A003AA',
+            cargo_volume=42,
+            load_capacity=5500,
+            is_verified=True
+        )
+        OrderStatus.objects.get_or_create(
+            code='new',
+            defaults={
+                'name_ru': 'Новый',
+                'name_en': 'New',
+                'name_uz': 'Yangi',
+            }
         )
 
     def test_driver_can_create_bid(self):

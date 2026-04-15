@@ -25,11 +25,16 @@ class BidSerializer(serializers.ModelSerializer):
 
 class BidCreateSerializer(serializers.Serializer):
     advertisement = serializers.PrimaryKeyRelatedField(queryset=Advertisement.objects.all())
-    proposed_amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    proposed_amount = serializers.DecimalField(max_digits=12, decimal_places=2, coerce_to_string=False)
 
     def validate_advertisement(self, value):
         if value.is_closed:
             raise serializers.ValidationError("Advertisement is already closed")
+        return value
+    
+    def validate_proposed_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Proposed amount must be greater than zero")
         return value
 
 

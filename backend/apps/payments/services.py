@@ -49,6 +49,23 @@ class ClickPaymentService:
         expected_signature = hashlib.md5(sign_data.encode('utf-8')).hexdigest()
         
         return hmac.compare_digest(expected_signature.lower(), sign_string.lower())
+    
+    @staticmethod
+    def refund_payment(transaction_id, amount):
+        try:
+            url = f"{settings.CLICK_API_URL}/refund"
+            data = {
+                'merchant_id': settings.CLICK_MERCHANT_ID,
+                'service_id': settings.CLICK_SERVICE_ID,
+                'transaction_id': transaction_id,
+                'amount': float(amount),
+            }
+            response = requests.post(url, json=data)
+            if response.status_code == 200:
+                return {'success': True, 'data': response.json()}
+            return {'success': False, 'error': 'Refund failed'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
 
 
 class PaymePaymentService:
@@ -94,6 +111,27 @@ class PaymePaymentService:
         ).hexdigest()
         
         return hmac.compare_digest(expected_signature, signature)
+    
+    @staticmethod
+    def refund_payment(transaction_id, amount):
+        try:
+            url = f"{settings.PAYME_API_URL}/refund"
+            data = {
+                'method': 'cards.refund',
+                'params': {
+                    'id': transaction_id,
+                    'amount': float(amount) * 100,
+                },
+            }
+            headers = {
+                'X-Auth': settings.PAYME_KEY,
+            }
+            response = requests.post(url, json=data, headers=headers)
+            if response.status_code == 200:
+                return {'success': True, 'data': response.json()}
+            return {'success': False, 'error': 'Refund failed'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
 
 
 class UzumPaymentService:
@@ -132,3 +170,22 @@ class UzumPaymentService:
         ).hexdigest()
         
         return hmac.compare_digest(expected_signature.lower(), signature.lower())
+    
+    @staticmethod
+    def refund_payment(transaction_id, amount):
+        try:
+            url = f"{settings.UZUM_API_URL}/refund"
+            data = {
+                'merchant_id': settings.UZUM_MERCHANT_ID,
+                'transaction_id': transaction_id,
+                'amount': float(amount),
+            }
+            headers = {
+                'Authorization': f'Bearer {settings.UZUM_SECRET_KEY}',
+            }
+            response = requests.post(url, json=data, headers=headers)
+            if response.status_code == 200:
+                return {'success': True, 'data': response.json()}
+            return {'success': False, 'error': 'Refund failed'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}

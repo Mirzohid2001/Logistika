@@ -1,0 +1,16 @@
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('notifications', '0001_initial'),
+    ]
+
+    operations = [
+        migrations.AlterField(
+            model_name='notification',
+            name='notification_type',
+            field=models.CharField(choices=[('order_created', 'Buyurtma yaratildi'), ('order_accepted', 'Buyurtma qabul qilindi'), ('order_approved', "Buyurtma tasdiqlandi"), ('order_started', 'Buyurtma boshlandi'), ('order_completed', 'Buyurtma yakunlandi'), ('order_cancelled', 'Buyurtma bekor qilindi'), ('payment_received', "To'lov qabul qilindi"), ('driver_assigned', 'Haydovchi tayinlandi'), ('message_received', 'Xabar qabul qilindi'), ('rating_received', 'Reyting qoldirildi'), ('geofence_event', 'Geofence hodisasi'), ('document_expiry', 'Hujjat muddati tugashi'), ('system', 'Tizim xabari')], max_length=50),
+        ),
+    ]

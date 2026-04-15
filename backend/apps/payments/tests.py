@@ -65,17 +65,12 @@ class PaymentCallbackSecurityTest(TestCase):
             description_ru='Тестовое описание',
             description_en='Test description',
             description_uz='Test tavsif',
-            height=10.5,
-            width=5.5,
-            length=2.5,
             weight=100.0,
             departure_address='Test departure',
-            departure_country=self.country,
             departure_city=self.city,
             destination_address='Test destination',
-            destination_country=self.country,
             destination_city=self.city,
-            client_phone='998901234567'
+            proposed_cost=500000
         )
         self.order_status = OrderStatus.objects.get(code='new')
         self.order = Order.objects.create(
@@ -288,3 +283,43 @@ class PaymentCallbackSecurityTest(TestCase):
         self.assertIsNotNone(self.click_payment.paid_at)
         
         settings.CLICK_SECRET_KEY = original_secret
+
+
+class PaymentPermissionTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.owner = User.objects.create_user(
+            phone='998901000001',
+            password='testpass123',
+            first_name='Owner',
+            last_name='User'
+        )
+        self.outsider = User.objects.create_user(
+            phone='998901000002',
+            password='testpass123',
+            first_name='Out',
+            last_name='Sider'
+        )
+        self.dispatcher = User.objects.create_user(
+            phone='998901000003',
+            password='testpass123',
+            first_name='Dis',
+            last_name='Patcher',
+            is_dispatcher=True
+        )
+        self.payment = Payment.objects.create(
+            user=self.owner,
+            amount=10000.00,
+            payment_method='click',
+            payment_status='pending'
+        )
+
+    def test_dispatcher_can_view_payment_status(self):
+        self.client.force_authenticate(user=self.dispatcher)
+        response = self.client.get(f'/api/payments/{self.payment.id}/status/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_outsider_cannot_view_payment_status(self):
+        self.client.force_authenticate(user=self.outsider)
+        response = self.client.get(f'/api/payments/{self.payment.id}/status/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
