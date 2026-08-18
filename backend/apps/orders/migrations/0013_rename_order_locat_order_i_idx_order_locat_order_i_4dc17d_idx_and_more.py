@@ -2,6 +2,8 @@
 
 from django.db import migrations
 
+from apps.common.migration_ops import rename_index_operation
+
 
 class Migration(migrations.Migration):
 
@@ -10,19 +12,19 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RenameIndex(
-            model_name='orderlocationtrack',
-            new_name='order_locat_order_i_4dc17d_idx',
-            old_name='order_locat_order_i_idx',
+        rename_index_operation(
+            'orderlocationtrack',
+            'order_locat_order_i_idx',
+            'order_locat_order_i_4dc17d_idx',
         ),
-        migrations.RenameIndex(
-            model_name='orderlocationtrack',
-            new_name='order_locat_timesta_d65743_idx',
-            old_name='order_locat_timesta_idx',
+        rename_index_operation(
+            'orderlocationtrack',
+            'order_locat_timesta_idx',
+            'order_locat_timesta_d65743_idx',
         ),
-        migrations.RenameIndex(
-            model_name='orderroutestop',
-            new_name='order_route_order_i_91b0be_idx',
-            old_name='order_route_order_i_idx',
+        rename_index_operation(
+            'orderroutestop',
+            'order_route_order_i_idx',
+            'order_route_order_i_91b0be_idx',
         ),
     ]

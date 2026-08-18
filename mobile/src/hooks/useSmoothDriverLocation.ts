@@ -6,7 +6,7 @@ import {
   type DriverMotionTarget,
 } from '../utils/mapTracking';
 
-const TICK_MS = 33;
+import { LIVE_MARKER_TICK_MS, shouldSkipMarkerUpdate } from '../utils/liveTrackingPerf';
 
 function toMotionTarget(target: DriverMotionTarget | LatLng): DriverMotionTarget {
   const motion = target as DriverMotionTarget;
@@ -90,9 +90,12 @@ export function useSmoothDriverLocation(
       }
       const next = computeNextSmoothLocation(cur, predicted);
       if (!next) return;
+      if (shouldSkipMarkerUpdate(cur, next)) {
+        return;
+      }
       displayRef.current = next;
       setDisplay(next);
-    }, TICK_MS);
+    }, LIVE_MARKER_TICK_MS);
 
     return () => clearInterval(interval);
   }, [enabled]);

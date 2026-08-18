@@ -21,6 +21,12 @@ export async function startBackgroundTrackingSession(
   orderId: number,
   t: TranslateFn
 ): Promise<boolean> {
+  if (Platform.OS === 'ios') {
+    // Native CLLocationManager keeps GPS alive: UIBackgroundModes=location,
+    // Always permission, allowsBackgroundLocationUpdates, and the blue bar.
+    return true;
+  }
+
   const notifeeModule = getNotifeeModule();
   const notifee = notifeeModule?.default;
   if (!notifee) {
@@ -28,39 +34,22 @@ export async function startBackgroundTrackingSession(
   }
 
   try {
-    if (Platform.OS === 'android') {
-      const channelId = await notifee.createChannel({
-        id: TRACKING_CHANNEL_ID,
-        name: t('tracking.backgroundChannelName'),
-        importance: notifeeModule.AndroidImportance?.LOW ?? 2,
-      });
-
-      await notifee.displayNotification({
-        id: TRACKING_NOTIFICATION_ID,
-        title: t('tracking.backgroundNotificationTitle'),
-        body: t('tracking.backgroundNotificationBody', { orderId: String(orderId) }),
-        android: {
-          channelId,
-          asForegroundService: true,
-          ongoing: true,
-          foregroundServiceTypes: [notifeeModule.AndroidForegroundServiceType?.LOCATION ?? 8],
-          pressAction: { id: 'default' },
-        },
-      });
-      return true;
-    }
+    const channelId = await notifee.createChannel({
+      id: TRACKING_CHANNEL_ID,
+      name: t('tracking.backgroundChannelName'),
+      importance: notifeeModule.AndroidImportance?.LOW ?? 2,
+    });
 
     await notifee.displayNotification({
       id: TRACKING_NOTIFICATION_ID,
       title: t('tracking.backgroundNotificationTitle'),
       body: t('tracking.backgroundNotificationBody', { orderId: String(orderId) }),
-      ios: {
-        foregroundPresentationOptions: {
-          badge: false,
-          sound: false,
-          banner: true,
-          list: true,
-        },
+      android: {
+        channelId,
+        asForegroundService: true,
+        ongoing: true,
+        foregroundServiceTypes: [notifeeModule.AndroidForegroundServiceType?.LOCATION ?? 8],
+        pressAction: { id: 'default' },
       },
     });
     return true;

@@ -17,7 +17,9 @@ import {
 } from '../../components/map';
 import { ordersService } from '../../services/ordersService';
 import {
-  ensureBackgroundLocationPermission,
+  getLastLocationAccess,
+  resolveLocationAccess,
+  subscribeLocationAccess,
   flushLocationQueue,
   LOCATION_POST_INTERVAL_MS,
 } from '../../services/locationTrackingService';
@@ -35,6 +37,7 @@ import {
   resolveDisplayHeading,
   splitRouteByProgress,
 } from '../../utils/mapTracking';
+import { downsamplePolyline } from '../../utils/liveTrackingPerf';
 import { useSmoothDriverLocation } from '../../hooks/useSmoothDriverLocation';
 import { useSmoothNavCamera } from '../../hooks/useSmoothNavCamera';
 import { NAV_CAMERA_PADDING } from '../../config/mapCamera';
@@ -117,6 +120,9 @@ const OrderTrackingScreen = () => {
   const [routePlanLoading, setRoutePlanLoading] = useState(false);
   const [advertisement, setAdvertisement] = useState<Advertisement | null>(null);
   const [locationGranted, setLocationGranted] = useState(false);
+  const [backgroundLocationGranted, setBackgroundLocationGranted] = useState(
+    () => getLastLocationAccess().background,
+  );
   const channelRef = useRef<RealtimeChannelHandle | null>(null);
 
   useEffect(() => {
@@ -126,9 +132,10 @@ const OrderTrackingScreen = () => {
     setLoading(true);
 
     const init = async () => {
-      const granted = await ensureBackgroundLocationPermission(t);
-      setLocationGranted(granted);
-      if (!granted) {
+      const access = await resolveLocationAccess(t);
+      setLocationGranted(access.foreground);
+      setBackgroundLocationGranted(access.background);
+      if (!access.foreground) {
         setTrackingActive(false);
       }
       const existingFix = getActiveOrderLocationFix();
@@ -143,8 +150,13 @@ const OrderTrackingScreen = () => {
     const unsubscribeLocation = subscribeActiveOrderLocation((fix) => {
       setCurrentLocation(fix);
     });
+    const unsubscribeAccess = subscribeLocationAccess((access) => {
+      setLocationGranted(access.foreground);
+      setBackgroundLocationGranted(access.background);
+    });
     return () => {
       unsubscribeLocation();
+      unsubscribeAccess();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, t]);
@@ -191,6 +203,10 @@ const OrderTrackingScreen = () => {
     const appStateSub = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
         flushLocationQueue().catch(() => undefined);
+        void resolveLocationAccess(t).then((access) => {
+          setLocationGranted(access.foreground);
+          setBackgroundLocationGranted(access.background);
+        });
       }
     });
 
@@ -206,6 +222,7 @@ const OrderTrackingScreen = () => {
     if (trackingActive && locationGranted) {
       void startActiveOrderLocationSession(id, t).then((ok) => {
         setLocationGranted(ok);
+        setBackgroundLocationGranted(getLastLocationAccess().background);
         if (!ok) {
           setTrackingActive(false);
         }
@@ -715,7 +732,8 @@ const OrderTrackingScreen = () => {
       ? stopRouteCoordinates
       : fallbackRouteCoordinates;
 
-  const coordinates = filterTrackCoordinates(
+  const coordinates = downsamplePolyline(
+    filterTrackCoordinates(
     tracks
       .map((track) => ({
         latitude: typeof track.lat === 'number' ? track.lat : parseFloat(String(track.lat)),
@@ -723,6 +741,7 @@ const OrderTrackingScreen = () => {
       }))
       .filter((p) => Number.isFinite(p.latitude) && Number.isFinite(p.longitude))
       .reverse(),
+    ),
   );
 
   const lastTrack = tracks.length > 0 ? tracks[0] : null;
@@ -757,6 +776,16 @@ const OrderTrackingScreen = () => {
 
   const isMandatoryTracking =
     order?.status?.code === 'in_progress' || order?.status?.code === 'in_transit';
+  const locationMeta = [
+    isMandatoryTracking
+      ? t('tracking.locationSharingMandatory')
+      : `${t('tracking.locationSharing')}: ${trackingActive ? t('tracking.locationSharingOn') : t('tracking.locationSharingOff')}`,
+    trackingActive && locationGranted && !backgroundLocationGranted
+      ? t('tracking.backgroundLocationLimited')
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
   const pickupArrived = routeStops.some(
     (stop) => stop.stop_type === 'pickup' && stop.status === 'arrived',
   );
@@ -792,6 +821,11 @@ const OrderTrackingScreen = () => {
         padding={followNavigation ? NAV_CAMERA_PADDING : undefined}
         cameraAnimationMs={followNavigation ? 0 : 0}
         cameraFollowRegion={followNavigation}
+        onTouchStart={() => {
+          if (followNavigation) {
+            setFollowCamera(false);
+          }
+        }}
         onUserGesture={() => setFollowCamera(false)}>
         {traveledRoute.length > 1 ? (
           <LogistikaPolyline id="traveled-route" coordinates={traveledRoute} kind="traveled" />
@@ -882,11 +916,7 @@ const OrderTrackingScreen = () => {
           }
           statusLabel={phaseLabel}
           statusColor={colors.primary}
-          meta={
-            isMandatoryTracking
-              ? t('tracking.trackingMandatory')
-              : `${t('tracking.realtimeStatus')}: ${trackingActive ? t('tracking.enabled') : t('tracking.disabled')}`
-          }
+          meta={locationMeta}
         />
 
         {(canStartTrip(order.status?.code) ||
@@ -1007,7 +1037,7 @@ const OrderTrackingScreen = () => {
           <View style={styles.detailsBlock}>
             {!isMandatoryTracking ? (
               <View style={styles.toggleContainer}>
-                <Text style={styles.toggleLabel}>{t('tracking.realtimeStatus')}</Text>
+                <Text style={styles.toggleLabel}>{t('tracking.locationSharing')}</Text>
                 <Button
                   title={trackingActive ? t('tracking.stop') : t('tracking.start')}
                   onPress={() => setTrackingActive(!trackingActive)}

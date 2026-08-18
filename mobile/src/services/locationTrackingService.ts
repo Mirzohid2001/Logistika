@@ -8,11 +8,74 @@ import {
   removeQueuedLocationsForOrders,
   upsertQueuedLocation,
 } from '../utils/locationQueue';
+import {
+  getIosLocationAuthStatus,
+  isIosAlwaysGranted,
+  requestIosAlwaysAuthorization,
+  subscribeIosLocationAuth,
+  type IosLocationAuthStatus,
+} from './iosLocationAuth';
+
+export type LocationAccess = {
+  foreground: boolean;
+  background: boolean;
+};
+
+type WatchOptions = NonNullable<Parameters<typeof Geolocation.watchPosition>[2]> & {
+  pauseUpdatesAutomatically?: boolean;
+};
+
+let lastLocationAccess: LocationAccess = { foreground: false, background: false };
+let backgroundPrompted = false;
+const accessListeners = new Set<(access: LocationAccess) => void>();
+
+export function getLastLocationAccess(): LocationAccess {
+  return lastLocationAccess;
+}
+
+export function subscribeLocationAccess(listener: (access: LocationAccess) => void): () => void {
+  accessListeners.add(listener);
+  listener(lastLocationAccess);
+  return () => {
+    accessListeners.delete(listener);
+  };
+}
+
+function setLocationAccess(next: LocationAccess) {
+  lastLocationAccess = next;
+  accessListeners.forEach((listener) => listener(next));
+}
+
+function applyIosAuthStatus(status: IosLocationAuthStatus) {
+  if (status === 'always') {
+    setLocationAccess({ foreground: true, background: true });
+    return;
+  }
+  if (status === 'whenInUse') {
+    setLocationAccess({ foreground: true, background: false });
+    return;
+  }
+  if (status === 'denied' || status === 'disabled') {
+    setLocationAccess({ foreground: false, background: false });
+  }
+}
+
+if (Platform.OS === 'ios') {
+  subscribeIosLocationAuth(applyIosAuthStatus);
+}
+
+export function resetLocationAccessState() {
+  lastLocationAccess = { foreground: false, background: false };
+  backgroundPrompted = false;
+}
 
 const QUEUE_KEY = 'location_update_queue_v1';
 /** ~1Hz GPS stream for Yandex-like live tracking. */
 export const LOCATION_POST_INTERVAL_MS = 1000;
-export const LOCATION_MOVEMENT_THRESHOLD_METERS = 2;
+/** Keepalive while parked; native watch still posts on movement. */
+export const LOCATION_HEARTBEAT_INTERVAL_MS = 8000;
+export const LOCATION_BACKGROUND_HEARTBEAT_MS = 15000;
+export const LOCATION_MOVEMENT_THRESHOLD_METERS = 8;
 /** Skip GPS fixes worse than this accuracy (meters). */
 export const LOCATION_MAX_ACCURACY_METERS = 45;
 
@@ -64,6 +127,23 @@ export async function writeLocationQueue(queue: QueuedLocation[]): Promise<void>
   await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
 }
 
+export function buildActiveLocationWatchOptions(): WatchOptions {
+  return {
+    enableHighAccuracy: true,
+    distanceFilter: LOCATION_MOVEMENT_THRESHOLD_METERS,
+    interval: LOCATION_POST_INTERVAL_MS,
+    fastestInterval: Math.max(500, Math.floor(LOCATION_POST_INTERVAL_MS / 2)),
+    showsBackgroundLocationIndicator: true,
+    pauseUpdatesAutomatically: false,
+    forceRequestLocation: true,
+    useSignificantChanges: false,
+    accuracy: {
+      ios: 'bestForNavigation',
+      android: 'high',
+    },
+  };
+}
+
 export async function ensureForegroundLocationPermission(t: TranslateFn): Promise<boolean> {
   if (Platform.OS === 'android') {
     const granted = await PermissionsAndroid.request(
@@ -90,12 +170,7 @@ export async function ensureForegroundLocationPermission(t: TranslateFn): Promis
   return true;
 }
 
-export async function ensureBackgroundLocationPermission(t: TranslateFn): Promise<boolean> {
-  const foregroundGranted = await ensureForegroundLocationPermission(t);
-  if (!foregroundGranted) {
-    return false;
-  }
-
+async function requestBackgroundLocationIfPossible(t: TranslateFn): Promise<boolean> {
   if (Platform.OS === 'android') {
     if (Platform.Version < 29) {
       return true;
@@ -109,15 +184,56 @@ export async function ensureBackgroundLocationPermission(t: TranslateFn): Promis
         buttonNegative: t('common.cancel'),
       }
     );
-    if (backgroundGranted !== PermissionsAndroid.RESULTS.GRANTED) {
-      showLocationDeniedAlert(t);
-      return false;
-    }
-    return true;
+    return backgroundGranted === PermissionsAndroid.RESULTS.GRANTED;
   }
 
-  const permission = await Geolocation.requestAuthorization('always');
-  if (permission !== 'granted') {
+  const current = await getIosLocationAuthStatus();
+  if (isIosAlwaysGranted(current)) {
+    return true;
+  }
+  const requested = await requestIosAlwaysAuthorization();
+  return isIosAlwaysGranted(requested);
+}
+
+export async function resolveLocationAccess(t: TranslateFn): Promise<LocationAccess> {
+  const foreground = await ensureForegroundLocationPermission(t);
+  if (!foreground) {
+    setLocationAccess({ foreground: false, background: false });
+    return lastLocationAccess;
+  }
+  if (Platform.OS === 'ios') {
+    const current = await getIosLocationAuthStatus();
+    if (isIosAlwaysGranted(current)) {
+      setLocationAccess({ foreground: true, background: true });
+      return lastLocationAccess;
+    }
+    if (!backgroundPrompted) {
+      backgroundPrompted = true;
+      const requested = await requestIosAlwaysAuthorization();
+      setLocationAccess({ foreground: true, background: isIosAlwaysGranted(requested) });
+      return lastLocationAccess;
+    }
+    setLocationAccess({ foreground: true, background: false });
+    return lastLocationAccess;
+  }
+  if (backgroundPrompted) {
+    setLocationAccess({ foreground: true, background: lastLocationAccess.background });
+    return lastLocationAccess;
+  }
+  backgroundPrompted = true;
+  const background = await requestBackgroundLocationIfPossible(t);
+  setLocationAccess({ foreground: true, background });
+  return lastLocationAccess;
+}
+
+export async function ensureBackgroundLocationPermission(t: TranslateFn): Promise<boolean> {
+  const access = await resolveLocationAccess(t);
+  if (!access.foreground) {
+    return false;
+  }
+  // Foreground tracking still works without Always / ACCESS_BACKGROUND_LOCATION.
+  // Native watch + UIBackgroundModes / Android FGS handle the rest when granted.
+  if (Platform.OS === 'android' && Platform.Version >= 29 && !access.background) {
     showLocationDeniedAlert(t);
     return false;
   }

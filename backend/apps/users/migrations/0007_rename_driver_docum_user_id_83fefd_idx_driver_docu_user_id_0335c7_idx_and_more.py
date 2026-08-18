@@ -2,6 +2,8 @@
 
 from django.db import migrations
 
+from apps.common.migration_ops import rename_index_operation
+
 
 class Migration(migrations.Migration):
 
@@ -10,19 +12,19 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RenameIndex(
-            model_name='driverdocument',
-            new_name='driver_docu_user_id_0335c7_idx',
-            old_name='driver_docum_user_id_83fefd_idx',
+        rename_index_operation(
+            'driverdocument',
+            'driver_docum_user_id_83fefd_idx',
+            'driver_docu_user_id_0335c7_idx',
         ),
-        migrations.RenameIndex(
-            model_name='driverdocument',
-            new_name='driver_docu_expires_41d3e7_idx',
-            old_name='driver_docum_expires_16d92c_idx',
+        rename_index_operation(
+            'driverdocument',
+            'driver_docum_expires_16d92c_idx',
+            'driver_docu_expires_41d3e7_idx',
         ),
-        migrations.RenameIndex(
-            model_name='driverdocument',
-            new_name='driver_docu_is_acti_f7f7d2_idx',
-            old_name='driver_docum_is_acti_f7f5f5_idx',
+        rename_index_operation(
+            'driverdocument',
+            'driver_docum_is_acti_f7f5f5_idx',
+            'driver_docu_is_acti_f7f7d2_idx',
         ),
     ]

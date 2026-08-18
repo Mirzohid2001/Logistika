@@ -1,5 +1,6 @@
 import UIKit
 import React
+import FirebaseCore
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate, RCTBridgeDelegate {
@@ -10,6 +11,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate, RCTBridgeDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil,
+       FirebaseApp.app() == nil {
+      FirebaseApp.configure()
+    }
+
     let bridge = RCTBridge(delegate: self, launchOptions: launchOptions)
     let rootView = RCTRootView(bridge: bridge!, moduleName: "Logistika", initialProperties: nil)
 

@@ -16,6 +16,7 @@ import OrderDetailScreen from '../screens/client/OrderDetailScreen';
 import OrderTrackingScreen from '../screens/client/OrderTrackingScreen';
 import ClientStatisticsScreen from '../screens/client/ClientStatisticsScreen';
 import AdvancedAnalyticsScreen from '../screens/client/AdvancedAnalyticsScreen';
+import { stackScreenOptions } from '../utils/navigationHelpers';
 
 const Stack = createStackNavigator();
 
@@ -23,7 +24,7 @@ const ClientNavigator = () => {
   const {t} = useTranslation();
   const { colors } = useAppTheme();
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={({ navigation }) => stackScreenOptions(navigation)}>
       <Stack.Screen
         name="Dashboard"
         component={ClientDashboardScreen}

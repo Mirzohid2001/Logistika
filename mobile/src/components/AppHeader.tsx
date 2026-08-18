@@ -7,6 +7,7 @@ import { spacing, fontSize, fontWeight, shadows, borderRadius } from '../theme';
 import { useAppTheme } from '../theme/useAppTheme';
 import { useTranslation } from '../hooks/useTranslation';
 import { a11yHeader } from '../utils/accessibility';
+import { safeGoBack, type NavigationLike } from '../utils/navigationHelpers';
 
 interface AppHeaderProps {
   title: string;
@@ -38,7 +39,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       onBack();
       return;
     }
-    navigation.goBack();
+    safeGoBack(navigation as NavigationLike);
   };
 
   return (

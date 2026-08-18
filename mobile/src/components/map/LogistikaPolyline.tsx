@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { ShapeSource, LineLayer } from '@maplibre/maplibre-react-native';
 import { coordinatesToLineString, type LatLng } from '../../utils/mapGeo';
 import { useAppTheme } from '../../theme/useAppTheme';
+import { shouldRenderRouteGlow } from '../../utils/liveTrackingPerf';
 
 export type RouteLineKind = 'remaining' | 'traveled' | 'planned' | 'track';
 
@@ -70,10 +71,11 @@ export const LogistikaPolyline: React.FC<LogistikaPolylineProps> = ({
   }
 
   const dash = lineDashPattern ? { lineDasharray: lineDashPattern } : {};
+  const showGlow = shouldRenderRouteGlow() && (kind === 'remaining' || kind === 'track');
 
   return (
     <ShapeSource id={id} shape={shape}>
-      {kind === 'remaining' || kind === 'track' ? (
+      {showGlow ? (
         <LineLayer
           id={`${id}-glow`}
           style={{

@@ -140,7 +140,6 @@ const DispatcherDriverDocumentsScreen = () => {
         title={t('features.driverDocsMonitor.title')}
         subtitle={t('features.driverDocsMonitor.subtitle')}
         showBack
-        onBack={() => navigation.goBack()}
       />
 
       <View style={localStyles.filterRow}>

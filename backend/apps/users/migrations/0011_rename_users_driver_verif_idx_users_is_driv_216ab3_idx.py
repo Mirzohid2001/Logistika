@@ -2,6 +2,8 @@
 
 from django.db import migrations
 
+from apps.common.migration_ops import rename_index_operation
+
 
 class Migration(migrations.Migration):
 
@@ -10,9 +12,9 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RenameIndex(
-            model_name='user',
-            new_name='users_is_driv_216ab3_idx',
-            old_name='users_driver_verif_idx',
+        rename_index_operation(
+            'user',
+            'users_driver_verif_idx',
+            'users_is_driv_216ab3_idx',
         ),
     ]

@@ -20,6 +20,7 @@ import DispatcherMonitoringScreen from '../screens/dispatcher/DispatcherMonitori
 import StaffComplaintsScreen from '../screens/staff/StaffComplaintsScreen';
 import StaffComplaintDetailScreen from '../screens/staff/StaffComplaintDetailScreen';
 import DispatcherDriverDocumentsScreen from '../screens/dispatcher/DispatcherDriverDocumentsScreen';
+import { stackScreenOptions } from '../utils/navigationHelpers';
 
 const Stack = createStackNavigator();
 
@@ -27,7 +28,7 @@ const DispatcherNavigator = () => {
   const { t } = useTranslation();
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={({ navigation }) => stackScreenOptions(navigation)}>
       <Stack.Screen
         name="DispatcherDashboard"
         component={DispatcherDashboardScreen}

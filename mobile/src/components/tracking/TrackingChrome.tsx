@@ -46,7 +46,6 @@ export const TrackingBottomSheet: React.FC<TrackingBottomSheetProps> = ({
     <View style={[styles.sheetAnchor, { bottom: bottomClearance, maxHeight: sheetMaxHeight }]}>
       <View style={styles.sheetInner}>
         <View style={styles.handle} />
-        <View style={styles.handle} />
         <ScrollView
           style={[styles.scroll, { maxHeight: sheetMaxHeight - chromeHeight }]}
           contentContainerStyle={styles.content}

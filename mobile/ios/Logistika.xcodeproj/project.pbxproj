@@ -11,6 +11,8 @@
 		2F28F2733A465AF4B3B5B0E6 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 68D04C8217ACD955B53688B7 /* PrivacyInfo.xcprivacy */; };
 		39CAE77D455B69CAB1C6B0B3 /* libPods-Logistika.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 48ACD1EB4EDCE37EEE5B278F /* libPods-Logistika.a */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
+		7C41F0A12B3C4D5E6F700002 /* IosLocationAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C41F0A12B3C4D5E6F700001 /* IosLocationAuth.swift */; };
+		7C41F0A12B3C4D5E6F700004 /* IosLocationAuth.m in Sources */ = {isa = PBXBuildFile; fileRef = 7C41F0A12B3C4D5E6F700003 /* IosLocationAuth.m */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 /* End PBXBuildFile section */
 
@@ -22,6 +24,8 @@
 		48ACD1EB4EDCE37EEE5B278F /* libPods-Logistika.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Logistika.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		68D04C8217ACD955B53688B7 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Logistika/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Logistika/AppDelegate.swift; sourceTree = "<group>"; };
+		7C41F0A12B3C4D5E6F700001 /* IosLocationAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = IosLocationAuth.swift; path = Logistika/IosLocationAuth.swift; sourceTree = "<group>"; };
+		7C41F0A12B3C4D5E6F700003 /* IosLocationAuth.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = IosLocationAuth.m; path = Logistika/IosLocationAuth.m; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = Logistika/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		AF6A5C00E7AD593DC96393CA /* Pods-Logistika.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Logistika.debug.xcconfig"; path = "Target Support Files/Pods-Logistika/Pods-Logistika.debug.xcconfig"; sourceTree = "<group>"; };
 		C889B3B75926483417E9A24D /* Pods-Logistika.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Logistika.release.xcconfig"; path = "Target Support Files/Pods-Logistika/Pods-Logistika.release.xcconfig"; sourceTree = "<group>"; };
@@ -45,6 +49,8 @@
 			children = (
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
+				7C41F0A12B3C4D5E6F700001 /* IosLocationAuth.swift */,
+				7C41F0A12B3C4D5E6F700003 /* IosLocationAuth.m */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
@@ -269,6 +275,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
+				7C41F0A12B3C4D5E6F700002 /* IosLocationAuth.swift in Sources */,
+				7C41F0A12B3C4D5E6F700004 /* IosLocationAuth.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

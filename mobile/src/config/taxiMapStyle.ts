@@ -62,20 +62,10 @@ function roadWidth(base: number) {
   return ['interpolate', ['exponential', 1.3], ['zoom'], 8, base * 0.25, 12, base * 0.55, 15, base, 18, base * 1.7];
 }
 
-export function buildTaxiMapStyle(isDark: boolean) {
+export function buildTaxiMapStyle(isDark: boolean, options?: { buildings3d?: boolean }) {
   const p = isDark ? DARK : LIGHT;
-  return {
-    version: 8,
-    name: isDark ? 'LogistikaTaxiDark' : 'LogistikaTaxiLight',
-    sources: {
-      openmaptiles: {
-        type: 'vector',
-        url: TILE_SOURCE,
-      },
-    },
-    sprite: SPRITE,
-    glyphs: GLYPHS,
-    layers: [
+  const buildings3d = options?.buildings3d ?? true;
+  const layers = [
       {
         id: 'background',
         type: 'background',
@@ -261,6 +251,18 @@ export function buildTaxiMapStyle(isDark: boolean) {
           'text-halo-width': 1.4,
         },
       },
-    ],
-  };
+    ];
+    return {
+      version: 8,
+      name: isDark ? 'LogistikaTaxiDark' : 'LogistikaTaxiLight',
+      sources: {
+        openmaptiles: {
+          type: 'vector',
+          url: TILE_SOURCE,
+        },
+      },
+      sprite: SPRITE,
+      glyphs: GLYPHS,
+      layers: buildings3d ? layers : layers.filter((layer) => layer.id !== 'building-3d'),
+    };
 }

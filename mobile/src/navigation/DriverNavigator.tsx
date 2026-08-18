@@ -2,6 +2,7 @@ import React from 'react';
 import {createStackNavigator} from '@react-navigation/stack';
 import {useTranslation} from '../hooks/useTranslation';
 import {useDriverActiveOrderTracking} from '../hooks/useDriverActiveOrderTracking';
+import { stackScreenOptions } from '../utils/navigationHelpers';
 import DriverDashboardScreen from '../screens/driver/DriverDashboardScreen';
 import AvailableAdvertisementsScreen from '../screens/driver/AvailableAdvertisementsScreen';
 import AdvertisementDetailScreen from '../screens/driver/AdvertisementDetailScreen';
@@ -24,7 +25,7 @@ const DriverNavigator = () => {
   const {t} = useTranslation();
   useDriverActiveOrderTracking();
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={({ navigation }) => stackScreenOptions(navigation)}>
       <Stack.Screen
         name="Dashboard"
         component={DriverDashboardScreen}

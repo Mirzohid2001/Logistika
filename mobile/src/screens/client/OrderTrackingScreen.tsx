@@ -42,6 +42,7 @@ import {
   resolveDisplayHeading,
   splitRouteByProgress,
 } from '../../utils/mapTracking';
+import { downsamplePolyline } from '../../utils/liveTrackingPerf';
 import { useSmoothDriverLocation } from '../../hooks/useSmoothDriverLocation';
 import { useSmoothNavCamera } from '../../hooks/useSmoothNavCamera';
 import { NAV_CAMERA_PADDING } from '../../config/mapCamera';
@@ -268,11 +269,13 @@ const ClientOrderTrackingScreen = () => {
     plannedRouteCoordinates.length > 1 ? plannedRouteCoordinates : stopRouteCoordinates;
   const activeRouteStop = getActiveRouteStop(routeStops);
 
-  const trackCoordinates = filterTrackCoordinates(
+  const trackCoordinates = downsamplePolyline(
+    filterTrackCoordinates(
     [...tracks]
       .reverse()
       .map((track) => parseTrack(track))
       .filter((p): p is LatLng => p != null)
+    ),
   );
 
   const departurePoint = mapRouteCoordinates[0] ?? null;
@@ -338,6 +341,11 @@ const ClientOrderTrackingScreen = () => {
           padding={followNavigation ? NAV_CAMERA_PADDING : undefined}
           cameraAnimationMs={0}
           cameraFollowRegion={followNavigation}
+          onTouchStart={() => {
+            if (followNavigation) {
+              setFollowDriver(false);
+            }
+          }}
           onUserGesture={() => setFollowDriver(false)}>
           {traveledRoute.length > 1 ? (
             <LogistikaPolyline id="traveled-route" coordinates={traveledRoute} kind="traveled" />
@@ -404,7 +412,7 @@ const ClientOrderTrackingScreen = () => {
           <View style={[styles.liveBadge, { backgroundColor: presenceTint + 'E6' }]}>
             <View style={styles.liveDot} />
             <Text style={styles.liveBadgeText}>
-              {t('tracking.liveTracking')}
+              {t('tracking.driverLiveLocation')}
               {presenceAge != null ? ` · ${presenceAge}s` : ''}
             </Text>
           </View>
@@ -448,7 +456,7 @@ const ClientOrderTrackingScreen = () => {
             }
             statusLabel={presenceLabel}
             statusColor={presenceTint}
-            meta={t('tracking.updatedEvery5s')}
+            meta={t('tracking.driverLocationUpdatedEvery5s')}
           />
 
           {routeStops.length > 0 ? (

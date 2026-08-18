@@ -1,4 +1,4 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { StyleProp, ViewStyle } from 'react-native';
 import {
   MapView,
@@ -8,6 +8,10 @@ import {
   type RegionPayload,
 } from '@maplibre/maplibre-react-native';
 import { getVectorMapStyle } from '../../config/mapStyle';
+import {
+  LIVE_MAP_FPS,
+  LIVE_REGION_DEBOUNCE_MS,
+} from '../../utils/liveTrackingPerf';
 import {
   deltaToZoom,
   regionFromCenter,
@@ -54,6 +58,8 @@ export interface LogistikaMapProps {
   onRegionIsChanging?: (region: MapRegion) => void;
   /** Fires only for real finger/gesture moves, not programmatic follow. */
   onUserGesture?: () => void;
+  /** Fires as soon as the user touches the map surface. */
+  onTouchStart?: () => void;
   children?: React.ReactNode;
 }
 
@@ -118,6 +124,7 @@ export const LogistikaMap = forwardRef<LogistikaMapRef, LogistikaMapProps>(
       onRegionChangeComplete,
       onRegionIsChanging,
       onUserGesture,
+      onTouchStart,
       children,
     },
     ref,
@@ -129,7 +136,14 @@ export const LogistikaMap = forwardRef<LogistikaMapRef, LogistikaMapProps>(
     const skipCameraSyncRef = useRef(false);
     const zoomRef = useRef(zoomLevel ?? deltaToZoom(latitudeDelta));
     const followRef = useRef(cameraFollowRegion);
+    const [manualCameraActive, setManualCameraActive] = useState(false);
     followRef.current = cameraFollowRegion;
+
+    useEffect(() => {
+      if (cameraFollowRegion) {
+        setManualCameraActive(false);
+      }
+    }, [cameraFollowRegion]);
 
     useImperativeHandle(ref, () => ({
       getCenter: async () => {
@@ -191,9 +205,10 @@ export const LogistikaMap = forwardRef<LogistikaMapRef, LogistikaMapProps>(
     }
 
     const applied = appliedRef.current;
+    const shouldControlCamera = cameraFollowRegion || !manualCameraActive;
 
     useEffect(() => {
-      if (!cameraFollowRegion || skipCameraSyncRef.current) {
+      if (!shouldControlCamera || skipCameraSyncRef.current) {
         skipCameraSyncRef.current = false;
         return;
       }
@@ -220,7 +235,7 @@ export const LogistikaMap = forwardRef<LogistikaMapRef, LogistikaMapProps>(
       padding?.paddingLeft,
       padding?.paddingRight,
       cameraAnimationMs,
-      cameraFollowRegion,
+      shouldControlCamera,
     ]);
 
     const emitRegion = (
@@ -258,23 +273,32 @@ export const LogistikaMap = forwardRef<LogistikaMapRef, LogistikaMapProps>(
         ref={mapViewRef}
         style={style}
         mapStyle={mapStyle}
+        preferredFramesPerSecond={LIVE_MAP_FPS}
+        regionDidChangeDebounceTime={LIVE_REGION_DEBOUNCE_MS}
+        onTouchStart={() => {
+          setManualCameraActive(true);
+          onTouchStart?.();
+        }}
         scrollEnabled={scrollEnabled}
         zoomEnabled={zoomEnabled}
         rotateEnabled={rotateEnabled}
         pitchEnabled={pitchEnabled}
         attributionEnabled={attributionEnabled}
-        regionDidChangeDebounceTime={80}
         onRegionDidChange={(feature) => handleRegionEvent(feature, onRegionChangeComplete)}
         onRegionIsChanging={(feature) => handleRegionEvent(feature, onRegionIsChanging)}>
-        <Camera
-          ref={cameraRef}
-          centerCoordinate={[applied.longitude, applied.latitude]}
-          zoomLevel={applied.zoom}
-          heading={applied.heading}
-          pitch={applied.pitch}
-          padding={applied.padding}
-          animationDuration={0}
-        />
+        {shouldControlCamera ? (
+          <Camera
+            ref={cameraRef}
+            centerCoordinate={[applied.longitude, applied.latitude]}
+            zoomLevel={applied.zoom}
+            heading={applied.heading}
+            pitch={applied.pitch}
+            padding={applied.padding}
+            animationDuration={0}
+          />
+        ) : (
+          <Camera ref={cameraRef} animationDuration={0} />
+        )}
         {children}
       </MapView>
     );

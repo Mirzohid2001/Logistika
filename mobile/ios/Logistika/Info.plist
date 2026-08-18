@@ -52,6 +52,8 @@
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Joylashuvni yuborish uchun ruxsat kerak</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Faol buyurtmada joylashuvni fon rejimida ham yuborish uchun ruxsat kerak</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Faol buyurtmada joylashuvni fon rejimida ham yuborish uchun ruxsat kerak</string>
 	<key>UIBackgroundModes</key>

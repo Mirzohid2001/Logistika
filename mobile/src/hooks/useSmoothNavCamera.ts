@@ -8,7 +8,7 @@ import {
   navZoomFromSpeed,
 } from '../utils/navCamera';
 
-const TICK_MS = 33;
+import { LIVE_CAMERA_TICK_MS, isCameraNearlyEqual } from '../utils/liveTrackingPerf';
 const POS_FACTOR = 0.22;
 const HEADING_FACTOR = 0.16;
 const ZOOM_FACTOR = 0.12;
@@ -67,8 +67,10 @@ export function useSmoothNavCamera(
         zoom: lerpNumber(prev.zoom, nextZoom, ZOOM_FACTOR),
       };
       cameraRef.current = next;
-      setCamera(next);
-    }, TICK_MS);
+      if (!isCameraNearlyEqual(prev, next)) {
+        setCamera(next);
+      }
+    }, LIVE_CAMERA_TICK_MS);
 
     return () => clearInterval(interval);
   }, [enabled, Boolean(coordinate)]);

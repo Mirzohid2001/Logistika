@@ -17,6 +17,7 @@ import UpdaterExportScreen from '../screens/updater/UpdaterExportScreen';
 import StaffComplaintsScreen from '../screens/staff/StaffComplaintsScreen';
 import StaffComplaintDetailScreen from '../screens/staff/StaffComplaintDetailScreen';
 import DispatcherDriverDocumentsScreen from '../screens/dispatcher/DispatcherDriverDocumentsScreen';
+import { stackScreenOptions } from '../utils/navigationHelpers';
 
 const Stack = createStackNavigator();
 
@@ -24,7 +25,7 @@ const UpdaterNavigator = () => {
   const { t } = useTranslation();
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={({ navigation }) => stackScreenOptions(navigation)}>
       <Stack.Screen
         name="UpdaterDashboard"
         component={UpdaterDashboardScreen}

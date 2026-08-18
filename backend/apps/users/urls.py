@@ -16,8 +16,6 @@ from .company_views import CompanyMembersView, CompanyBootstrapView, CompanyProf
 from .payout_views import DriverPayoutRequestListCreateView
 from .analytics_views import AdvancedAnalyticsView
 
-app_name = 'users'
-
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
     path('login/', LoginView.as_view(), name='login'),

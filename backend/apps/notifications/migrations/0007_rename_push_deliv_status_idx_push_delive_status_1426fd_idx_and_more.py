@@ -2,6 +2,8 @@
 
 from django.db import migrations
 
+from apps.common.migration_ops import rename_index_operation
+
 
 class Migration(migrations.Migration):
 
@@ -10,14 +12,14 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RenameIndex(
-            model_name='pushdeliveryqueue',
-            new_name='push_delive_status_1426fd_idx',
-            old_name='push_deliv_status_idx',
+        rename_index_operation(
+            'pushdeliveryqueue',
+            'push_deliv_status_idx',
+            'push_delive_status_1426fd_idx',
         ),
-        migrations.RenameIndex(
-            model_name='pushdeliveryqueue',
-            new_name='push_delive_user_id_792ed0_idx',
-            old_name='push_deliv_user_status_idx',
+        rename_index_operation(
+            'pushdeliveryqueue',
+            'push_deliv_user_status_idx',
+            'push_delive_user_id_792ed0_idx',
         ),
     ]

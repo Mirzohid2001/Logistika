@@ -2,6 +2,8 @@
 
 from django.db import migrations
 
+from apps.common.migration_ops import rename_index_operation
+
 
 class Migration(migrations.Migration):
 
@@ -10,24 +12,24 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RenameIndex(
-            model_name='ordercustodyevent',
-            new_name='order_custo_order_i_940b0c_idx',
-            old_name='order_custo_order_i_6f0a2a_idx',
+        rename_index_operation(
+            'ordercustodyevent',
+            'order_custo_order_i_6f0a2a_idx',
+            'order_custo_order_i_940b0c_idx',
         ),
-        migrations.RenameIndex(
-            model_name='ordercustodyevent',
-            new_name='order_custo_event_t_44895c_idx',
-            old_name='order_custo_event_t_0f2f0d_idx',
+        rename_index_operation(
+            'ordercustodyevent',
+            'order_custo_event_t_0f2f0d_idx',
+            'order_custo_event_t_44895c_idx',
         ),
-        migrations.RenameIndex(
-            model_name='ordersosalert',
-            new_name='order_sos_a_status_502a07_idx',
-            old_name='order_sos_a_status_2f0f0d_idx',
+        rename_index_operation(
+            'ordersosalert',
+            'order_sos_a_status_2f0f0d_idx',
+            'order_sos_a_status_502a07_idx',
         ),
-        migrations.RenameIndex(
-            model_name='ordersosalert',
-            new_name='order_sos_a_order_i_b8b66d_idx',
-            old_name='order_sos_a_order_i_0f0f0d_idx',
+        rename_index_operation(
+            'ordersosalert',
+            'order_sos_a_order_i_0f0f0d_idx',
+            'order_sos_a_order_i_b8b66d_idx',
         ),
     ]

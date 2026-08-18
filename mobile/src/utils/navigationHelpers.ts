@@ -68,3 +68,29 @@ export function navigateRoleStack(
     },
   });
 }
+
+/** iOS back-swipe on a root/deep-linked screen otherwise logs GO_BACK unhandled. */
+export function stackScreenOptions(navigation: { canGoBack?: () => boolean }) {
+  return {
+    headerShown: false as const,
+    gestureEnabled: navigation.canGoBack?.() ?? false,
+  };
+}
+
+export function safeGoBack(navigation: NavigationLike): boolean {
+  if (navigation.canGoBack?.()) {
+    navigation.goBack();
+    return true;
+  }
+  const root = getRootNavigation(navigation);
+  const routeNames = (root.getState?.()?.routes || []).map((route) => route.name);
+  if (routeNames.includes('Main')) {
+    navigateRoot(navigation, 'Main');
+    return true;
+  }
+  if (routeNames.includes('Auth')) {
+    navigateRoot(navigation, 'Auth');
+    return true;
+  }
+  return false;
+}

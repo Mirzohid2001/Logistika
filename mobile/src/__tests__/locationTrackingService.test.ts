@@ -1,12 +1,38 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Geolocation from 'react-native-geolocation-service';
+import { Platform } from 'react-native';
 import {
   enqueueLocationUpdate,
   flushLocationQueue,
   isAcceptableGpsAccuracy,
   postLocationUpdate,
   readLocationQueue,
+  buildActiveLocationWatchOptions,
+  resolveLocationAccess,
+  ensureBackgroundLocationPermission,
+  resetLocationAccessState,
 } from '../services/locationTrackingService';
 import { ordersService } from '../services/ordersService';
+import {
+  getIosLocationAuthStatus,
+  requestIosAlwaysAuthorization,
+} from '../services/iosLocationAuth';
+
+jest.mock('../services/ordersService', () => ({
+  ordersService: {
+    updateLocation: jest.fn(),
+  },
+}));
+
+jest.mock('../services/iosLocationAuth', () => ({
+  getIosLocationAuthStatus: jest.fn().mockResolvedValue('whenInUse'),
+  requestIosAlwaysAuthorization: jest.fn().mockResolvedValue('whenInUse'),
+  isIosAlwaysGranted: (status: string) => status === 'always',
+  subscribeIosLocationAuth: jest.fn(() => () => undefined),
+}));
+
+const mockedIosStatus = getIosLocationAuthStatus as jest.Mock;
+const mockedIosAlways = requestIosAlwaysAuthorization as jest.Mock;
 
 jest.mock('../services/ordersService', () => ({
   ordersService: {
@@ -19,6 +45,7 @@ const mockedUpdateLocation = ordersService.updateLocation as jest.Mock;
 describe('locationTrackingService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
+    resetLocationAccessState();
     await AsyncStorage.clear();
   });
 
@@ -137,5 +164,43 @@ describe('locationTrackingService', () => {
     await expect(postLocationUpdate(2, 41.3, 69.2, 'foreground')).rejects.toBeTruthy();
     const queue = await readLocationQueue();
     expect(queue).toHaveLength(0);
+  });
+
+  it('enables iOS background GPS watch flags', () => {
+    const options = buildActiveLocationWatchOptions();
+    expect(options.showsBackgroundLocationIndicator).toBe(true);
+    expect(options.pauseUpdatesAutomatically).toBe(false);
+    expect(options.useSignificantChanges).toBe(false);
+    expect(options.accuracy?.ios).toBe('bestForNavigation');
+  });
+
+  it('allows iOS foreground tracking when Always is denied', async () => {
+    const previous = Platform.OS;
+    Platform.OS = 'ios';
+    resetLocationAccessState();
+    (Geolocation.requestAuthorization as jest.Mock).mockResolvedValue('granted');
+    mockedIosStatus.mockResolvedValue('whenInUse');
+    mockedIosAlways.mockResolvedValue('whenInUse');
+
+    const access = await resolveLocationAccess((key) => key);
+    expect(access.foreground).toBe(true);
+    expect(access.background).toBe(false);
+    expect(mockedIosAlways).toHaveBeenCalled();
+    expect(await ensureBackgroundLocationPermission((key) => key)).toBe(true);
+    Platform.OS = previous;
+  });
+
+  it('marks iOS background granted only for Always, not When-In-Use', async () => {
+    const previous = Platform.OS;
+    Platform.OS = 'ios';
+    resetLocationAccessState();
+    (Geolocation.requestAuthorization as jest.Mock).mockResolvedValue('granted');
+    mockedIosStatus.mockResolvedValue('whenInUse');
+    mockedIosAlways.mockResolvedValue('always');
+
+    const access = await resolveLocationAccess((key) => key);
+    expect(access.foreground).toBe(true);
+    expect(access.background).toBe(true);
+    Platform.OS = previous;
   });
 });

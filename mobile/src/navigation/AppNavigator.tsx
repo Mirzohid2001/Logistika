@@ -4,7 +4,7 @@ import {createStackNavigator} from '@react-navigation/stack';
 import {useAuth} from '../context/AuthContext';
 import SubscriptionPaywallScreen from '../screens/SubscriptionPaywallScreen';
 import { pushNotificationService } from '../services/pushNotificationService';
-import { getActiveRouteName } from '../utils/navigationHelpers';
+import { getActiveRouteName, stackScreenOptions } from '../utils/navigationHelpers';
 import AuthNavigator from './AuthNavigator';
 import MainNavigator from './MainNavigator';
 import LoadingScreen from '../screens/LoadingScreen';
@@ -141,7 +141,7 @@ const AppNavigator = () => {
   return (
     <NavigationContainer ref={navigationRef} theme={navigationTheme} linking={appLinkingConfig}>
       <Stack.Navigator
-        screenOptions={{headerShown: false}}
+        screenOptions={({ navigation }) => stackScreenOptions(navigation)}
         initialRouteName={isAuthenticated ? 'Main' : 'Auth'}>
         {isAuthenticated ? (
           <>

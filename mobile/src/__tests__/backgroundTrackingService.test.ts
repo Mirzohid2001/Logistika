@@ -49,6 +49,13 @@ describe('backgroundTrackingService', () => {
     );
   });
 
+  it('does not use a local notification to keep iOS GPS alive', async () => {
+    Platform.OS = 'ios';
+    const started = await startBackgroundTrackingSession(14, t);
+    expect(started).toBe(true);
+    expect(mockDisplayNotification).not.toHaveBeenCalled();
+  });
+
   it('stops foreground service and cancels notification', async () => {
     await stopBackgroundTrackingSession();
 

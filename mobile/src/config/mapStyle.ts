@@ -1,4 +1,5 @@
 import { buildTaxiMapStyle } from './taxiMapStyle';
+import { shouldRender3dBuildings } from '../utils/liveTrackingPerf';
 
 /**
  * Live maps use a custom taxi vector style on OpenFreeMap tiles
@@ -10,7 +11,7 @@ export const VECTOR_MAP_STYLE_LIGHT = 'https://tiles.openfreemap.org/styles/libe
 export const VECTOR_MAP_STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark';
 
 export function getVectorMapStyle(isDark: boolean) {
-  return buildTaxiMapStyle(isDark);
+  return buildTaxiMapStyle(isDark, { buildings3d: shouldRender3dBuildings() });
 }
 
 export const MAP_TILE_URLS = ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'];

@@ -18,27 +18,30 @@ let EventType: any = null;
 let firebaseApp: any = null;
 
 const ALERT_CHANNEL_ID = 'tracking-alerts';
+const SKIP_OPTIONAL_PUSH_BOOTSTRAP = Platform.OS === 'ios' && __DEV__;
 
-try {
-  // Initialize Firebase App first
-  firebaseApp = require('@react-native-firebase/app').default;
-  
-  // Check if Firebase is already initialized
+if (!SKIP_OPTIONAL_PUSH_BOOTSTRAP) {
   try {
-    firebaseApp.app();
-  } catch (error) {
-    if (__DEV__) {
-      console.log('[Push] Firebase native config kutilmoqda (GoogleService-Info.plist / google-services.json)');
+    // Initialize Firebase App first
+    firebaseApp = require('@react-native-firebase/app').default;
+
+    // Check if Firebase is already initialized
+    try {
+      firebaseApp.app();
+    } catch (error) {
+      if (__DEV__) {
+        console.log('[Push] Firebase native config kutilmoqda (GoogleService-Info.plist / google-services.json)');
+      }
     }
+
+    messaging = require('@react-native-firebase/messaging').default;
+    const notifeeModule = require('@notifee/react-native');
+    notifee = notifeeModule.default;
+    AndroidImportance = notifeeModule.AndroidImportance;
+    EventType = notifeeModule.EventType;
+  } catch (error) {
+    console.warn('Firebase or Notifee packages not installed. Push notifications will be limited.');
   }
-  
-  messaging = require('@react-native-firebase/messaging').default;
-  const notifeeModule = require('@notifee/react-native');
-  notifee = notifeeModule.default;
-  AndroidImportance = notifeeModule.AndroidImportance;
-  EventType = notifeeModule.EventType;
-} catch (error) {
-  console.warn('Firebase or Notifee packages not installed. Push notifications will be limited.');
 }
 
 class PushNotificationService {
@@ -81,7 +84,9 @@ class PushNotificationService {
 
   async requestPermission(): Promise<boolean> {
     if (!this.isFirebaseAvailable) {
-      console.warn('Firebase messaging not available');
+      if (!SKIP_OPTIONAL_PUSH_BOOTSTRAP) {
+        console.warn('Firebase messaging not available');
+      }
       return false;
     }
     if (!this.isFirebaseConfigured) {
@@ -113,7 +118,9 @@ class PushNotificationService {
 
   async getFCMToken(): Promise<string | null> {
     if (!this.isFirebaseAvailable) {
-      console.warn('Firebase messaging not available');
+      if (!SKIP_OPTIONAL_PUSH_BOOTSTRAP) {
+        console.warn('Firebase messaging not available');
+      }
       return null;
     }
     if (!this.isFirebaseConfigured) {
@@ -139,7 +146,9 @@ class PushNotificationService {
 
   async updateFCMToken(user?: User | null): Promise<void> {
     if (!this.isFirebaseAvailable) {
-      console.warn('Firebase messaging not available, skipping FCM token update');
+      if (!SKIP_OPTIONAL_PUSH_BOOTSTRAP) {
+        console.warn('Firebase messaging not available, skipping FCM token update');
+      }
       return;
     }
 
@@ -168,7 +177,9 @@ class PushNotificationService {
 
   async setupNotificationHandlers() {
     if (!this.isFirebaseAvailable) {
-      console.warn('Firebase messaging not available, skipping notification handlers');
+      if (!SKIP_OPTIONAL_PUSH_BOOTSTRAP) {
+        console.warn('Firebase messaging not available, skipping notification handlers');
+      }
       return;
     }
 
@@ -242,7 +253,9 @@ class PushNotificationService {
     notificationType?: string,
   ): Promise<void> {
     if (!this.isFirebaseAvailable || !notifee) {
-      console.warn('Notifee not available, cannot display notification');
+      if (!SKIP_OPTIONAL_PUSH_BOOTSTRAP) {
+        console.warn('Notifee not available, cannot display notification');
+      }
       return;
     }
 
@@ -326,7 +339,9 @@ class PushNotificationService {
 
   async initialize(): Promise<void> {
     if (!this.isFirebaseAvailable) {
-      console.warn('Firebase messaging not available. Please install: npm install @react-native-firebase/app @react-native-firebase/messaging @notifee/react-native');
+      if (!SKIP_OPTIONAL_PUSH_BOOTSTRAP) {
+        console.warn('Firebase messaging not available. Please install: npm install @react-native-firebase/app @react-native-firebase/messaging @notifee/react-native');
+      }
       return;
     }
     if (!this.isFirebaseConfigured) {

@@ -2,6 +2,8 @@
 
 from django.db import migrations
 
+from apps.common.migration_ops import rename_index_operation
+
 
 class Migration(migrations.Migration):
 
@@ -10,19 +12,19 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RenameIndex(
-            model_name='dispatcherexceptionaction',
-            new_name='dispatcher__dispatc_9bfa4b_idx',
-            old_name='dispatcher_e_dispatc_4f7ec6_idx',
+        rename_index_operation(
+            'dispatcherexceptionaction',
+            'dispatcher_e_dispatc_4f7ec6_idx',
+            'dispatcher__dispatc_9bfa4b_idx',
         ),
-        migrations.RenameIndex(
-            model_name='dispatcherexceptionaction',
-            new_name='dispatcher__snoozed_1a4349_idx',
-            old_name='dispatcher_e_snoozed_0e5122_idx',
+        rename_index_operation(
+            'dispatcherexceptionaction',
+            'dispatcher_e_snoozed_0e5122_idx',
+            'dispatcher__snoozed_1a4349_idx',
         ),
-        migrations.RenameIndex(
-            model_name='dispatcherexceptionaction',
-            new_name='dispatcher__acknowl_ac2673_idx',
-            old_name='dispatcher_e_acknowl_35a06e_idx',
+        rename_index_operation(
+            'dispatcherexceptionaction',
+            'dispatcher_e_acknowl_35a06e_idx',
+            'dispatcher__acknowl_ac2673_idx',
         ),
     ]

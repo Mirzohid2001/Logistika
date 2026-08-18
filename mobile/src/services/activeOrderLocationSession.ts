@@ -4,10 +4,12 @@ import {
   ensureBackgroundLocationPermission,
   postLocationUpdate,
   isLocationUpdateRejected,
-  LOCATION_POST_INTERVAL_MS,
+  LOCATION_HEARTBEAT_INTERVAL_MS,
+  LOCATION_BACKGROUND_HEARTBEAT_MS,
   LOCATION_MOVEMENT_THRESHOLD_METERS,
   isAcceptableGpsAccuracy,
   motionFromCoords,
+  buildActiveLocationWatchOptions,
   type LocationMotionExtras,
 } from './locationTrackingService';
 import {
@@ -34,6 +36,7 @@ type SessionState = {
   appStateSub: { remove: () => void } | null;
   lastFix: ActiveLocationFix | null;
   lastPosted: ActiveLocationFix | null;
+  lastPostedAtMs: number;
   lastMotion: LocationMotionExtras;
   appState: AppStateStatus;
 };
@@ -55,6 +58,19 @@ function appStatePayload(state: AppStateStatus): 'foreground' | 'background' | '
 
 function emit(fix: ActiveLocationFix) {
   listeners.forEach((listener) => listener(fix));
+}
+
+function heartbeatIntervalMs(state: AppStateStatus): number {
+  return state === 'active' ? LOCATION_HEARTBEAT_INTERVAL_MS : LOCATION_BACKGROUND_HEARTBEAT_MS;
+}
+
+function markPosted(nextSession: SessionState, fix: ActiveLocationFix) {
+  nextSession.lastPosted = fix;
+  nextSession.lastPostedAtMs = Date.now();
+}
+
+function shouldKeepalivePost(nextSession: SessionState): boolean {
+  return Date.now() - nextSession.lastPostedAtMs >= heartbeatIntervalMs(nextSession.appState);
 }
 
 function postFix(orderId: number, lat: number, lng: number, motion: LocationMotionExtras, state: AppStateStatus) {
@@ -123,6 +139,7 @@ export async function startActiveOrderLocationSession(
     appStateSub: null,
     lastFix: session?.orderId === orderId ? session.lastFix : null,
     lastPosted: null,
+    lastPostedAtMs: 0,
     lastMotion: {},
     appState: AppState.currentState,
   };
@@ -145,8 +162,8 @@ export async function startActiveOrderLocationSession(
         updatedAtMs: Date.now(),
       };
       session.lastFix = fix;
-      session.lastPosted = fix;
       session.lastMotion = motion;
+      markPosted(session, fix);
       emit(fix);
       postFix(orderId, fix.lat, fix.lng, session.lastMotion, session.appState);
     },
@@ -180,26 +197,23 @@ export async function startActiveOrderLocationSession(
           { latitude: lastPosted.lat, longitude: lastPosted.lng },
           { latitude: fix.lat, longitude: fix.lng },
         ) >= LOCATION_MOVEMENT_THRESHOLD_METERS;
-      if (movedEnough) {
-        session.lastPosted = fix;
+      if (movedEnough || shouldKeepalivePost(session)) {
+        markPosted(session, fix);
         postFix(orderId, fix.lat, fix.lng, session.lastMotion, session.appState);
       }
     },
     () => undefined,
-    {
-      enableHighAccuracy: true,
-      distanceFilter: 2,
-      interval: LOCATION_POST_INTERVAL_MS,
-      fastestInterval: Math.max(500, Math.floor(LOCATION_POST_INTERVAL_MS / 2)),
-      showsBackgroundLocationIndicator: true,
-      forceRequestLocation: true,
-    },
+    buildActiveLocationWatchOptions(),
   );
 
   next.heartbeat = setInterval(() => {
     if (!session || session.orderId !== orderId || !session.lastFix) {
       return;
     }
+    if (!shouldKeepalivePost(session)) {
+      return;
+    }
+    markPosted(session, session.lastFix);
     postFix(
       orderId,
       session.lastFix.lat,
@@ -207,7 +221,7 @@ export async function startActiveOrderLocationSession(
       session.lastMotion,
       session.appState,
     );
-  }, LOCATION_POST_INTERVAL_MS);
+  }, LOCATION_HEARTBEAT_INTERVAL_MS);
 
   next.appStateSub = AppState.addEventListener('change', (nextState) => {
     if (!session || session.orderId !== orderId) {
@@ -217,6 +231,7 @@ export async function startActiveOrderLocationSession(
     if (!session.lastFix) {
       return;
     }
+    markPosted(session, session.lastFix);
     postFix(
       orderId,
       session.lastFix.lat,

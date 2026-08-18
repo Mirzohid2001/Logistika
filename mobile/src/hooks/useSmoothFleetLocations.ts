@@ -6,7 +6,7 @@ import {
   type DriverMotionTarget,
 } from '../utils/mapTracking';
 
-const TICK_MS = 50;
+import { LIVE_FLEET_TICK_MS, shouldSkipMarkerUpdate } from '../utils/liveTrackingPerf';
 
 export type FleetMotionTarget = DriverMotionTarget & {
   driverId: number;
@@ -102,11 +102,7 @@ export function useSmoothFleetLocations(
           return;
         }
         const prev = nextDisplay[id];
-        if (
-          !prev ||
-          Math.abs(prev.latitude - stepped.latitude) > 1e-7 ||
-          Math.abs(prev.longitude - stepped.longitude) > 1e-7
-        ) {
+        if (!shouldSkipMarkerUpdate(prev ?? null, stepped)) {
           nextDisplay[id] = stepped;
           changed = true;
         }
@@ -115,7 +111,7 @@ export function useSmoothFleetLocations(
         displayRef.current = nextDisplay;
         setDisplayById(nextDisplay);
       }
-    }, TICK_MS);
+    }, LIVE_FLEET_TICK_MS);
     return () => clearInterval(interval);
   }, [enabled]);
 
