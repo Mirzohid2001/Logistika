@@ -8,9 +8,8 @@ from django.db.models import Q
 from apps.users.permissions import IsDriver, IsClient, IsDispatcherOrUpdater, can_access_order
 from django.utils import timezone
 from datetime import datetime, timedelta
-from math import radians, cos, sin, asin, sqrt, degrees
-from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
+from math import radians, cos, sin, asin, sqrt, degrees, atan2
+import logging
 from .models import (
     Order,
     OrderStatus,
@@ -34,10 +33,22 @@ from apps.common.pagination import StandardResultsSetPagination
 from apps.common.cache_utils import build_user_cache_key, bump_cache_version, get_cache_version
 from apps.notifications.services import create_notification
 from apps.users.models import User
+from .services import order_accepts_location_updates, TERMINAL_ORDER_STATUS_CODES
+from .realtime import (
+    broadcast_order_status_changed,
+    broadcast_order_payment_updated,
+    broadcast_order_client_payment_confirmed,
+)
+
+logger = logging.getLogger(__name__)
 
 ORDER_LIST_CACHE_SCOPE = 'orders_list'
 ORDER_LIST_CACHE_TTL = 60
 ROUTE_DEVIATION_ALERT_COOLDOWN_MINUTES = 5
+STOP_ALERT_COOLDOWN_MINUTES = 10
+ARRIVAL_SOON_ETA_MINUTES = 15
+TRACK_WRITE_MIN_DISTANCE_METERS = 8
+TRACK_WRITE_MAX_INTERVAL_SECONDS = 15
 
 
 def _haversine_meters(lat1, lng1, lat2, lng2):
@@ -47,6 +58,46 @@ def _haversine_meters(lat1, lng1, lat2, lng2):
     a = sin(d_lat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(d_lng / 2) ** 2
     c = 2 * asin(sqrt(a))
     return r * c
+
+
+def _bearing_degrees(lat1, lng1, lat2, lng2):
+    lat1_r, lat2_r = radians(lat1), radians(lat2)
+    d_lng = radians(lng2 - lng1)
+    y = sin(d_lng) * cos(lat2_r)
+    x = cos(lat1_r) * sin(lat2_r) - sin(lat1_r) * cos(lat2_r) * cos(d_lng)
+    return (degrees(atan2(y, x)) + 360.0) % 360.0
+
+
+def _resolve_live_motion(order, lat, lng, speed_mps, heading, now_ts):
+    """Prefer device GPS motion; fall back to last fix delta when missing.
+
+    When nearly stopped, keep the previous heading so the marker does not spin.
+    """
+    resolved_speed = float(speed_mps) if speed_mps is not None else None
+    resolved_heading = float(heading) if heading is not None else None
+    if resolved_heading is not None:
+        resolved_heading = resolved_heading % 360.0
+
+    prev_lat = order.current_location_lat
+    prev_lng = order.current_location_lng
+    prev_seen = order.driver_last_seen_at
+    prev_heading = order.current_heading
+    if prev_lat is None or prev_lng is None or prev_seen is None:
+        return resolved_speed, resolved_heading
+
+    dist_m = _haversine_meters(float(prev_lat), float(prev_lng), float(lat), float(lng))
+    dt = max((now_ts - prev_seen).total_seconds(), 0.0)
+    if resolved_heading is None and dist_m >= 2.0:
+        resolved_heading = _bearing_degrees(float(prev_lat), float(prev_lng), float(lat), float(lng))
+    if resolved_speed is None and dt >= 0.4 and dist_m >= 1.0:
+        resolved_speed = min(dist_m / dt, 80.0)
+    if resolved_speed is not None and resolved_speed < 0.3:
+        resolved_speed = 0.0
+    # Freeze heading while stopped / crawling to avoid compass noise flips.
+    if (resolved_speed is not None and resolved_speed < 0.6) or dist_m < 1.5:
+        if prev_heading is not None:
+            resolved_heading = float(prev_heading) % 360.0
+    return resolved_speed, resolved_heading
 
 
 def _point_segment_distance_meters(lat, lng, a_lat, a_lng, b_lat, b_lng):
@@ -114,34 +165,13 @@ def _invalidate_order_list_cache(order: Order):
 
 
 def _estimate_eta_minutes(order: Order):
-    route_points = order.planned_route_points or []
-    if not isinstance(route_points, list) or len(route_points) < 2:
-        return None
-    if order.current_location_lat is None or order.current_location_lng is None:
-        return None
-    destination = route_points[-1]
-    try:
-        distance_m = _haversine_meters(
-            float(order.current_location_lat),
-            float(order.current_location_lng),
-            float(destination['lat']),
-            float(destination['lng']),
-        )
-    except (TypeError, ValueError, KeyError):
-        return None
+    from apps.orders.tracking_metrics import estimate_eta_minutes
 
-    recent_tracks = list(OrderLocationTrack.objects.filter(order=order).order_by('-timestamp')[:2])
-    speed_kmh = 40.0
-    if len(recent_tracks) == 2:
-        newest = recent_tracks[0]
-        prev = recent_tracks[1]
-        delta_sec = max((newest.timestamp - prev.timestamp).total_seconds(), 1)
-        dist_m = _haversine_meters(float(prev.lat), float(prev.lng), float(newest.lat), float(newest.lng))
-        speed_kmh = (dist_m / 1000.0) / (delta_sec / 3600.0)
-        speed_kmh = max(20.0, min(speed_kmh, 80.0))
+    return estimate_eta_minutes(order)
 
-    eta_minutes = int((distance_m / 1000.0) / speed_kmh * 60.0)
-    return max(eta_minutes, 1)
+
+def _build_tracking_summary(order: Order):
+    return OrderSerializer(order).get_tracking_summary(order)
 
 
 class OrderListView(APIView):
@@ -181,13 +211,15 @@ class OrderListView(APIView):
             'advertisement',
             'advertisement__departure_city',
             'advertisement__destination_city',
-        ).order_by('-updated_at', '-id').distinct()
+        ).prefetch_related('documents').order_by('-updated_at', '-id').distinct()
 
         if status_filter:
             if status_filter == 'active':
-                orders = orders.exclude(status__code__in=['completed', 'cancelled', 'rejected'])
+                orders = orders.exclude(status__code__in=TERMINAL_ORDER_STATUS_CODES)
+            elif status_filter == 'history':
+                orders = orders.filter(status__code__in=TERMINAL_ORDER_STATUS_CODES)
             elif status_filter == 'completed':
-                orders = orders.filter(status__code__in=['completed', 'cancelled', 'rejected'])
+                orders = orders.filter(status__code='completed')
             else:
                 orders = orders.filter(status__code=status_filter)
 
@@ -212,7 +244,7 @@ class OrderDetailView(APIView):
                 'advertisement',
                 'advertisement__departure_city',
                 'advertisement__destination_city',
-            ).get(pk=pk)
+            ).prefetch_related('documents').get(pk=pk)
             if not can_access_order(request.user, order):
                 return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
             serializer = OrderSerializer(order, context={'request': request})
@@ -228,37 +260,89 @@ class OrderStartView(APIView):
     def post(self, request, pk):
         try:
             order = Order.objects.get(pk=pk, driver=request.user)
-            if order.status.code not in ['approved_by_client', 'pending']:
-                return Response({'error': 'Order must be approved by client before starting'}, status=status.HTTP_400_BAD_REQUEST)
-            
+            if order.status.code in ['in_progress', 'in_transit']:
+                # Start endpoint should be idempotent for mobile retries/taps.
+                return Response(
+                    OrderSerializer(order, context={'request': request}).data,
+                    status=status.HTTP_200_OK
+                )
+            if order.status.code != 'approved_by_client':
+                return Response(
+                    {'error': f'Order cannot be started from status: {order.status.code}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             in_progress_status = OrderStatus.objects.get(code='in_progress')
+            from apps.orders.route_stops import (
+                hydrate_missing_stop_coordinates,
+                require_geocoded_terminal_stops,
+            )
+
+            hydrate_missing_stop_coordinates(order)
+            try:
+                require_geocoded_terminal_stops(order)
+            except ValueError as exc:
+                return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
             order.status = in_progress_status
             order.started_at = timezone.now()
             order.save()
             _invalidate_order_list_cache(order)
-            
+
+            status_message = (
+                f"Haydovchi {order.driver.first_name} yuklash manziliga yo'lga chiqdi. "
+                f"Buyurtma #{order.id}."
+            )
             try:
-                client_phone = order.client.phone
-                driver_name = f"{order.driver.first_name} {order.driver.last_name}"
-                message = f"Haydovchi {driver_name} yo'lga chiqdi. Buyurtma #{order.id} boshlandi. Kuzatish: https://logistika.uz/orders/{order.id}"
-                send_notification_sms(client_phone, message)
-                
-                # In-app notification
+                send_notification_sms(order.client.phone, status_message)
                 create_notification(
                     user=order.client,
                     notification_type='order_started',
-                    title='Buyurtma boshlandi',
-                    message=f"Haydovchi {driver_name} yo'lga chiqdi. Buyurtma #{order.id} boshlandi.",
-                    order=order
+                    title='Haydovchi yo\'lda',
+                    message=status_message,
+                    order=order,
                 )
             except Exception as e:
-                print(f"Error sending notification: {e}")
-            
+                logger.exception(
+                    'Failed to send order notification',
+                    extra={'event': 'order_notify_failed'},
+                )
+
+            broadcast_order_status_changed(order, message=status_message)
             return Response(OrderSerializer(order, context={'request': request}).data, status=status.HTTP_200_OK)
         except Order.DoesNotExist:
             return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
         except OrderStatus.DoesNotExist:
             return Response({'error': 'Order status not found'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class OrderDepartView(APIView):
+    """Cargo loaded — driver departs to destination (Yandex Taxi-style «Поехали»)."""
+    permission_classes = [IsAuthenticated, IsDriver]
+
+    @extend_schema(responses={200: OrderSerializer})
+    def post(self, request, pk):
+        try:
+            order = Order.objects.get(pk=pk, driver=request.user)
+            if order.status.code == 'in_transit':
+                return Response(
+                    OrderSerializer(order, context={'request': request}).data,
+                    status=status.HTTP_200_OK,
+                )
+            if order.status.code != 'in_progress':
+                return Response(
+                    {'error': f'Order cannot depart from status: {order.status.code}'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            from apps.orders.transitions import prepare_and_depart
+
+            order = prepare_and_depart(order, request.user)
+            return Response(OrderSerializer(order, context={'request': request}).data, status=status.HTTP_200_OK)
+        except Order.DoesNotExist:
+            return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class OrderStopView(APIView):
@@ -267,11 +351,43 @@ class OrderStopView(APIView):
     @extend_schema(responses={200: OrderSerializer})
     def post(self, request, pk):
         try:
-            order = Order.objects.get(pk=pk, driver=request.user)
+            order = Order.objects.select_related('advertisement', 'status').get(pk=pk, driver=request.user)
+            if order.status.code not in ('in_progress', 'in_transit', 'approved_by_client'):
+                return Response(
+                    {'error': 'Buyurtmani to\'xtatish faqat faol holatda mumkin.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             stopped_status = OrderStatus.objects.get(code='stopped')
             order.status = stopped_status
-            order.save()
+            order.save(update_fields=['status', 'updated_at'])
+            from apps.orders.marketplace_recovery import reopen_advertisement_marketplace
+
+            reopen_advertisement_marketplace(order.advertisement)
             _invalidate_order_list_cache(order)
+
+            from apps.subscriptions.trial import restore_trial_for_order
+
+            restore_trial_for_order(order)
+
+            try:
+                client_name = f"{order.client.first_name} {order.client.last_name}".strip() or order.client.phone
+                create_notification(
+                    user=order.client,
+                    notification_type='order_cancelled',
+                    title='Buyurtma to\'xtatildi',
+                    message=f"Haydovchi buyurtma #{order.id}ni to'xtatdi. E'lon qayta ochiq.",
+                    order=order,
+                )
+            except Exception as e:
+                logger.exception(
+                    'Failed to send order notification',
+                    extra={'event': 'order_notify_failed'},
+                )
+
+            broadcast_order_status_changed(
+                order,
+                message=f"Buyurtma #{order.id} haydovchi tomonidan to'xtatildi.",
+            )
             return Response(OrderSerializer(order, context={'request': request}).data, status=status.HTTP_200_OK)
         except Order.DoesNotExist:
             return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -280,12 +396,14 @@ class OrderStopView(APIView):
 
 
 class OrderApproveByClientView(APIView):
-    permission_classes = [IsAuthenticated, IsClient]
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(responses={200: OrderSerializer})
     def post(self, request, pk):
         try:
-            order = Order.objects.get(pk=pk, client=request.user)
+            order = Order.objects.get(pk=pk)
+            if order.client_id != request.user.id:
+                return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
             if order.status.code != 'pending':
                 return Response({'error': 'Only pending orders can be approved'}, status=status.HTTP_400_BAD_REQUEST)
             
@@ -317,11 +435,221 @@ class OrderApproveByClientView(APIView):
                     order=order
                 )
             except Exception as e:
-                print(f"Error sending notification: {e}")
-            
+                logger.exception(
+                    'Failed to send order notification',
+                    extra={'event': 'order_notify_failed'},
+                )
+
+            broadcast_order_status_changed(
+                order,
+                message=f"Mijoz buyurtmani tasdiqladi. Buyurtma #{order.id}.",
+            )
             return Response(OrderSerializer(order, context={'request': request}).data, status=status.HTTP_200_OK)
         except Order.DoesNotExist:
             return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class OrderDeclineByClientView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(responses={200: OrderSerializer})
+    def post(self, request, pk):
+        try:
+            order = Order.objects.select_related('advertisement', 'driver', 'client', 'status').get(pk=pk)
+            if order.client_id != request.user.id:
+                return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+            if order.status.code not in ('pending', 'approved_by_client'):
+                return Response(
+                    {'error': 'Faqat kutilayotgan yoki tasdiqlangan buyurtmani rad etish mumkin.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            from apps.payments.escrow import settle_order_cancellation
+            settle_order_cancellation(order, actor='client')
+
+            cancelled_status = OrderStatus.objects.filter(code='cancelled').first()
+            if not cancelled_status:
+                cancelled_status = OrderStatus.objects.create(
+                    code='cancelled',
+                    name_ru='Отменён',
+                    name_en='Cancelled',
+                    name_uz='Bekor qilingan',
+                )
+
+            order.status = cancelled_status
+            order.save(update_fields=['status', 'updated_at'])
+            from apps.orders.marketplace_recovery import reopen_advertisement_marketplace
+
+            reopen_advertisement_marketplace(order.advertisement)
+            _invalidate_order_list_cache(order)
+
+            from apps.subscriptions.trial import restore_trial_for_order
+            restore_trial_for_order(order)
+
+            try:
+                client_name = f"{order.client.first_name} {order.client.last_name}".strip() or order.client.phone
+                create_notification(
+                    user=order.driver,
+                    notification_type='order_cancelled',
+                    title='Buyurtma bekor qilindi',
+                    message=f"Mijoz {client_name} buyurtma #{order.id}ni rad etdi. E'lon qayta ochiq.",
+                    order=order,
+                )
+            except Exception as e:
+                logger.exception(
+                    'Failed to send order notification',
+                    extra={'event': 'order_notify_failed'},
+                )
+
+            broadcast_order_status_changed(
+                order,
+                message=f"Buyurtma #{order.id} mijoz tomonidan bekor qilindi.",
+            )
+            return Response(OrderSerializer(order, context={'request': request}).data, status=status.HTTP_200_OK)
+        except Order.DoesNotExist:
+            return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class OrderMarkDriverPaymentView(APIView):
+    """Haydovchi mijozdan to'lov olgan-yo'qligini belgilaydi (platforma aralashmaydi)."""
+    permission_classes = [IsAuthenticated, IsDriver]
+
+    @extend_schema(
+        request={'type': 'object', 'properties': {'received': {'type': 'boolean'}}},
+        responses={200: OrderSerializer},
+    )
+    def post(self, request, pk):
+        received = request.data.get('received')
+        if received is None or not isinstance(received, bool):
+            return Response({'error': 'received (boolean) is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            order = Order.objects.get(pk=pk, driver=request.user)
+        except Order.DoesNotExist:
+            return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if order.status.code in ('cancelled', 'rejected', 'pending', 'completed', 'stopped'):
+            return Response(
+                {'error': 'To\'lov holatini faqat faol buyurtmada belgilash mumkin.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        order.client_payment_confirmed = received
+        order.client_payment_confirmed_at = timezone.now()
+        order.save(update_fields=['client_payment_confirmed', 'client_payment_confirmed_at', 'updated_at'])
+        _invalidate_order_list_cache(order)
+        broadcast_order_client_payment_confirmed(order)
+
+        if not received:
+            from apps.orders.payment_notify import notify_client_payment_needed
+
+            notify_client_payment_needed(order, source='driver_unpaid')
+
+        return Response(OrderSerializer(order, context={'request': request}).data, status=status.HTTP_200_OK)
+
+
+class OrderConfirmClientPaymentView(APIView):
+    """Mijoz offline to'lov qilganini bildiradi (platforma aralashmaydi)."""
+    permission_classes = [IsAuthenticated, IsClient]
+
+    @extend_schema(
+        request={'type': 'object', 'properties': {'paid': {'type': 'boolean'}}},
+        responses={200: OrderSerializer},
+    )
+    def post(self, request, pk):
+        paid = request.data.get('paid')
+        if paid is None or not isinstance(paid, bool):
+            return Response({'error': 'paid (boolean) is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            order = Order.objects.get(pk=pk, client=request.user)
+        except Order.DoesNotExist:
+            return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if order.status.code in ('cancelled', 'rejected', 'pending', 'completed', 'stopped'):
+            return Response(
+                {'error': 'To\'lov holatini faqat faol buyurtmada belgilash mumkin.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        order.client_paid_reported = paid
+        order.client_paid_reported_at = timezone.now()
+        order.save(update_fields=['client_paid_reported', 'client_paid_reported_at', 'updated_at'])
+        _invalidate_order_list_cache(order)
+
+        from apps.orders.realtime import broadcast_order_client_payment_reported
+        from apps.orders.payment_notify import notify_driver_client_reported_paid
+
+        broadcast_order_client_payment_reported(order)
+        if paid:
+            notify_driver_client_reported_paid(order, paid=True)
+
+        return Response(OrderSerializer(order, context={'request': request}).data, status=status.HTTP_200_OK)
+
+
+class OrderConfirmDeliveryView(APIView):
+    """Client confirms cargo was received at destination."""
+    permission_classes = [IsAuthenticated, IsClient]
+
+    @extend_schema(
+        request={'type': 'object', 'properties': {'received': {'type': 'boolean'}}},
+        responses={200: OrderSerializer},
+    )
+    def post(self, request, pk):
+        received = request.data.get('received')
+        if received is None or not isinstance(received, bool):
+            return Response({'error': 'received (boolean) is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            order = Order.objects.get(pk=pk, client=request.user)
+        except Order.DoesNotExist:
+            return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if order.status.code not in ('in_transit',):
+            return Response(
+                {'error': 'Yukni faqat yetkazish vaqtida tasdiqlash mumkin.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        pod = OrderProofOfDelivery.objects.filter(order=order).first()
+        if not pod or not pod.delivery_photo:
+            return Response(
+                {'error': 'Avval haydovchi POD (foto bilan) yuborishi kerak.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        order.client_delivery_confirmed = received
+        order.client_delivery_confirmed_at = timezone.now()
+        order.save(update_fields=['client_delivery_confirmed', 'client_delivery_confirmed_at', 'updated_at'])
+        _invalidate_order_list_cache(order)
+
+        from apps.orders.realtime import broadcast_order_delivery_confirmed
+
+        broadcast_order_delivery_confirmed(order)
+        if received:
+            try:
+                create_notification(
+                    user=order.driver,
+                    notification_type='order_approved',
+                    title='Yuk qabul qilindi',
+                    message=f"Mijoz buyurtma #{order.id} yukini qabul qilganini tasdiqladi.",
+                    order=order,
+                )
+            except Exception:
+                logger.exception(
+                    'Failed to notify driver about delivery confirmation',
+                    extra={'event': 'order_delivery_confirm_notify_failed', 'order_id': order.id},
+                )
+            try:
+                from apps.orders.payment_notify import notify_client_payment_needed
+
+                notify_client_payment_needed(order, source='delivery_confirmed')
+            except Exception:
+                logger.exception(
+                    'Failed to notify client about payment after delivery',
+                    extra={'event': 'order_delivery_payment_notify_failed', 'order_id': order.id},
+                )
+
+        return Response(OrderSerializer(order, context={'request': request}).data, status=status.HTTP_200_OK)
 
 
 class OrderCompleteView(APIView):
@@ -332,23 +660,85 @@ class OrderCompleteView(APIView):
         try:
             order = Order.objects.get(pk=pk, driver=request.user)
             
-            if order.status.code not in ['in_progress', 'in_transit']:
-                return Response({'error': 'Order must be in progress or in transit to complete'}, status=status.HTTP_400_BAD_REQUEST)
-            
-            if not order.is_fully_paid:
-                return Response({
-                    'error': f'To\'liq to\'lov qilinmagan. Qoldiq: {order.remaining_amount} so\'m. Iltimos, mijoz to\'liq to\'lov qilguncha kuting.'
-                }, status=status.HTTP_400_BAD_REQUEST)
+            if order.status.code != 'in_transit':
+                return Response(
+                    {'error': 'Buyurtmani yakunlash uchun avval «Poexali» bosib manzilga yo\'lga chiqing.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-            if not OrderProofOfDelivery.objects.filter(order=order).exists():
+            if order.total_amount <= 0:
+                return Response(
+                    {'error': 'Buyurtma narxi belgilanmagan. Administrator yoki mijoz bilan bog\'laning.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
+            pod = OrderProofOfDelivery.objects.filter(order=order).first()
+            if not pod or not pod.delivery_photo:
                 return Response({
                     'error': 'Buyurtmani yakunlash uchun POD (imzo, foto, geolokatsiya) majburiy.'
                 }, status=status.HTTP_400_BAD_REQUEST)
+
+            from apps.payments.ledger import ensure_wallet
+            ensure_wallet(order.driver)
+
+            if not order.is_payment_settled:
+                return Response(
+                    {
+                        'error': (
+                            'Buyurtmani yakunlash uchun avval «To\'lov qilindi» tugmasini bosing.'
+                        ),
+                        'code': 'payment_required',
+                        'client_payment_confirmed': order.client_payment_confirmed,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            from apps.orders.route_stops import (
+                ensure_default_route_stops,
+                final_delivery_was_skipped,
+                order_has_incomplete_route_stops,
+            )
+
+            ensure_default_route_stops(order)
+            if order_has_incomplete_route_stops(order):
+                return Response(
+                    {'error': 'Barcha marshrut nuqtalarini yakunlang yoki o\'tkazib yuboring.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if final_delivery_was_skipped(order):
+                return Response(
+                    {'error': 'Yetkazish nuqtasini yakunlang — o\'tkazib bo\'lmaydi.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if order.client_delivery_confirmed is not True:
+                return Response(
+                    {
+                        'error': 'Buyurtmani yakunlash uchun mijoz yukni qabul qilganini tasdiqlashi kerak.',
+                        'code': 'delivery_confirmation_required',
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             
             completed_status = OrderStatus.objects.get(code='completed')
             order.status = completed_status
             order.completed_at = timezone.now()
             order.save()
+            from apps.orders.distance_tracking import on_order_completed
+
+            on_order_completed(order)
+            order.refresh_from_db()
+            from apps.payments.escrow import settle_driver_on_complete
+            settle_driver_on_complete(order)
+            try:
+                from apps.orders.documents import ensure_order_documents
+
+                ensure_order_documents(order)
+            except Exception:
+                logger.exception(
+                    'Failed to generate order documents',
+                    extra={'event': 'order_documents_failed', 'order_id': order.id},
+                )
             _invalidate_order_list_cache(order)
             
             try:
@@ -366,8 +756,15 @@ class OrderCompleteView(APIView):
                     order=order
                 )
             except Exception as e:
-                print(f"Error sending notification: {e}")
-            
+                logger.exception(
+                    'Failed to send order notification',
+                    extra={'event': 'order_notify_failed'},
+                )
+
+            broadcast_order_status_changed(
+                order,
+                message=f"Buyurtma #{order.id} yakunlandi.",
+            )
             return Response(OrderSerializer(order, context={'request': request}).data, status=status.HTTP_200_OK)
         except Order.DoesNotExist:
             return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -382,17 +779,110 @@ class OrderRejectView(APIView):
     def post(self, request, pk):
         try:
             order = Order.objects.get(pk=pk, driver=request.user)
+            if order.status.code not in ('pending', 'approved_by_client'):
+                return Response(
+                    {'error': 'Faqat kutilayotgan yoki tasdiqlangan buyurtmani rad etish mumkin.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            from apps.payments.escrow import settle_order_cancellation
+            settle_order_cancellation(order, actor='driver')
             rejected_status = OrderStatus.objects.get(code='rejected')
             order.status = rejected_status
-            order.advertisement.is_closed = False
-            order.advertisement.save()
-            order.save()
+            order.save(update_fields=['status', 'updated_at'])
+            from apps.orders.marketplace_recovery import reopen_advertisement_marketplace
+
+            reopen_advertisement_marketplace(order.advertisement)
             _invalidate_order_list_cache(order)
+            from apps.subscriptions.trial import restore_trial_for_order
+            from apps.orders.realtime import broadcast_order_status_changed
+
+            restore_trial_for_order(order)
+
+            try:
+                driver_name = f"{order.driver.first_name} {order.driver.last_name}".strip() or order.driver.phone
+                create_notification(
+                    user=order.client,
+                    notification_type='order_cancelled',
+                    title='Buyurtma rad etildi',
+                    message=f"Haydovchi {driver_name} buyurtma #{order.id}ni rad etdi. E'lon qayta ochiq.",
+                    order=order,
+                )
+            except Exception as e:
+                logger.exception(
+                    'Failed to send order notification',
+                    extra={'event': 'order_notify_failed'},
+                )
+
+            broadcast_order_status_changed(
+                order,
+                message=f"Buyurtma #{order.id} haydovchi tomonidan rad etildi.",
+            )
             return Response(OrderSerializer(order, context={'request': request}).data, status=status.HTTP_200_OK)
         except Order.DoesNotExist:
             return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
         except OrderStatus.DoesNotExist:
             return Response({'error': 'Order status not found'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class OrderCancelView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request={'type': 'object', 'properties': {'reason': {'type': 'string'}}},
+        responses={200: OrderSerializer},
+    )
+    def post(self, request, pk):
+        try:
+            order = Order.objects.select_related('advertisement', 'driver', 'client', 'status').get(pk=pk)
+        except Order.DoesNotExist:
+            return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if order.client_id != request.user.id and order.driver_id != request.user.id:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        if order.status.code not in ('in_progress', 'in_transit'):
+            return Response(
+                {'error': 'Faol buyurtmani bekor qilish uchun /decline yoki /reject ishlating.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        actor = 'client' if order.client_id == request.user.id else 'driver'
+        from apps.payments.escrow import settle_order_cancellation
+        settlement = settle_order_cancellation(order, actor=actor)
+
+        cancelled_status = OrderStatus.objects.filter(code='cancelled').first()
+        if not cancelled_status:
+            cancelled_status = OrderStatus.objects.create(
+                code='cancelled',
+                name_ru='Отменён',
+                name_en='Cancelled',
+                name_uz='Bekor qilingan',
+            )
+        order.status = cancelled_status
+        order.save(update_fields=['status', 'updated_at'])
+        from apps.orders.marketplace_recovery import reopen_advertisement_marketplace
+        reopen_advertisement_marketplace(order.advertisement)
+        _invalidate_order_list_cache(order)
+
+        counterpart = order.driver if actor == 'client' else order.client
+        try:
+            create_notification(
+                user=counterpart,
+                notification_type='order_cancelled',
+                title='Buyurtma bekor qilindi',
+                message=f"Buyurtma #{order.id} bekor qilindi. Jarima: {settlement.get('fee', 0)} so'm.",
+                order=order,
+            )
+        except Exception:
+            logger.exception('Failed to send cancellation notification', extra={'order_id': order.id})
+
+        broadcast_order_status_changed(
+            order,
+            message=f"Buyurtma #{order.id} bekor qilindi.",
+        )
+        payload = OrderSerializer(order, context={'request': request}).data
+        payload['cancellation'] = settlement
+        return Response(payload, status=status.HTTP_200_OK)
 
 
 class OrderTrackView(APIView):
@@ -404,7 +894,12 @@ class OrderTrackView(APIView):
             order = Order.objects.get(pk=pk)
             if not can_access_order(request.user, order):
                 return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
-            tracks = OrderLocationTrack.objects.filter(order=order).order_by('-timestamp')[:10]
+            try:
+                limit = int(request.query_params.get('limit', 100))
+            except (TypeError, ValueError):
+                limit = 100
+            limit = max(10, min(limit, 500))
+            tracks = OrderLocationTrack.objects.filter(order=order).order_by('-timestamp')[:limit]
             serializer = OrderLocationTrackSerializer(tracks, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Order.DoesNotExist:
@@ -420,11 +915,55 @@ class OrderUpdateLocationView(APIView):
         if serializer.is_valid():
             try:
                 order = Order.objects.get(pk=pk, driver=request.user)
+                if not order_accepts_location_updates(order.status.code):
+                    return Response(
+                        {
+                            'code': 'location_updates_not_allowed',
+                            'error': (
+                                'Joylashuv yangilash faqat faol yo\'lda bo\'lgan '
+                                'buyurtmalar uchun mumkin.'
+                            ),
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
                 lat = serializer.validated_data['lat']
                 lng = serializer.validated_data['lng']
-                
-                order.current_location_lat = lat
-                order.current_location_lng = lng
+                app_state = serializer.validated_data.get('app_state')
+                now_ts = timezone.now()
+                raw_lat = float(lat)
+                raw_lng = float(lng)
+                from apps.orders.map_match import match_live_location
+
+                route_match = match_live_location(order, raw_lat, raw_lng)
+                display_lat, display_lng = raw_lat, raw_lng
+                snapped = False
+                route_offset_meters = None
+                route_progress_m = None
+                if route_match is not None:
+                    route_offset_meters = route_match.distance_m
+                    route_progress_m = route_match.progress_m
+                    if route_match.snapped:
+                        display_lat, display_lng = route_match.lat, route_match.lng
+                        snapped = True
+
+                speed_mps, heading = _resolve_live_motion(
+                    order,
+                    raw_lat,
+                    raw_lng,
+                    serializer.validated_data.get('speed_mps'),
+                    serializer.validated_data.get('heading'),
+                    now_ts,
+                )
+                if snapped and route_match is not None and route_match.heading is not None:
+                    heading = route_match.heading
+
+                order.current_location_lat = display_lat
+                order.current_location_lng = display_lng
+                order.current_speed_mps = speed_mps
+                order.current_heading = heading
+                order.driver_last_seen_at = now_ts
+                if app_state:
+                    order.driver_app_state = app_state
                 route_deviation_payload = None
                 geofence_event_payloads = []
                 route_points = order.planned_route_points or []
@@ -437,9 +976,8 @@ class OrderUpdateLocationView(APIView):
                             {'lat': float(track.lat), 'lng': float(track.lng)}
                             for track in reversed(recent_tracks)
                         ]
-                        order.planned_route_points = route_points
                 if isinstance(route_points, list) and len(route_points) >= 2:
-                    distance_m = _distance_to_route_meters(float(lat), float(lng), route_points)
+                    distance_m = _distance_to_route_meters(raw_lat, raw_lng, route_points)
                     order.route_deviation_last_distance_meters = distance_m
                     if distance_m is not None and distance_m > order.route_deviation_threshold_meters:
                         now = timezone.now()
@@ -456,94 +994,194 @@ class OrderUpdateLocationView(APIView):
                                 'driver_id': order.driver_id,
                                 'distance_meters': round(float(distance_m), 2),
                                 'threshold_meters': order.route_deviation_threshold_meters,
-                                'lat': float(lat),
-                                'lng': float(lng),
+                                'lat': raw_lat,
+                                'lng': raw_lng,
                                 'updated_at': now.isoformat(),
                             }
-                    pickup_point, destination_point = _extract_geofence_points(route_points)
-                    if pickup_point and destination_point:
-                        pickup_distance = _haversine_meters(float(lat), float(lng), pickup_point[0], pickup_point[1])
-                        destination_distance = _haversine_meters(float(lat), float(lng), destination_point[0], destination_point[1])
-                        now = timezone.now()
+                    from apps.orders.route_stops import order_has_geocoded_route_stops, process_route_stop_geofence
+                    for stop_event in process_route_stop_geofence(order, raw_lat, raw_lng, now_ts):
+                        geofence_event_payloads.append({
+                            'event': stop_event['type'],
+                            'notification_type': 'route_stop_arrived',
+                            'title': 'Route stop reached',
+                            'message': (
+                                f"Buyurtma #{order.id}: "
+                                f"{stop_event.get('label') or stop_event['stop_type']} "
+                                f"(#{stop_event['sequence']}) hududiga yetib keldi"
+                            ),
+                            'stop_id': stop_event.get('stop_id'),
+                            'sequence': stop_event.get('sequence'),
+                            'stop_type': stop_event.get('stop_type'),
+                            'label': stop_event.get('label'),
+                        })
 
-                        entered_pickup = pickup_distance <= float(order.pickup_geofence_radius_meters)
-                        entered_destination = destination_distance <= float(order.destination_geofence_radius_meters)
+                    if not order_has_geocoded_route_stops(order):
+                        pickup_point, destination_point = _extract_geofence_points(route_points)
+                        if pickup_point and destination_point:
+                            pickup_distance = _haversine_meters(raw_lat, raw_lng, pickup_point[0], pickup_point[1])
+                            destination_distance = _haversine_meters(raw_lat, raw_lng, destination_point[0], destination_point[1])
+                            now = timezone.now()
 
-                        if entered_pickup and not order.is_in_pickup_geofence:
-                            order.is_in_pickup_geofence = True
-                            order.pickup_entered_at = now
-                            if order.status.code in ['approved_by_client', 'pending']:
-                                in_progress_status = OrderStatus.objects.filter(code='in_progress').first()
-                                if in_progress_status:
-                                    order.status = in_progress_status
-                                    if not order.started_at:
-                                        order.started_at = now
-                            geofence_event_payloads.append({
-                                'event': 'pickup_enter',
-                                'title': 'Pickup geofence entered',
-                                'message': f"Buyurtma #{order.id}: haydovchi yuklash hududiga kirdi",
-                            })
+                            entered_pickup = pickup_distance <= float(order.pickup_geofence_radius_meters)
+                            entered_destination = destination_distance <= float(order.destination_geofence_radius_meters)
 
-                        if (not entered_pickup) and order.is_in_pickup_geofence:
-                            order.is_in_pickup_geofence = False
-                            order.pickup_exited_at = now
-                            geofence_event_payloads.append({
-                                'event': 'pickup_exit',
-                                'title': 'Pickup geofence exited',
-                                'message': f"Buyurtma #{order.id}: haydovchi yuklash hududidan chiqdi",
-                            })
+                            if entered_pickup and not order.is_in_pickup_geofence:
+                                order.is_in_pickup_geofence = True
+                                order.pickup_entered_at = now
+                                geofence_event_payloads.append({
+                                    'event': 'pickup_enter',
+                                    'title': 'Pickup geofence entered',
+                                    'message': f"Buyurtma #{order.id}: haydovchi yuklash hududiga kirdi",
+                                })
 
-                        if entered_destination and not order.is_in_destination_geofence:
-                            order.is_in_destination_geofence = True
-                            order.destination_entered_at = now
-                            geofence_event_payloads.append({
-                                'event': 'destination_enter',
-                                'title': 'Destination geofence entered',
-                                'message': f"Buyurtma #{order.id}: haydovchi yetkazish hududiga kirdi",
-                            })
+                            if (not entered_pickup) and order.is_in_pickup_geofence:
+                                order.is_in_pickup_geofence = False
+                                order.pickup_exited_at = now
+                                geofence_event_payloads.append({
+                                    'event': 'pickup_exit',
+                                    'title': 'Pickup geofence exited',
+                                    'message': f"Buyurtma #{order.id}: haydovchi yuklash hududidan chiqdi",
+                                })
 
-                        if (not entered_destination) and order.is_in_destination_geofence:
-                            order.is_in_destination_geofence = False
-                            geofence_event_payloads.append({
-                                'event': 'destination_exit',
-                                'title': 'Destination geofence exited',
-                                'message': f"Buyurtma #{order.id}: haydovchi yetkazish hududidan chiqdi",
-                            })
+                            if entered_destination and not order.is_in_destination_geofence:
+                                order.is_in_destination_geofence = True
+                                order.destination_entered_at = now
+                                geofence_event_payloads.append({
+                                    'event': 'destination_enter',
+                                    'title': 'Destination geofence entered',
+                                    'message': f"Buyurtma #{order.id}: haydovchi yetkazish hududiga kirdi",
+                                })
+
+                            if (not entered_destination) and order.is_in_destination_geofence:
+                                order.is_in_destination_geofence = False
+                                geofence_event_payloads.append({
+                                    'event': 'destination_exit',
+                                    'title': 'Destination geofence exited',
+                                    'message': f"Buyurtma #{order.id}: haydovchi yetkazish hududidan chiqdi",
+                                })
                 order.save()
                 _invalidate_order_list_cache(order)
-                
-                OrderLocationTrack.objects.create(order=order, lat=lat, lng=lng)
-                channel_layer = get_channel_layer()
-                if channel_layer is not None:
-                    async_to_sync(channel_layer.group_send)(
-                        'dispatcher_tracking',
-                        {
-                            'type': 'location_update',
+
+                latest_track = (
+                    OrderLocationTrack.objects.filter(order=order)
+                    .order_by('-timestamp')
+                    .first()
+                )
+                should_write_track = True
+                if latest_track:
+                    distance_from_last_m = _haversine_meters(
+                        float(latest_track.lat),
+                        float(latest_track.lng),
+                        raw_lat,
+                        raw_lng,
+                    )
+                    elapsed_seconds = max(
+                        0.0,
+                        (now_ts - latest_track.timestamp).total_seconds()
+                    )
+                    should_write_track = (
+                        distance_from_last_m >= TRACK_WRITE_MIN_DISTANCE_METERS
+                        or elapsed_seconds >= TRACK_WRITE_MAX_INTERVAL_SECONDS
+                    )
+                if should_write_track:
+                    OrderLocationTrack.objects.create(order=order, lat=raw_lat, lng=raw_lng)
+                tracking_summary = _build_tracking_summary(order)
+                estimated_eta_minutes = _estimate_eta_minutes(order)
+                driver_presence = {
+                    'status': 'online',
+                    'stale_level': 'online',
+                    'age_seconds': 0,
+                    'last_seen_at': now_ts.isoformat(),
+                    'app_state': order.driver_app_state or None,
+                }
+                stop_alert_payload = None
+                alert_level = tracking_summary.get('alert_level') if tracking_summary else None
+                alert_message = tracking_summary.get('alert_message') if tracking_summary else None
+                if alert_level and alert_message:
+                    cooldown_key = f"order_stop_alert:{order.id}:{alert_level}"
+                    if not cache.get(cooldown_key):
+                        stop_alert_payload = {
+                            'type': 'stop_alert',
                             'order_id': order.id,
                             'driver_id': order.driver_id,
-                            'lat': float(lat),
-                            'lng': float(lng),
-                            'updated_at': order.updated_at.isoformat(),
-                            'status_code': order.status.code,
+                            'level': alert_level,
+                            'message': alert_message,
+                            'updated_at': timezone.now().isoformat(),
                         }
-                    )
-                    if route_deviation_payload:
-                        async_to_sync(channel_layer.group_send)(
-                            'dispatcher_tracking',
-                            route_deviation_payload
+                        cache.set(cooldown_key, True, STOP_ALERT_COOLDOWN_MINUTES * 60)
+                if (
+                    estimated_eta_minutes is not None
+                    and estimated_eta_minutes <= ARRIVAL_SOON_ETA_MINUTES
+                    and order.status.code in ('in_progress', 'in_transit')
+                ):
+                    arrival_key = f'order_arrival_soon:{order.id}'
+                    if not cache.get(arrival_key):
+                        arrival_message = (
+                            f"Haydovchi taxminan {estimated_eta_minutes} daqiqada yetib keladi"
                         )
-                    for event in geofence_event_payloads:
-                        async_to_sync(channel_layer.group_send)(
-                            'dispatcher_tracking',
+                        create_notification(
+                            user=order.client,
+                            notification_type='driver_arriving',
+                            title='Haydovchi yaqinlashmoqda',
+                            message=arrival_message,
+                            order=order,
+                            extra_push_data={'eta_minutes': estimated_eta_minutes},
+                        )
+                        cache.set(arrival_key, True, 60 * 60)
+                from apps.orders.realtime import (
+                    broadcast_geofence_event,
+                    broadcast_location_update,
+                    broadcast_route_stop_arrived,
+                    fanout_order_tracking,
+                )
+
+                broadcast_location_update(
+                    order,
+                    lat=display_lat,
+                    lng=display_lng,
+                    tracking_summary=tracking_summary,
+                    estimated_eta_minutes=estimated_eta_minutes,
+                    driver_last_seen_at=now_ts.isoformat(),
+                    driver_app_state=order.driver_app_state,
+                    driver_presence=driver_presence,
+                    speed_mps=speed_mps,
+                    heading=heading,
+                    raw_lat=raw_lat,
+                    raw_lng=raw_lng,
+                    snapped=snapped,
+                    route_offset_meters=route_offset_meters,
+                    route_progress_m=route_progress_m,
+                )
+                if stop_alert_payload:
+                    fanout_order_tracking(order, stop_alert_payload)
+                if route_deviation_payload:
+                    fanout_order_tracking(order, route_deviation_payload)
+                for event in geofence_event_payloads:
+                    broadcast_geofence_event(
+                        order,
+                        event=event['event'],
+                        lat=raw_lat,
+                        lng=raw_lng,
+                        message=event.get('message'),
+                        title=event.get('title'),
+                        stop_id=event.get('stop_id'),
+                        sequence=event.get('sequence'),
+                        stop_type=event.get('stop_type'),
+                        label=event.get('label'),
+                        notification_type=event.get('notification_type'),
+                    )
+                    if event.get('event') == 'route_stop_arrived':
+                        broadcast_route_stop_arrived(
+                            order,
                             {
-                                'type': 'geofence_event',
-                                'order_id': order.id,
-                                'driver_id': order.driver_id,
-                                'event': event['event'],
-                                'lat': float(lat),
-                                'lng': float(lng),
-                                'updated_at': timezone.now().isoformat(),
-                            }
+                                'stop_id': event.get('stop_id'),
+                                'sequence': event.get('sequence'),
+                                'stop_type': event.get('stop_type'),
+                                'label': event.get('label'),
+                                'detected_at': now_ts.isoformat(),
+                            },
+                            lat=raw_lat,
+                            lng=raw_lng,
                         )
                 if route_deviation_payload:
                     dispatchers = User.objects.filter(is_dispatcher=True, is_active=True)
@@ -561,14 +1199,64 @@ class OrderUpdateLocationView(APIView):
                 if geofence_event_payloads:
                     dispatchers = User.objects.filter(is_dispatcher=True, is_active=True)
                     for payload in geofence_event_payloads:
+                        notification_type = payload.get('notification_type', 'geofence_event')
+                        create_notification(
+                            user=order.client,
+                            notification_type=notification_type,
+                            title=payload['title'],
+                            message=payload['message'],
+                            order=order,
+                        )
                         for dispatcher in dispatchers:
                             create_notification(
                                 user=dispatcher,
-                                notification_type='geofence_event',
+                                notification_type=notification_type,
                                 title=payload['title'],
                                 message=payload['message'],
-                                order=order
+                                order=order,
                             )
+                if stop_alert_payload:
+                    push_extra = {
+                        'alert_level': alert_level,
+                        'priority': 'high',
+                    }
+                    create_notification(
+                        user=order.client,
+                        notification_type='stop_alert',
+                        title='Haydovchi to‘xtab qoldi',
+                        message=alert_message,
+                        order=order,
+                        extra_push_data=push_extra,
+                    )
+                    if order.driver_id:
+                        create_notification(
+                            user=order.driver,
+                            notification_type='stop_alert',
+                            title='Uzoq to‘xtash',
+                            message=alert_message,
+                            order=order,
+                            extra_push_data=push_extra,
+                        )
+                    dispatchers = User.objects.filter(is_dispatcher=True, is_active=True)
+                    for dispatcher in dispatchers:
+                        create_notification(
+                            user=dispatcher,
+                            notification_type='stop_alert',
+                            title='Stop alert',
+                            message=f"Buyurtma #{order.id}: {alert_message}",
+                            order=order,
+                            extra_push_data=push_extra,
+                        )
+                    updaters = User.objects.filter(is_updater=True, is_active=True)
+                    for updater in updaters:
+                        create_notification(
+                            user=updater,
+                            notification_type='stop_alert',
+                            title='Stop alert',
+                            message=f"Buyurtma #{order.id}: {alert_message}",
+                            order=order,
+                            extra_push_data=push_extra,
+                        )
                 
                 return Response(OrderSerializer(order, context={'request': request}).data, status=status.HTTP_200_OK)
             except Order.DoesNotExist:
@@ -587,6 +1275,14 @@ class OrderRoutePlanView(APIView):
             order = Order.objects.get(pk=pk, driver=request.user)
         except Order.DoesNotExist:
             return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.orders.services import order_allows_route_mutations
+
+        if not order_allows_route_mutations(order.status.code):
+            return Response(
+                {'error': 'Marshrutni faqat safar boshlanishidan oldin o\'zgartirish mumkin.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         order.planned_route_points = serializer.validated_data['points']
         order.route_deviation_threshold_meters = serializer.validated_data['threshold_meters']
@@ -613,8 +1309,26 @@ class OrderProofOfDeliveryCreateView(APIView):
         except Order.DoesNotExist:
             return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
 
+        if order.status.code != 'in_transit':
+            return Response(
+                {'error': 'POD faqat yuk olingandan keyin, yetkazish manzilida yuboriladi.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         serializer = OrderProofOfDeliveryCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        from apps.orders.route_stops import ensure_default_route_stops, validate_pod_at_delivery
+
+        ensure_default_route_stops(order)
+        try:
+            validate_pod_at_delivery(
+                order,
+                serializer.validated_data['delivered_lat'],
+                serializer.validated_data['delivered_lng'],
+            )
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         OrderProofOfDelivery.objects.update_or_create(
             order=order,
@@ -623,7 +1337,28 @@ class OrderProofOfDeliveryCreateView(APIView):
                 'delivered_by': request.user,
             }
         )
+        from apps.orders.safety import log_custody_event
+        from apps.orders.models import OrderCustodyEvent
+
+        log_custody_event(
+            order=order,
+            actor=request.user,
+            event_type=OrderCustodyEvent.EVENT_DELIVERY,
+            witness_name=serializer.validated_data.get('receiver_name', ''),
+            lat=serializer.validated_data.get('delivered_lat'),
+            lng=serializer.validated_data.get('delivered_lng'),
+            note=serializer.validated_data.get('note', ''),
+        )
         _invalidate_order_list_cache(order)
+        try:
+            from apps.orders.realtime import publish_order_pod_submitted
+
+            publish_order_pod_submitted(order)
+        except Exception:
+            logger.exception(
+                'Failed to notify client about POD',
+                extra={'event': 'order_pod_notify_failed', 'order_id': order.id},
+            )
         refreshed = Order.objects.select_related('status', 'driver', 'client').get(pk=order.pk)
         return Response(OrderSerializer(refreshed, context={'request': request}).data, status=status.HTTP_200_OK)
 
@@ -726,9 +1461,14 @@ class PublicOrderTrackingShareView(APIView):
                 'lat': float(order.current_location_lat) if order.current_location_lat is not None else None,
                 'lng': float(order.current_location_lng) if order.current_location_lng is not None else None,
             },
+            'speed_mps': float(order.current_speed_mps) if order.current_speed_mps is not None else None,
+            'heading': float(order.current_heading) if order.current_heading is not None else None,
             'eta_minutes': eta_minutes,
             'updated_at': order.updated_at.isoformat(),
             'expires_at': share.expires_at.isoformat(),
+            'driver_last_seen_at': (
+                order.driver_last_seen_at.isoformat() if order.driver_last_seen_at else None
+            ),
         }, status=status.HTTP_200_OK)
 
 
@@ -870,7 +1610,7 @@ class OrderVerifyByQRView(APIView):
 
 
 class OrderVerifyAndApproveByQRView(APIView):
-    permission_classes = [IsAuthenticated, IsClient]
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         request={'type': 'object', 'properties': {'qr_code': {'type': 'string'}}},
@@ -893,7 +1633,9 @@ class OrderVerifyAndApproveByQRView(APIView):
                 except ValueError:
                     return Response({'error': 'Invalid QR code format'}, status=status.HTTP_400_BAD_REQUEST)
             
-            order = Order.objects.get(pk=order_id, client=request.user)
+            order = Order.objects.get(pk=order_id)
+            if order.client_id != request.user.id:
+                return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
             
             if order.status.code != 'pending':
                 return Response({'error': 'Only pending orders can be approved'}, status=status.HTTP_400_BAD_REQUEST)
@@ -926,7 +1668,15 @@ class OrderVerifyAndApproveByQRView(APIView):
                     order=order
                 )
             except Exception as e:
-                print(f"Error sending notification: {e}")
+                logger.exception(
+                    'Failed to send order notification',
+                    extra={'event': 'order_notify_failed'},
+                )
+
+            broadcast_order_status_changed(
+                order,
+                message=f"Mijoz buyurtmani QR kod orqali tasdiqladi. Buyurtma #{order.id}.",
+            )
             
             serializer = OrderSerializer(order, context={'request': request})
             return Response(serializer.data, status=status.HTTP_200_OK)

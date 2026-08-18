@@ -1,9 +1,13 @@
-from django.test import TestCase
+from django.conf import settings
+from django.test import TestCase, override_settings
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
 from datetime import timedelta
+from decimal import Decimal
+from unittest.mock import patch
 from django.utils import timezone
+from apps.users.views import RegisterView
 
 User = get_user_model()
 
@@ -28,26 +32,117 @@ class UserModelTest(TestCase):
         self.assertEqual(str(self.user), 'Test User (998901234567)')
 
 
+@override_settings(
+    SMS_VERIFICATION_REQUIRED=False,
+    SUBSCRIPTION_REQUIRE_DEVICE_ID_ON_REGISTER=True,
+    REST_FRAMEWORK={
+        **settings.REST_FRAMEWORK,
+        'DEFAULT_THROTTLE_CLASSES': [],
+        'DEFAULT_THROTTLE_RATES': {},
+    },
+)
 class UserAPITest(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.register_url = '/api/auth/register/'
         self.login_url = '/api/auth/login/'
         self.me_url = '/api/auth/me/'
+        self._register_throttle_patch = patch.object(RegisterView, 'throttle_classes', [])
+        self._register_throttle_patch.start()
 
-    def test_register_user(self):
+    def tearDown(self):
+        self._register_throttle_patch.stop()
+
+    def _client_register_payload(self, **overrides):
         data = {
             'phone': '998901234567',
             'password': 'testpass123',
             'password_confirm': 'testpass123',
             'first_name': 'Test',
             'last_name': 'User',
-            'is_driver': False
+            'is_driver': False,
+            'company_inn': '123456789',
+            'device_id': 'test-device-inn-001',
         }
-        response = self.client.post(self.register_url, data, format='json')
+        data.update(overrides)
+        return data
+
+    def test_register_user(self):
+        response = self.client.post(
+            self.register_url,
+            self._client_register_payload(phone='998901231001', company_inn='111111111', device_id='dev-inn-001'),
+            format='json',
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn('access', response.data)
         self.assertIn('refresh', response.data)
+        user = User.objects.get(phone='998901231001')
+        self.assertEqual(user.company_inn, '111111111')
+
+    def test_client_register_requires_inn(self):
+        payload = self._client_register_payload(phone='998901231002', device_id='dev-inn-002')
+        payload.pop('company_inn')
+        response = self.client.post(self.register_url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_driver_register_not_auto_verified(self):
+        response = self.client.post(
+            self.register_url,
+            {
+                'phone': '998901231010',
+                'password': 'testpass123',
+                'password_confirm': 'testpass123',
+                'first_name': 'Driver',
+                'last_name': 'Test',
+                'is_driver': True,
+                'device_id': 'dev-driver-010',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user = User.objects.get(phone='998901231010')
+        self.assertTrue(user.is_driver)
+        self.assertFalse(user.is_verified)
+
+    def test_client_register_auto_verified_without_sms(self):
+        response = self.client.post(
+            self.register_url,
+            self._client_register_payload(phone='998901231011', company_inn='333333333', device_id='dev-inn-011'),
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user = User.objects.get(phone='998901231011')
+        self.assertTrue(user.is_verified)
+
+    def test_profile_update_company_inn(self):
+        user = User.objects.create_user(
+            phone='998901231012',
+            password='testpass123',
+            first_name='Legacy',
+            last_name='Client',
+            is_driver=False,
+        )
+        self.client.force_authenticate(user=user)
+        response = self.client.put(self.me_url, {'company_inn': '444444444'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user.refresh_from_db()
+        self.assertEqual(user.company_inn, '444444444')
+
+    def test_duplicate_inn_rejected(self):
+        inn = '222222222'
+        response = self.client.post(
+            self.register_url,
+            self._client_register_payload(phone='998901231003', company_inn=inn, device_id='dev-inn-003'),
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        response = self.client.post(
+            self.register_url,
+            self._client_register_payload(phone='998901231004', company_inn=inn, device_id='dev-inn-004'),
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('STIR', str(response.data))
 
     def test_register_with_mismatched_passwords(self):
         data = {
@@ -175,7 +270,10 @@ class AdminDriverEarningsStatisticsTest(TestCase):
             advertisement=self.advertisement,
             driver=self.driver_user,
             client=self.non_admin_user,
-            status=self.completed_status
+            status=self.completed_status,
+            agreed_amount=Decimal('80000'),
+            client_payment_confirmed=True,
+            completed_at=timezone.now(),
         )
         self.order2 = Order.objects.create(
             advertisement=self.advertisement,

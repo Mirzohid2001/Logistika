@@ -7,6 +7,7 @@ from apps.orders.models import Order, OrderStatus
 from apps.advertisements.models import Advertisement
 from apps.locations.models import Country, City
 from .models import Chat, Message
+from .ws_auth import consume_ws_ticket
 import json
 
 
@@ -704,3 +705,31 @@ class ChatAPITest(TestCase):
         chat_data = next((c for c in response.data['results'] if c['id'] == chat.id), None)
         self.assertIsNotNone(chat_data)
         self.assertEqual(chat_data['unread_count'], 2)
+
+
+class WebSocketTicketAPITest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            phone='998901111111',
+            password='testpass123',
+            first_name='Socket',
+            last_name='User',
+        )
+
+    def test_issue_ws_ticket_requires_authentication(self):
+        response = self.client.post('/api/chats/ws-ticket/', {})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_issue_ws_ticket_returns_one_time_ticket(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post('/api/chats/ws-ticket/', {})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('ticket', response.data)
+        self.assertEqual(response.data['expires_in'], 60)
+
+        ticket = response.data['ticket']
+        self.assertEqual(consume_ws_ticket(ticket), self.user.id)
+        self.assertIsNone(consume_ws_ticket(ticket))

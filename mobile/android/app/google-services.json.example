@@ -1,0 +1,24 @@
+{
+  "_comment": "Copy to google-services.json after creating a Firebase project. Do NOT commit real credentials.",
+  "project_info": {
+    "project_number": "000000000000",
+    "project_id": "logistika-example",
+    "storage_bucket": "logistika-example.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:000000000000:android:example",
+        "android_client_info": {
+          "package_name": "com.logistikatemp"
+        }
+      },
+      "api_key": [
+        {
+          "current_key": "YOUR_ANDROID_API_KEY"
+        }
+      ]
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -7,6 +7,8 @@ from django.core.cache import cache
 from django.utils import timezone
 from django.conf import settings
 from django.db import transaction
+import uuid
+from decimal import Decimal
 from .models import Payment, PaymentHistory
 from apps.orders.models import Order
 from apps.common.pagination import StandardResultsSetPagination
@@ -21,6 +23,15 @@ from apps.common.exceptions import (
 )
 from .serializers import PaymentSerializer, PaymentCreateSerializer, PaymentHistorySerializer, PaymentRefundSerializer
 from .services import ClickPaymentService, PaymePaymentService, UzumPaymentService, PaymentSecurityService
+from .gateway_init import initiate_gateway_payment
+from .order_payment import (
+    lock_order_for_payment,
+    mark_payment_completed,
+    order_platform_payments_enabled,
+    validate_order_payment_request,
+    finalize_completed_payment,
+    sync_order_payment_confirmation,
+)
 from apps.notifications.services import create_notification
 from apps.users.permissions import can_access_order, can_access_payment
 
@@ -42,6 +53,21 @@ def _invalidate_payment_list_caches(payment: Payment):
             bump_cache_version(PAYMENTS_MY_CACHE_SCOPE, user_id)
 
 
+class WalletView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(responses={200: {'type': 'object'}})
+    def get(self, request):
+        from apps.payments.ledger import wallet_payload
+        from apps.orders.financial import driver_earnings_payload
+
+        payload = wallet_payload(request.user)
+        if request.user.is_driver:
+            payload.update(driver_earnings_payload(request.user))
+            payload['available'] = payload.get('available_balance', payload['available'])
+        return Response(payload, status=status.HTTP_200_OK)
+
+
 class PaymentCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -55,50 +81,45 @@ class PaymentCreateView(APIView):
             amount = serializer.validated_data['amount']
             payment_method = serializer.validated_data['payment_method']
             order_id = serializer.validated_data.get('order_id')
+
+            if order_id and not order_platform_payments_enabled():
+                raise PermissionDeniedError(
+                    detail='Buyurtma to\'lovi platforma orqali o\'tmaydi. Shafyor va mijoz o\'zlari kelishadi.'
+                )
             
-            # Validate order if provided
-            if order_id:
-                try:
-                    order = Order.objects.get(pk=order_id)
-                    if not can_access_order(request.user, order):
-                        raise PermissionDeniedError(detail='Bu buyurtmaga to\'lov qilish huquqingiz yo\'q')
-                except Order.DoesNotExist:
-                    raise NotFoundError(detail='Buyurtma topilmadi')
-            
-            # Create payment within transaction
             with transaction.atomic():
+                order = None
+                if order_id:
+                    try:
+                        order = lock_order_for_payment(order_id)
+                    except Order.DoesNotExist:
+                        raise NotFoundError(detail='Buyurtma topilmadi')
+                    validate_order_payment_request(order, user_id=request.user.id, amount=amount)
+                
                 payment = Payment.objects.create(
                     user=request.user,
                     amount=amount,
                     payment_method=payment_method,
-                    order_id=order_id if order_id else None
+                    order_id=order_id if order_id else None,
                 )
-                
-                # Call payment gateway
-                result = None
-                try:
-                    if payment_method == 'click':
-                        result = ClickPaymentService.create_payment(amount, payment.id)
-                    elif payment_method == 'payme':
-                        result = PaymePaymentService.create_payment(amount, payment.id)
-                    elif payment_method == 'uzum':
-                        result = UzumPaymentService.create_payment(amount, payment.id)
-                    else:
-                        raise PaymentError(detail='Noto\'g\'ri to\'lov usuli')
-                except Exception as e:
-                    raise ExternalServiceError(detail=f'To\'lov gateway\'da xatolik: {str(e)}')
-                
-                if result:
-                    payment.gateway_response = result
-                    payment.transaction_id = result.get('transaction_id') or result.get('id') or str(payment.id)
-                    payment.save()
-                    
+
+                if payment_method == 'mock':
+                    if not getattr(settings, 'PAYMENTS_ALLOW_MOCK', False):
+                        raise PermissionDeniedError(detail='Mock to\'lov usuli o\'chirilgan')
+                    payment.transaction_id = f'mock-{payment.pk}-{uuid.uuid4().hex[:10]}'
+                    payment.save(update_fields=['transaction_id', 'updated_at'])
+                    mark_payment_completed(payment, gateway_response={'mock': True})
                     PaymentHistory.objects.create(
                         payment=payment,
                         status='pending',
-                        status_new='processing',
-                        gateway_response=result
+                        status_new='completed',
+                        gateway_response={'mock': True},
                     )
+                else:
+                    try:
+                        initiate_gateway_payment(payment, order_id=order_id)
+                    except Exception:
+                        raise
 
             payment = Payment.objects.select_related('order').get(pk=payment.pk)
             _invalidate_payment_list_caches(payment)
@@ -196,109 +217,83 @@ class PaymentCallbackView(APIView):
 
     def post(self, request, pk):
         try:
-            payment = Payment.objects.get(pk=pk)
-            old_status = payment.payment_status
-            
-            payment_method = payment.payment_method
-            callback_data = request.data.copy()
-            
-            verification_passed = False
-            error_message = None
-            
-            # Verify callback based on payment method
-            if payment_method == 'click':
-                verification_passed, error_message = self._verify_click_callback(request, payment, callback_data)
-                if verification_passed:
-                    action = callback_data.get('action')
-                    error_code = callback_data.get('error')
-                    if action == 0 and error_code == 0:
-                        payment.payment_status = 'completed'
-                        payment.paid_at = timezone.now()
-                    elif error_code != 0:
-                        payment.payment_status = 'failed'
-            elif payment_method == 'payme':
-                verification_passed, error_message = self._verify_payme_callback(request, payment, callback_data)
-                if verification_passed:
-                    result = callback_data.get('result', {})
-                    state = result.get('state')
-                    if state == 2:
-                        payment.payment_status = 'completed'
-                        payment.paid_at = timezone.now()
-                    elif state == -1 or state == -2:
-                        payment.payment_status = 'failed'
-            elif payment_method == 'uzum':
-                verification_passed, error_message = self._verify_uzum_callback(request, payment, callback_data)
-                if verification_passed:
-                    callback_status = callback_data.get('status')
-                    if callback_status == 'success':
-                        payment.payment_status = 'completed'
-                        payment.paid_at = timezone.now()
-                    elif callback_status == 'failed' or callback_status == 'error':
-                        payment.payment_status = 'failed'
-            else:
-                raise PaymentError(detail='Noto\'g\'ri to\'lov usuli')
-            
-            # Handle verification failure
-            if not verification_passed:
-                with transaction.atomic():
+            with transaction.atomic():
+                payment = Payment.objects.select_for_update(of=('self',)).get(pk=pk)
+                old_status = payment.payment_status
+
+                payment_method = payment.payment_method
+                callback_data = request.data.copy()
+
+                verification_passed = False
+                error_message = None
+
+                if payment_method == 'click':
+                    verification_passed, error_message = self._verify_click_callback(request, payment, callback_data)
+                    if verification_passed:
+                        action = callback_data.get('action')
+                        error_code = callback_data.get('error')
+                        if action == 0 and error_code == 0:
+                            payment.payment_status = 'completed'
+                            payment.paid_at = timezone.now()
+                        elif error_code != 0:
+                            payment.payment_status = 'failed'
+                elif payment_method == 'payme':
+                    verification_passed, error_message = self._verify_payme_callback(request, payment, callback_data)
+                    if verification_passed:
+                        result = callback_data.get('result', {})
+                        state = result.get('state')
+                        if state == 2:
+                            payment.payment_status = 'completed'
+                            payment.paid_at = timezone.now()
+                        elif state == -1 or state == -2:
+                            payment.payment_status = 'failed'
+                elif payment_method == 'uzum':
+                    verification_passed, error_message = self._verify_uzum_callback(request, payment, callback_data)
+                    if verification_passed:
+                        callback_status = callback_data.get('status')
+                        if callback_status == 'success':
+                            payment.payment_status = 'completed'
+                            payment.paid_at = timezone.now()
+                        elif callback_status == 'failed' or callback_status == 'error':
+                            payment.payment_status = 'failed'
+                else:
+                    raise PaymentError(detail='Noto\'g\'ri to\'lov usuli')
+
+                if not verification_passed:
                     PaymentHistory.objects.create(
                         payment=payment,
                         status=old_status,
                         status_new='failed',
-                        gateway_response={'error': error_message, 'callback_data': callback_data}
+                        gateway_response={'error': error_message, 'callback_data': callback_data},
                     )
-                raise PaymentError(detail=error_message or 'Callback tasdiqlash muvaffaqiyatsiz')
-            
-            # Update payment status if changed
-            if payment.payment_status != old_status:
-                with transaction.atomic():
-                    payment.gateway_response = callback_data
+                    raise PaymentError(detail=error_message or 'Callback tasdiqlash muvaffaqiyatsiz')
+
+                if old_status == 'completed' and payment.payment_status == 'completed':
+                    return Response(
+                        {'status': 'success', 'payment_status': payment.payment_status},
+                        status=status.HTTP_200_OK,
+                    )
+
+                if payment.payment_status != old_status:
+                    existing = payment.gateway_response if isinstance(payment.gateway_response, dict) else {}
+                    payment.gateway_response = {**existing, **callback_data}
                     payment.save()
-                    
+
                     PaymentHistory.objects.create(
                         payment=payment,
                         status=old_status,
                         status_new=payment.payment_status,
-                        gateway_response=callback_data
+                        gateway_response=payment.gateway_response,
                     )
-                
-                # Send notifications (don't fail if notification fails)
-                if payment.payment_status == 'completed':
-                    try:
-                        create_notification(
-                            user=payment.user,
-                            notification_type='payment_received',
-                            title='To\'lov qabul qilindi',
-                            message=f"To'lov #{payment.id} muvaffaqiyatli qabul qilindi. Summa: {payment.amount} so'm.",
-                            order=payment.order
-                        )
-                        
-                        # Order owner'ga ham notification (agar order bo'lsa)
-                        if payment.order:
-                            if payment.order.client != payment.user:
-                                create_notification(
-                                    user=payment.order.client,
-                                    notification_type='payment_received',
-                                    title='To\'lov qabul qilindi',
-                                    message=f"Buyurtma #{payment.order.id} uchun to'lov qabul qilindi. Summa: {payment.amount} so'm.",
-                                    order=payment.order
-                                )
-                            if payment.order.driver and payment.order.driver != payment.user:
-                                create_notification(
-                                    user=payment.order.driver,
-                                    notification_type='payment_received',
-                                    title='To\'lov qabul qilindi',
-                                    message=f"Buyurtma #{payment.order.id} uchun to'lov qabul qilindi. Summa: {payment.amount} so'm.",
-                                    order=payment.order
-                                )
-                    except Exception as e:
-                        # Log notification error but don't fail the request
-                        import logging
-                        logger = logging.getLogger(__name__)
-                        logger.warning(f'Notification error in payment callback: {str(e)}')
-                payment = Payment.objects.select_related('order').get(pk=payment.pk)
-                _invalidate_payment_list_caches(payment)
-            
+
+                    if payment.payment_status == 'completed':
+                        if payment.order_id:
+                            lock_order_for_payment(payment.order_id)
+                        finalize_completed_payment(payment)
+
+            payment = Payment.objects.select_related('order').get(pk=pk)
+            _invalidate_payment_list_caches(payment)
+
             return Response({'status': 'success', 'payment_status': payment.payment_status}, status=status.HTTP_200_OK)
         except Payment.DoesNotExist:
             raise NotFoundError(detail='To\'lov topilmadi')
@@ -382,31 +377,48 @@ class PaymentRefundView(APIView):
     def post(self, request, pk):
         try:
             payment = Payment.objects.select_related('order', 'user').get(pk=pk)
-            if not can_access_payment(request.user, payment):
-                raise PermissionDeniedError(detail='Bu to\'lovni qaytarish huquqingiz yo\'q')
+            from apps.users.permissions import _has_admin_like_role
+            if not _has_admin_like_role(request.user) and payment.user_id != request.user.id:
+                raise PermissionDeniedError(detail='Faqat to\'lov qilgan mijoz to\'lovni qaytara oladi')
             
             if payment.payment_status != 'completed':
                 raise PaymentError(detail='Faqat yakunlangan to\'lovlar qaytarilishi mumkin')
             
             if payment.is_refunded:
-                raise PaymentError(detail='To\'lov allaqachon qaytarilgan')
+                raise PaymentError(detail='To\'lov allaqachon to\'liq qaytarilgan')
             
             serializer = PaymentRefundSerializer(data=request.data)
             if not serializer.is_valid():
                 raise ValidationError(detail=serializer.errors)
             
             reason = serializer.validated_data.get('reason', '')
+            requested_amount = serializer.validated_data.get('amount')
+            refundable = payment.refundable_amount
+            if refundable <= 0:
+                raise PaymentError(detail='Qaytariladigan summa qolmagan')
+            if requested_amount is None:
+                refund_amount = refundable
+            else:
+                refund_amount = requested_amount
+                if refund_amount <= 0:
+                    raise ValidationError(detail='Qaytarish summasi musbat bo\'lishi kerak')
+                if refund_amount > refundable:
+                    raise ValidationError(detail=f'Qaytarish summasi qoldiqdan oshmasligi kerak ({refundable} so\'m)')
             payment_method = payment.payment_method
             
             # Process refund through gateway
             refund_result = None
             try:
-                if payment_method == 'click':
-                    refund_result = ClickPaymentService.refund_payment(payment.transaction_id, payment.amount)
+                if payment_method == 'mock':
+                    if not getattr(settings, 'PAYMENTS_ALLOW_MOCK', False):
+                        raise PaymentError(detail='Mock to\'lov usuli o\'chirilgan')
+                    refund_result = {'success': True, 'mock': True}
+                elif payment_method == 'click':
+                    refund_result = ClickPaymentService.refund_payment(payment.transaction_id, refund_amount)
                 elif payment_method == 'payme':
-                    refund_result = PaymePaymentService.refund_payment(payment.transaction_id, payment.amount)
+                    refund_result = PaymePaymentService.refund_payment(payment.transaction_id, refund_amount)
                 elif payment_method == 'uzum':
-                    refund_result = UzumPaymentService.refund_payment(payment.transaction_id, payment.amount)
+                    refund_result = UzumPaymentService.refund_payment(payment.transaction_id, refund_amount)
                 else:
                     raise PaymentError(detail='Noto\'g\'ri to\'lov usuli')
             except Exception as e:
@@ -417,18 +429,39 @@ class PaymentRefundView(APIView):
             
             # Update payment within transaction
             with transaction.atomic():
-                payment.refunded_at = timezone.now()
-                payment.refund_amount = payment.amount
+                payment = Payment.objects.select_for_update(of=('self',)).get(pk=pk)
+                if payment.is_refunded:
+                    raise PaymentError(detail='To\'lov allaqachon to\'liq qaytarilgan')
+                previous_refund = payment.refund_amount or Decimal('0')
+                new_refund_total = previous_refund + refund_amount
+                if new_refund_total > payment.amount:
+                    raise PaymentError(detail='Qaytarish summasi to\'lov summasidan oshib ketdi')
+
+                payment.refunded_at = payment.refunded_at or timezone.now()
+                payment.refund_amount = new_refund_total
                 payment.refund_reason = reason
-                payment.payment_status = 'cancelled'
+                if new_refund_total >= payment.amount:
+                    payment.payment_status = 'cancelled'
                 payment.save()
-                
+
+                status_new = 'cancelled' if new_refund_total >= payment.amount else 'completed'
                 PaymentHistory.objects.create(
                     payment=payment,
                     status='completed',
-                    status_new='cancelled',
-                    gateway_response={'refund': refund_result, 'reason': reason}
+                    status_new=status_new,
+                    gateway_response={
+                        'refund': refund_result,
+                        'reason': reason,
+                        'refund_amount': str(refund_amount),
+                        'refund_total': str(new_refund_total),
+                    },
                 )
+                if payment.order_id and order_platform_payments_enabled():
+                    lock_order_for_payment(payment.order_id)
+                    payment.order.refresh_from_db()
+                    sync_order_payment_confirmation(payment.order)
+                    from apps.orders.realtime import broadcast_order_payment_updated
+                    broadcast_order_payment_updated(payment.order)
             payment = Payment.objects.select_related('order').get(pk=payment.pk)
             _invalidate_payment_list_caches(payment)
             

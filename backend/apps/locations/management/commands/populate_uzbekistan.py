@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand
 from apps.locations.models import Country, City
+from apps.locations.seed_data import UZBEKISTAN_CITIES
 
 
 class Command(BaseCommand):
@@ -18,6 +19,12 @@ class Command(BaseCommand):
         )
         if created:
             self.stdout.write(f'  Mamlakat yaratildi: {uz.name_uz}')
+
+        coords_by_en = {
+            row['name_en'].lower(): (row['latitude'], row['longitude'])
+            for row in UZBEKISTAN_CITIES
+            if isinstance(row, dict)
+        }
 
         uzbekistan_cities = [
             ('Ташкент', 'Tashkent', 'Toshkent'),
@@ -98,17 +105,30 @@ class Command(BaseCommand):
         ]
 
         added_count = 0
+        updated_coords = 0
         for name_ru, name_en, name_uz in uzbekistan_cities:
+            defaults = {
+                'name_en': name_en,
+                'name_uz': name_uz,
+            }
+            coords = coords_by_en.get(name_en.lower())
+            if coords:
+                defaults['latitude'] = coords[0]
+                defaults['longitude'] = coords[1]
             city, created = City.objects.get_or_create(
                 country=uz,
                 name_ru=name_ru,
-                defaults={
-                    'name_en': name_en,
-                    'name_uz': name_uz
-                }
+                defaults=defaults,
             )
             if created:
                 added_count += 1
                 self.stdout.write(f'  Shahar qo\'shildi: {city.name_uz}')
+            elif coords and (city.latitude is None or city.longitude is None):
+                city.latitude = coords[0]
+                city.longitude = coords[1]
+                city.save(update_fields=['latitude', 'longitude'])
+                updated_coords += 1
 
-        self.stdout.write(self.style.SUCCESS(f'Jami {added_count} ta shahar qo\'shildi!'))
+        self.stdout.write(self.style.SUCCESS(
+            f'Jami {added_count} ta shahar qo\'shildi, {updated_coords} ta koordinata yangilandi!'
+        ))

@@ -4,9 +4,13 @@ from django.db.models import Sum
 from datetime import timedelta
 import csv
 import os
+import logging
 from .models import Order, OrderStatus, OrderLocationTrack
+from .services import TERMINAL_ORDER_STATUS_CODES, orders_eligible_for_tracking
 from apps.common.services import send_notification_sms
 from apps.payments.models import Payment
+
+logger = logging.getLogger(__name__)
 
 try:
     from celery import shared_task
@@ -18,14 +22,12 @@ except ImportError:
 
 @task_decorator
 def update_active_order_locations():
-    in_progress_status = OrderStatus.objects.filter(code='in_progress').first()
-    if not in_progress_status:
-        return
-    
-    active_orders = Order.objects.filter(status=in_progress_status)
+    active_orders = orders_eligible_for_tracking()
     
     for order in active_orders:
         if not order.current_location_lat or not order.current_location_lng:
+            continue
+        if order.driver_last_seen_at and timezone.now() - order.driver_last_seen_at < timedelta(minutes=2):
             continue
             
         last_track = OrderLocationTrack.objects.filter(order=order).order_by('-timestamp').first()
@@ -48,11 +50,7 @@ def update_active_order_locations():
 
 @task_decorator
 def check_stopped_drivers():
-    in_progress_status = OrderStatus.objects.filter(code='in_progress').first()
-    if not in_progress_status:
-        return
-    
-    active_orders = Order.objects.filter(status=in_progress_status)
+    active_orders = orders_eligible_for_tracking()
     
     for order in active_orders:
         last_track = OrderLocationTrack.objects.filter(order=order).order_by('-timestamp').first()
@@ -68,8 +66,11 @@ def check_stopped_drivers():
                 driver_name = f"{order.driver.first_name} {order.driver.last_name}"
                 message = f"Diqqat! Haydovchi {driver_name} 5 daqiqadan ko'proq vaqt davomida harakatlanmayapti. Buyurtma #{order.id}"
                 send_notification_sms(client_phone, message)
-            except Exception as e:
-                print(f"Error sending notification: {e}")
+            except Exception:
+                logger.exception(
+                    'Failed to send stopped-driver SMS',
+                    extra={'event': 'stopped_driver_sms_failed', 'order_id': order.id},
+                )
 
 
 def _write_ops_report(filename_prefix, since_dt):
@@ -115,4 +116,42 @@ def generate_daily_operations_report():
 @task_decorator
 def generate_weekly_operations_report():
     _write_ops_report("weekly_operations_report", timezone.now() - timedelta(days=7))
+
+
+@task_decorator
+def purge_old_location_tracks():
+  """
+  Delete GPS track points older than ORDER_LOCATION_TRACK_RETENTION_DAYS.
+  Only for completed/cancelled orders to keep active tracking intact.
+  Before delete, finalize tracked distance for completed orders still missing it.
+  """
+  retention_days = int(getattr(settings, 'ORDER_LOCATION_TRACK_RETENTION_DAYS', 90))
+  cutoff = timezone.now() - timedelta(days=retention_days)
+  terminal_status_codes = list(TERMINAL_ORDER_STATUS_CODES)
+
+  pending_distance_ids = (
+      OrderLocationTrack.objects.filter(
+          timestamp__lt=cutoff,
+          order__status__code='completed',
+          order__tracked_distance_meters__isnull=True,
+      )
+      .values_list('order_id', flat=True)
+      .distinct()
+  )
+  finalized = 0
+  if pending_distance_ids:
+      from apps.orders.distance_tracking import on_order_completed
+
+      for order in Order.objects.filter(id__in=pending_distance_ids).iterator(chunk_size=50):
+          try:
+              on_order_completed(order)
+              finalized += 1
+          except Exception:
+              continue
+
+  deleted, _ = OrderLocationTrack.objects.filter(
+      timestamp__lt=cutoff,
+      order__status__code__in=terminal_status_codes,
+  ).delete()
+  return {'deleted': deleted, 'distance_finalized': finalized, 'cutoff': cutoff.isoformat()}
 

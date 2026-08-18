@@ -8,6 +8,7 @@ from django.db.models import Q, Max, Count, OuterRef, Subquery, Prefetch
 from django.db import transaction
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+import logging
 from .models import Chat, Message
 from apps.orders.models import Order
 from apps.common.pagination import StandardResultsSetPagination
@@ -26,9 +27,11 @@ from .serializers import (
 )
 from apps.notifications.services import create_notification
 from apps.users.permissions import can_access_order, can_access_chat
+from .ws_auth import issue_ws_ticket
 
 CHAT_LIST_CACHE_SCOPE = 'chats_list'
 CHAT_LIST_CACHE_TTL = 30
+logger = logging.getLogger(__name__)
 
 
 def _invalidate_chat_list_cache(chat: Chat):
@@ -163,6 +166,23 @@ class ChatCreateView(APIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 
+class WebSocketTicketView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        responses={200: {'type': 'object', 'properties': {
+            'ticket': {'type': 'string'},
+            'expires_in': {'type': 'integer'},
+        }}}
+    )
+    def post(self, request):
+        ticket, expires_in = issue_ws_ticket(user_id=request.user.id)
+        return Response({
+            'ticket': ticket,
+            'expires_in': expires_in,
+        }, status=status.HTTP_200_OK)
+
+
 class MessageCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -225,11 +245,11 @@ class MessageCreateView(APIView):
                             'message': message_data,
                         }
                     )
-            except Exception as e:
-                # WebSocket error shouldn't fail the request
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.warning(f'WebSocket error: {str(e)}')
+            except Exception:
+                logger.exception(
+                    'Failed to broadcast chat message over WebSocket',
+                    extra={'event': 'chat_ws_broadcast_failed'},
+                )
             
             # Send notification
             try:
@@ -253,19 +273,21 @@ class MessageCreateView(APIView):
                         notification_type='message_received',
                         title='Yangi xabar',
                         message=f"{sender_name}: {preview}{'...' if len(preview) > 50 else ''}",
-                        order=chat.order
+                        order=chat.order,
+                        extra_push_data={'chat_id': chat.id},
                     )
-            except Exception as e:
-                # Notification error shouldn't fail the request
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.warning(f'Notification error: {str(e)}')
+            except Exception:
+                logger.exception(
+                    'Failed to create chat message notification',
+                    extra={'event': 'chat_notify_failed'},
+                )
             
             return Response(message_data, status=status.HTTP_201_CREATED)
         except (ValidationError, NotFoundError, PermissionDeniedError):
             raise
         except Exception as e:
             raise DatabaseError(detail=f'Xabar yaratishda xatolik: {str(e)}')
+
 
 
 class MessageMarkReadView(APIView):

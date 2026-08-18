@@ -1,0 +1,56 @@
+export const appLinkingConfig = {
+  prefixes: ['logistika://'],
+  config: {
+    screens: {
+      PublicTrackingShare: 'track/:token',
+      OpenTrackingLink: 'open-track',
+      Auth: {
+        path: 'auth',
+        screens: {
+          Login: 'login',
+          Register: 'register',
+          ForgotPassword: 'forgot-password',
+        },
+      },
+      Main: {
+        path: 'main',
+        screens: {
+          ClientStack: {
+            screens: {
+              ClientOrderDetail: 'client/orders/:id',
+              ClientOrderTracking: 'client/orders/:id/tracking',
+              Bids: 'client/bids',
+              AdvertisementDetail: 'client/ads/:id',
+            },
+          },
+          DriverStack: {
+            screens: {
+              OrderDetail: 'driver/orders/:id',
+              OrderTracking: 'driver/orders/:id/tracking',
+              AdvertisementDetail: 'driver/ads/:id',
+              MyBids: 'driver/bids',
+            },
+          },
+          DispatcherStack: {
+            screens: {
+              DispatcherOrderDetail: 'dispatcher/orders/:id',
+              DispatcherMonitoring: 'dispatcher/monitoring',
+              DispatcherDriverDocuments: 'dispatcher/driver-documents',
+              StaffComplaints: 'dispatcher/complaints',
+            },
+          },
+        },
+      },
+      DriverDocuments: 'driver-documents',
+      UploadDocuments: 'upload-documents',
+      ChatDetail: 'chat/:id',
+      ChatList: 'chats',
+      NotificationSettings: 'notification-settings',
+      ReviewsHistory: 'reviews',
+      ComplaintsHistory: 'complaints',
+      CompanyMembers: 'company/members',
+    },
+  },
+};
+
+export const APP_LINKING_PREFIXES = appLinkingConfig.prefixes;

@@ -3,7 +3,7 @@ from django.contrib import messages
 from django.contrib.admin import AdminSite
 from django.urls import path
 from django.shortcuts import render, redirect
-from django.db.models import Count, Sum, Avg, Q
+from django.db.models import Count, Sum, Avg, Q, F
 from django.template.response import TemplateResponse
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
@@ -23,7 +23,8 @@ from apps.payments.models import Payment
 from apps.news.models import News
 from apps.chats.models import Message
 from apps.notifications.models import Notification
-from apps.ratings.models import Rating
+from apps.ratings.models import Rating, Complaint
+from apps.subscriptions.models import MarketplaceTrialAccount, TrialDeviceGrant
 from apps.dispatcher.models import DispatcherAssignment
 from rest_framework_simplejwt.tokens import AccessToken
 
@@ -51,6 +52,9 @@ class CustomAdminSite(AdminSite):
             {"title": "To'liq statistikalar", "url": "/admin/statistics/", "kind": "primary"},
             {"title": "Operations Intelligence", "url": "/admin/operations/", "kind": "primary"},
             {"title": "Haydovchi verifikatsiyasi", "url": "/admin/driver-verification/", "kind": "success"},
+            {"title": "Transport verifikatsiyasi", "url": "/admin/vehicle-verification/", "kind": "success"},
+            {"title": "Jalobalar navbati", "url": "/admin/ratings/complaint/?status__exact=pending", "kind": "warning"},
+            {"title": "Trial monitoring", "url": "/admin/subscriptions/marketplacetrialaccount/", "kind": "warning"},
             {"title": "Buyurtmalar", "url": "/admin/orders/order/", "kind": "default"},
             {"title": "To'lovlar", "url": "/admin/payments/payment/", "kind": "default"},
             {"title": "Foydalanuvchilar", "url": "/admin/users/user/", "kind": "default"},
@@ -203,10 +207,9 @@ class CustomAdminSite(AdminSite):
                 "lng": order.current_location_lng,
                 "dispatcher": last_assignment.dispatcher if last_assignment else None,
             })
-            if len(active_rows) >= 50:
-                break
 
         live_driver_locations = []
+        live_incidents = []
         for row in active_rows:
             order = row["order"]
             latest_track = (
@@ -222,10 +225,14 @@ class CustomAdminSite(AdminSite):
                 age_sec = None
             freshness = "stale"
             if age_sec is not None:
-                if age_sec <= 60:
+                if age_sec <= 30:
                     freshness = "fresh"
-                elif age_sec <= 180:
+                elif age_sec <= 60:
                     freshness = "warm"
+                elif age_sec <= 180:
+                    freshness = "stale"
+                else:
+                    freshness = "offline"
             lat = row["lat"]
             lng = row["lng"]
             if lat is not None and lng is not None:
@@ -243,6 +250,20 @@ class CustomAdminSite(AdminSite):
                 "freshness": freshness,
                 "map_url": map_url,
             })
+            if age_sec is not None and age_sec >= 300:
+                live_incidents.append({
+                    "level": "critical" if age_sec >= 900 else "warning",
+                    "title": f"Order #{order.id}: stale location",
+                    "message": f"Haydovchi lokatsiyasi {age_sec} soniyadan beri yangilanmagan.",
+                    "order_id": order.id,
+                })
+            if order.route_deviation_last_distance_meters and order.route_deviation_last_distance_meters > order.route_deviation_threshold_meters:
+                live_incidents.append({
+                    "level": "critical",
+                    "title": f"Order #{order.id}: route deviation",
+                    "message": f"Marshrutdan chiqish {int(order.route_deviation_last_distance_meters)}m.",
+                    "order_id": order.id,
+                })
 
         live_driver_map_points = [
             {
@@ -265,7 +286,7 @@ class CustomAdminSite(AdminSite):
         replay_order_id_param = (request.GET.get('replay_order_id') or '').strip()
         replay_hours_param = (request.GET.get('replay_hours') or '1').strip()
         replay_hours = int(replay_hours_param) if replay_hours_param.isdigit() and int(replay_hours_param) in [1, 2, 3] else 1
-        replay_order_options = [{"id": row["order"].id, "label": f"#{row['order'].id}"} for row in active_rows[:50]]
+        replay_order_options = [{"id": row["order"].id, "label": f"#{row['order'].id}"} for row in active_rows]
         replay_order = None
         if replay_order_id_param.isdigit():
             replay_order = next((row["order"] for row in active_rows if row["order"].id == int(replay_order_id_param)), None)
@@ -432,11 +453,14 @@ class CustomAdminSite(AdminSite):
             ).distinct().count(),
         }
 
+        from apps.common.infrastructure import get_infrastructure_snapshot
+
         context = {
             **self.each_context(request),
             "title": self.index_title,
             "quick_stats": quick_stats,
             "system_health": system_health,
+            "infrastructure_snapshot": get_infrastructure_snapshot(),
             "trend_points": trend_points,
             "chart_labels": chart_labels,
             "users_series": users_series,
@@ -465,16 +489,28 @@ class CustomAdminSite(AdminSite):
                 "notifications_today": Notification.objects.filter(created_at__date=today).count(),
             },
             "moderation_queue": {
-                "vehicle_verification_pending": Vehicle.objects.filter(is_verified=False).count(),
-                "driver_verification_pending": User.objects.filter(is_driver=True, is_verified=False).count(),
+                "vehicle_verification_pending": Vehicle.objects.filter(verification_status='pending').count(),
+                "driver_verification_pending": User.objects.filter(
+                    is_driver=True,
+                    verification_status='pending',
+                ).count(),
                 "open_bid_negotiations": Bid.objects.filter(
                     is_rejected_by_client=False,
                     is_rejected_by_driver=False,
                     is_accepted_by_client=False,
                 ).count(),
+                "pending_complaints": Complaint.objects.filter(status='pending').count(),
+                "complaints_in_review": Complaint.objects.filter(status='in_review').count(),
+                "trial_disabled_accounts": MarketplaceTrialAccount.objects.filter(trial_disabled=True).count(),
+                "trial_exhausted_accounts": MarketplaceTrialAccount.objects.filter(
+                    trial_disabled=False,
+                    free_uses_consumed__gte=F('free_uses_granted'),
+                ).count(),
+                "trial_device_grants": TrialDeviceGrant.objects.count(),
             },
             "active_rows": active_rows,
             "live_driver_locations": live_driver_locations,
+            "live_incidents": live_incidents[:12],
             "live_driver_map_points": live_driver_map_points,
             "heatmap_points": heatmap_points,
             "route_replay_points": route_replay_points,
@@ -517,6 +553,7 @@ class CustomAdminSite(AdminSite):
             path('operations/', self.admin_view(self.operations_view), name='admin_operations'),
             path('statistics/', self.admin_view(self.statistics_view), name='admin_statistics'),
             path('driver-verification/', self.admin_view(self.driver_verification_view), name='admin_driver_verification'),
+            path('vehicle-verification/', self.admin_view(self.vehicle_verification_view), name='admin_vehicle_verification'),
         ]
         return custom_urls + urls
 
@@ -695,12 +732,30 @@ class CustomAdminSite(AdminSite):
             "active_orders": Order.objects.filter(status__code__in=['in_progress', 'in_transit']).count(),
             "problem_orders": Order.objects.filter(status__code__in=['rejected', 'stopped', 'cancelled']).count(),
         }
+        live_incidents = []
 
         active_rows = []
-        for order in self._get_filtered_active_orders(request)[:50]:
+        for order in self._get_filtered_active_orders(request):
             last_assignment = (
                 order.dispatcher_assignments.select_related('dispatcher').order_by('-assigned_at').first()
             )
+            latest_track = OrderLocationTrack.objects.filter(order=order).order_by('-timestamp').first()
+            last_update = latest_track.timestamp if latest_track else order.updated_at
+            age_sec = max(0, int((timezone.now() - last_update).total_seconds())) if last_update else None
+            if age_sec is not None and age_sec >= 300:
+                live_incidents.append({
+                    "level": "critical" if age_sec >= 900 else "warning",
+                    "title": f"Order #{order.id}: stale location",
+                    "message": f"Haydovchi lokatsiyasi {age_sec} soniyadan beri yangilanmagan.",
+                    "order_id": order.id,
+                })
+            if order.route_deviation_last_distance_meters and order.route_deviation_last_distance_meters > order.route_deviation_threshold_meters:
+                live_incidents.append({
+                    "level": "critical",
+                    "title": f"Order #{order.id}: route deviation",
+                    "message": f"Marshrutdan chiqish {int(order.route_deviation_last_distance_meters)}m.",
+                    "order_id": order.id,
+                })
             active_rows.append({
                 "id": order.id,
                 "status_name": order.status.name_ru if hasattr(order.status, "name_ru") else order.status.code,
@@ -726,6 +781,7 @@ class CustomAdminSite(AdminSite):
             },
             "data_quality": data_quality,
             "active_rows": active_rows,
+            "live_incidents": live_incidents[:12],
         })
 
     def operations_view(self, request):
@@ -896,32 +952,44 @@ class CustomAdminSite(AdminSite):
         return render(request, 'admin/statistics.html', context)
 
     def driver_verification_view(self, request):
+        from apps.users.verification import (
+            VERIFICATION_APPROVED,
+            VERIFICATION_PENDING,
+            VERIFICATION_REJECTED,
+            notify_driver_verification_decision,
+        )
+
         if request.method == 'POST' and 'driver_id' in request.POST:
             try:
                 driver_id = request.POST.get('driver_id')
+                action = request.POST.get('action', 'approve')
                 driver = User.objects.get(id=driver_id, is_driver=True)
-                driver.is_verified = True
-                driver.save()
-                from django.contrib import messages
-                messages.success(request, f'Haydovchi {driver.first_name} {driver.last_name} tasdiqlandi.')
-                from django.shortcuts import redirect
+                if action == 'reject':
+                    driver.verification_status = VERIFICATION_REJECTED
+                    driver.is_verified = False
+                    notify_driver_verification_decision(driver, approved=False)
+                    messages.success(request, f'Haydovchi {driver.first_name} {driver.last_name} rad etildi.')
+                else:
+                    driver.verification_status = VERIFICATION_APPROVED
+                    driver.is_verified = True
+                    notify_driver_verification_decision(driver, approved=True)
+                    messages.success(request, f'Haydovchi {driver.first_name} {driver.last_name} tasdiqlandi.')
+                driver.save(update_fields=['verification_status', 'is_verified', 'updated_at'])
                 return redirect('admin:admin_driver_verification')
             except User.DoesNotExist:
-                from django.contrib import messages
                 messages.error(request, 'Haydovchi topilmadi.')
             except Exception as e:
-                from django.contrib import messages
                 messages.error(request, f'Xatolik: {str(e)}')
         
-        unverified_drivers = User.objects.filter(
+        pending_drivers = User.objects.filter(
             is_driver=True,
-            is_verified=False
-        ).prefetch_related('vehicles').order_by('-created_at')
+            verification_status=VERIFICATION_PENDING,
+        ).prefetch_related('vehicles').order_by('-updated_at')
         
         from django.conf import settings
         
         drivers_with_documents = []
-        for driver in unverified_drivers:
+        for driver in pending_drivers:
             has_documents = bool(driver.document_photos and len(driver.document_photos) > 0)
             has_vehicles = driver.vehicles.exists()
             verified_vehicles = driver.vehicles.filter(is_verified=True)
@@ -958,6 +1026,79 @@ class CustomAdminSite(AdminSite):
             'title': 'Haydovchilar hujjatlarini tasdiqlash',
         }
         return render(request, 'admin/driver_verification.html', context)
+
+    def vehicle_verification_view(self, request):
+        from apps.users.verification import (
+            VERIFICATION_APPROVED,
+            VERIFICATION_PENDING,
+            VERIFICATION_REJECTED,
+            notify_vehicle_verification_decision,
+        )
+
+        if request.method == 'POST' and 'vehicle_id' in request.POST:
+            try:
+                vehicle_id = request.POST.get('vehicle_id')
+                action = request.POST.get('action', 'approve')
+                vehicle = Vehicle.objects.select_related('user').get(id=vehicle_id)
+                if action == 'reject':
+                    vehicle.verification_status = VERIFICATION_REJECTED
+                    vehicle.is_verified = False
+                    notify_vehicle_verification_decision(vehicle, approved=False)
+                    messages.success(request, f'Transport {vehicle.number} rad etildi.')
+                else:
+                    vehicle.verification_status = VERIFICATION_APPROVED
+                    vehicle.is_verified = True
+                    notify_vehicle_verification_decision(vehicle, approved=True)
+                    messages.success(request, f'Transport {vehicle.number} tasdiqlandi.')
+                vehicle.save(update_fields=['verification_status', 'is_verified', 'updated_at'])
+                return redirect('admin:admin_vehicle_verification')
+            except Vehicle.DoesNotExist:
+                messages.error(request, 'Transport topilmadi.')
+            except Exception as e:
+                messages.error(request, f'Xatolik: {str(e)}')
+
+        pending_vehicles = (
+            Vehicle.objects.filter(verification_status=VERIFICATION_PENDING)
+            .select_related('user')
+            .order_by('-updated_at')
+        )
+        from django.conf import settings
+
+        vehicles_data = []
+        for vehicle in pending_vehicles:
+            document_urls = []
+            if vehicle.document_photos:
+                for photo in vehicle.document_photos:
+                    if not photo:
+                        continue
+                    if isinstance(photo, str):
+                        if photo.startswith('http://') or photo.startswith('https://'):
+                            document_urls.append(photo)
+                        elif photo.startswith('/'):
+                            document_urls.append(
+                                f"{request.scheme}://{request.get_host()}{settings.MEDIA_URL}{photo.lstrip('/')}"
+                            )
+                        else:
+                            document_urls.append(
+                                f"{request.scheme}://{request.get_host()}{settings.MEDIA_URL}{photo}"
+                            )
+                    else:
+                        document_urls.append(str(photo))
+
+            vehicles_data.append({
+                'vehicle': vehicle,
+                'driver': vehicle.user,
+                'document_count': len(vehicle.document_photos or []),
+                'document_urls': document_urls,
+                'has_documents': bool(document_urls),
+            })
+
+        context = {
+            **self.each_context(request),
+            'vehicles': vehicles_data,
+            'title': 'Transport vositalarini tasdiqlash',
+        }
+        return render(request, 'admin/vehicle_verification.html', context)
 
 
 admin_site = CustomAdminSite(name='admin')

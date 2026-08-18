@@ -4,7 +4,6 @@ from .views import (
     LoginView,
     RefreshTokenView,
     MeView,
-    UserVehiclesView,
     UserEarningsView,
     UserUploadDocumentsView,
     UpdateFCMTokenView,
@@ -12,6 +11,9 @@ from .views import (
     DriverDocumentDetailView,
     DriverDocumentMonitoringView,
 )
+from .password_views import ResetPasswordView
+from .company_views import CompanyMembersView, CompanyBootstrapView, CompanyProfileView
+from .payout_views import DriverPayoutRequestListCreateView
 from .analytics_views import AdvancedAnalyticsView
 
 app_name = 'users'
@@ -22,12 +24,16 @@ urlpatterns = [
     path('refresh/', RefreshTokenView.as_view(), name='refresh'),
     path('me/', MeView.as_view(), name='me'),
     path('upload-documents/', UserUploadDocumentsView.as_view(), name='upload-documents'),
-    path('vehicles/', UserVehiclesView.as_view(), name='vehicles'),
     path('earnings/', UserEarningsView.as_view(), name='earnings'),
     path('fcm-token/', UpdateFCMTokenView.as_view(), name='fcm-token'),
     path('driver-documents/', DriverDocumentListCreateView.as_view(), name='driver-documents'),
     path('driver-documents/<int:pk>/', DriverDocumentDetailView.as_view(), name='driver-document-detail'),
     path('driver-documents/monitoring/', DriverDocumentMonitoringView.as_view(), name='driver-documents-monitoring'),
     path('analytics/', AdvancedAnalyticsView.as_view(), name='analytics'),
+    path('reset-password/', ResetPasswordView.as_view(), name='reset-password'),
+    path('company/', CompanyProfileView.as_view(), name='company-profile'),
+    path('company/members/', CompanyMembersView.as_view(), name='company-members'),
+    path('company/bootstrap/', CompanyBootstrapView.as_view(), name='company-bootstrap'),
+    path('payout-requests/', DriverPayoutRequestListCreateView.as_view(), name='payout-requests'),
 ]
 

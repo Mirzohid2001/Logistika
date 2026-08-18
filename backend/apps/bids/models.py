@@ -44,10 +44,44 @@ class Bid(models.Model):
             return True
         return self.last_counter_by == 'driver'
 
-    def get_current_amount(self):
-        if self.proposed_amounts:
-            last_proposal = self.proposed_amounts[-1]
-            if isinstance(last_proposal, dict):
-                return last_proposal.get('amount')
-            return last_proposal
+    def can_agree_to_counter_by_driver(self):
+        if self.is_rejected_by_client or self.is_rejected_by_driver or self.is_accepted_by_client:
+            return False
+        return self.last_counter_by == 'client' and not self.is_driver_agreed_to_amount
+
+    def get_last_amount_by(self, party: str):
+        for proposal in reversed(self.proposed_amounts):
+            if isinstance(proposal, dict) and proposal.get('by') == party:
+                return proposal.get('amount')
         return None
+
+    @staticmethod
+    def amounts_equal(left, right) -> bool:
+        if left is None or right is None:
+            return False
+        try:
+            from decimal import Decimal
+
+            normalize = lambda value: Decimal(str(value).strip().replace(' ', '').replace(',', ''))
+            return normalize(left) == normalize(right)
+        except Exception:
+            return str(left).strip() == str(right).strip()
+
+    def get_current_amount(self):
+        if not self.proposed_amounts:
+            return None
+        last_proposal = self.proposed_amounts[-1]
+        raw = last_proposal.get('amount') if isinstance(last_proposal, dict) else last_proposal
+        if raw is None:
+            return None
+        if isinstance(raw, (int, float)):
+            return raw
+        s = str(raw).strip().replace(' ', '').replace(',', '').replace("'", '')
+        if not s:
+            return None
+        try:
+            from decimal import Decimal
+
+            return str(Decimal(s))
+        except Exception:
+            return raw

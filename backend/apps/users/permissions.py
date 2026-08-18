@@ -1,5 +1,7 @@
 from rest_framework import permissions
 
+from .roles import is_marketplace_client, is_marketplace_driver, is_staff_account
+
 
 def _is_authenticated(user):
     return bool(user and user.is_authenticated)
@@ -19,7 +21,7 @@ def _has_admin_like_role(user):
 def can_access_order(user, order) -> bool:
     if not _is_authenticated(user):
         return False
-    if getattr(user, 'is_dispatcher', False) or getattr(user, 'is_updater', False):
+    if _has_admin_like_role(user):
         return True
     return order.client_id == user.id or order.driver_id == user.id
 
@@ -55,22 +57,13 @@ def can_access_bid(user, bid) -> bool:
 class IsClient(permissions.BasePermission):
     def has_permission(self, request, view):
         user = request.user
-        return (
-            _is_authenticated(user)
-            and getattr(user, 'is_client', False)
-            and not getattr(user, 'is_driver', False)
-            and not _has_admin_like_role(user)
-        )
+        return _is_authenticated(user) and is_marketplace_client(user)
 
 
 class IsDriver(permissions.BasePermission):
     def has_permission(self, request, view):
         user = request.user
-        return (
-            _is_authenticated(user)
-            and getattr(user, 'is_driver', False)
-            and not _has_admin_like_role(user)
-        )
+        return _is_authenticated(user) and is_marketplace_driver(user)
 
 
 class IsOperator(permissions.BasePermission):
@@ -108,4 +101,11 @@ class IsDispatcherOrUpdater(permissions.BasePermission):
     def has_permission(self, request, view):
         user = request.user
         return _is_authenticated(user) and (user.is_dispatcher or user.is_updater)
+
+
+class IsStaffModerator(permissions.BasePermission):
+    """Admin, dispatcher, updater, operator, or Django staff."""
+
+    def has_permission(self, request, view):
+        return _is_authenticated(request.user) and _has_admin_like_role(request.user)
 

@@ -7,7 +7,8 @@ from django.conf import settings
 from rest_framework.views import exception_handler
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.exceptions import Throttled as DRFThrottled
+from rest_framework.exceptions import Throttled as DRFThrottled, AuthenticationFailed, NotAuthenticated
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from django.db import DatabaseError as DjangoDatabaseError
 from django.core.exceptions import ValidationError as DjangoValidationError
 from .exceptions import BaseAPIException
@@ -88,7 +89,18 @@ def log_error(error, request=None, context=None):
         error_message += f" | Context: {context}"
     
     # Log with appropriate level
-    if isinstance(error, (BaseAPIException, DjangoValidationError, DRFThrottled)):
+    if isinstance(
+        error,
+        (
+            BaseAPIException,
+            DjangoValidationError,
+            DRFThrottled,
+            AuthenticationFailed,
+            NotAuthenticated,
+            InvalidToken,
+            TokenError,
+        ),
+    ):
         logger.warning(error_message)
     else:
         logger.error(error_message, exc_info=True)
@@ -111,10 +123,32 @@ def custom_exception_handler(exc, context):
     # Handle custom API exceptions
     if isinstance(exc, BaseAPIException):
         log_error(exc, request)
-        return Response(
-            get_error_response(exc, request),
-            status=exc.status_code
-        )
+        detail = exc.detail
+        if isinstance(detail, dict):
+            field_errors = {}
+            for key, value in detail.items():
+                if isinstance(value, list):
+                    field_errors[key] = [str(item) for item in value]
+                else:
+                    field_errors[key] = [str(value)]
+            error_data = {
+                'error': _extract_primary_message(detail),
+                'code': getattr(exc, 'default_code', 'validation_error'),
+            }
+            if field_errors:
+                error_data['field_errors'] = field_errors
+                phone_errors = field_errors.get('phone', [])
+                if any('mavjud' in msg or 'already' in msg.lower() for msg in phone_errors):
+                    error_data['error'] = phone_errors[0]
+                    error_data['code'] = 'phone_already_registered'
+        else:
+            error_data = {
+                'error': str(detail),
+                'code': getattr(exc, 'default_code', 'error'),
+            }
+            if settings.DEBUG:
+                error_data['error_type'] = type(exc).__name__
+        return Response(error_data, status=exc.status_code)
     
     # Handle Django validation errors
     if isinstance(exc, DjangoValidationError):
@@ -156,6 +190,10 @@ def custom_exception_handler(exc, context):
             'error': _extract_primary_message(raw_data),
             'code': raw_data.get('code', 'validation_error' if response.status_code == 400 else 'error'),
         }
+
+        if response.status_code == 429:
+            error_data['code'] = 'throttled'
+            error_data['error'] = 'Juda ko\'p so\'rov yuborildi. Biroz kutib qayta urinib ko\'ring.'
         
         # Add non-field errors if present
         if 'non_field_errors' in raw_data:

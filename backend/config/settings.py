@@ -7,7 +7,56 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-*eh*rch14p(_v)446m*xji3)&2!%&d$q_#v$p*dwz6hjyktk^3')
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,0.0.0.0,192.168.1.45', cast=lambda v: [s.strip() for s in v.split(',') if s.strip()])
+if not DEBUG and SECRET_KEY.startswith('django-insecure'):
+    raise ValueError('Set a strong SECRET_KEY in production (DEBUG=False).')
+
+# When True, clients can use payment_method="mock" to mark a payment completed immediately (no gateway callback).
+# Default follows DEBUG so local/staging works without Click/Payme webhooks hitting localhost.
+PAYMENTS_ALLOW_MOCK = config('PAYMENTS_ALLOW_MOCK', default=DEBUG, cast=bool)
+# Buyurtma to'lovi shafyor va mijoz o'rtasida — platforma orqali emas.
+ORDER_PLATFORM_PAYMENTS_ENABLED = config('ORDER_PLATFORM_PAYMENTS_ENABLED', default=False, cast=bool)
+PLATFORM_COMMISSION_PERCENT = config('PLATFORM_COMMISSION_PERCENT', default=10, cast=int)
+CANCELLATION_FEE_CLIENT_BEFORE_START_PERCENT = config(
+    'CANCELLATION_FEE_CLIENT_BEFORE_START_PERCENT', default=0, cast=int,
+)
+CANCELLATION_FEE_CLIENT_AFTER_START_PERCENT = config(
+    'CANCELLATION_FEE_CLIENT_AFTER_START_PERCENT', default=20, cast=int,
+)
+CANCELLATION_FEE_DRIVER_AFTER_START_PERCENT = config(
+    'CANCELLATION_FEE_DRIVER_AFTER_START_PERCENT', default=10, cast=int,
+)
+SUBSCRIPTIONS_ENFORCED = config('SUBSCRIPTIONS_ENFORCED', default=False, cast=bool)
+SUBSCRIPTION_FREE_TRIAL_USES = config('SUBSCRIPTION_FREE_TRIAL_USES', default=3, cast=int)
+SUBSCRIPTION_TRIAL_ONE_ACCOUNT_PER_DEVICE = config(
+    'SUBSCRIPTION_TRIAL_ONE_ACCOUNT_PER_DEVICE', default=True, cast=bool
+)
+SUBSCRIPTION_REQUIRE_DEVICE_ID_ON_REGISTER = config(
+    'SUBSCRIPTION_REQUIRE_DEVICE_ID_ON_REGISTER', default=True, cast=bool
+)
+SMS_VERIFICATION_REQUIRED = config('SMS_VERIFICATION_REQUIRED', default=False, cast=bool)
+
+SENTRY_DSN = config('SENTRY_DSN', default='')
+SENTRY_ENVIRONMENT = config('SENTRY_ENVIRONMENT', default='development' if DEBUG else 'production')
+SENTRY_TRACES_SAMPLE_RATE = config('SENTRY_TRACES_SAMPLE_RATE', default=0.1, cast=float)
+STRUCTURED_LOGS = config('STRUCTURED_LOGS', default=not DEBUG, cast=bool)
+
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.celery import CeleryIntegration
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.redis import RedisIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment=SENTRY_ENVIRONMENT,
+        integrations=[DjangoIntegration(), CeleryIntegration(), RedisIntegration()],
+        traces_sample_rate=SENTRY_TRACES_SAMPLE_RATE,
+        send_default_pii=False,
+    )
+
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,0.0.0.0', cast=lambda v: [s.strip() for s in v.split(',') if s.strip()])
+
+REDIS_URL = config('REDIS_URL', default='redis://127.0.0.1:6379/1')
 
 import os
 
@@ -23,12 +72,9 @@ else:
     CACHES = {
         'default': {
             'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-            'LOCATION': config('REDIS_URL', default='redis://127.0.0.1:6379/1'),
-            'OPTIONS': {
-                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            },
+            'LOCATION': REDIS_URL,
             'KEY_PREFIX': 'logistika',
-            'TIMEOUT': 300,  # 5 minutes default timeout
+            'TIMEOUT': 300,
         }
     }
 
@@ -42,6 +88,7 @@ INSTALLED_APPS = [
     'channels',
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'drf_spectacular',
     'apps.users',
@@ -52,17 +99,19 @@ INSTALLED_APPS = [
     'apps.locations',
     'apps.news',
     'apps.content',
-    'apps.payments',
+    'apps.payments.apps.PaymentsConfig',
     'apps.common',
     'apps.chats',
     'apps.ratings',
     'apps.dispatcher',
     'apps.updater',
     'apps.notifications',
+    'apps.subscriptions',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.gzip.GZipMiddleware',  # Response compression
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -70,6 +119,7 @@ MIDDLEWARE = [
     'apps.common.middleware.RequestValidationMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'apps.subscriptions.middleware.SubscriptionEnforcementMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -99,7 +149,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],
+            'hosts': [REDIS_URL],
         },
     },
 }
@@ -112,6 +162,7 @@ DATABASES = {
         'PASSWORD': os.environ.get('POSTGRES_PASSWORD', ''),
         'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
         'PORT': os.environ.get('POSTGRES_PORT', 5432),
+        'CONN_MAX_AGE': config('DB_CONN_MAX_AGE', default=60 if not DEBUG else 0, cast=int),
     }
 }
 
@@ -144,8 +195,57 @@ LANGUAGES = [
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-MEDIA_URL = 'media/'
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID', default='')
+AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY', default='')
+AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME', default='')
+AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='us-east-1')
+AWS_S3_CUSTOM_DOMAIN = config('AWS_S3_CUSTOM_DOMAIN', default='')
+AWS_S3_OBJECT_PARAMETERS = {'CacheControl': 'max-age=86400'}
+# Serve uploaded files from local disk when DEBUG=False (e.g. docker-compose without S3).
+SERVE_LOCAL_MEDIA = config('SERVE_LOCAL_MEDIA', default=DEBUG, cast=bool)
+
+_staticfiles_backend = (
+    'whitenoise.storage.CompressedManifestStaticFilesStorage'
+    if not DEBUG
+    else 'django.contrib.staticfiles.storage.StaticFilesStorage'
+)
+
+if AWS_STORAGE_BUCKET_NAME:
+    STORAGES = {
+        'default': {
+            'BACKEND': 'storages.backends.s3.S3Storage',
+            'OPTIONS': {
+                'bucket_name': AWS_STORAGE_BUCKET_NAME,
+                'region_name': AWS_S3_REGION_NAME,
+                'custom_domain': AWS_S3_CUSTOM_DOMAIN or None,
+                'default_acl': 'public-read',
+                'file_overwrite': False,
+            },
+        },
+        'staticfiles': {
+            'BACKEND': _staticfiles_backend,
+        },
+    }
+    if AWS_S3_CUSTOM_DOMAIN:
+        MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/'
+    else:
+        MEDIA_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/'
+else:
+    STORAGES = {
+        'default': {
+            'BACKEND': 'django.core.files.storage.FileSystemStorage',
+            'OPTIONS': {
+                'location': MEDIA_ROOT,
+                'base_url': MEDIA_URL,
+            },
+        },
+        'staticfiles': {
+            'BACKEND': _staticfiles_backend,
+        },
+    }
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -161,6 +261,7 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
+        'apps.subscriptions.permissions.HasActiveSubscription',
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
@@ -175,7 +276,7 @@ REST_FRAMEWORK = {
         'anon': '1000/hour' if DEBUG else '100/hour',  # Development: relaxed limits
         'user': '10000/hour' if DEBUG else '1000/hour',  # Development: relaxed limits
         'login': '30/minute' if DEBUG else '5/minute',
-        'register': '20/hour' if DEBUG else '3/hour',
+        'register': '100/hour' if DEBUG else '3/hour',
         'sms': '30/hour' if DEBUG else '5/hour',
     },
 }
@@ -235,12 +336,22 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'MyGruz API',
+    'TITLE': 'Logistika API',
     'DESCRIPTION': 'Yuk tashish agregatori API dokumentatsiyasi',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'COMPONENT_SPLIT_REQUEST': True,
 }
+
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=True, cast=bool)
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=31536000, cast=int)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = 'same-origin'
 
 CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
@@ -248,6 +359,23 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
+# Yangi e'lon bo'yicha haydovchi offerlari: Celery worker bilan async.
+MATCHING_OFFERS_ASYNC = config('MATCHING_OFFERS_ASYNC', default=True, cast=bool)
+
+# Django testlari Redis worker kutmasin — offerlar sync bajarilsin.
+import sys
+if 'test' in sys.argv:
+    MATCHING_OFFERS_ASYNC = False
+    CELERY_TASK_ALWAYS_EAGER = True
+GOOGLE_MAPS_API_KEY = config('GOOGLE_MAPS_API_KEY', default='')
+YANDEX_ROUTING_API_KEY = config('YANDEX_ROUTING_API_KEY', default='')
+ROUTING_PROVIDER_PRIORITY = config('ROUTING_PROVIDER_PRIORITY', default='google,yandex,haversine')
+ORDER_LOCATION_TRACK_RETENTION_DAYS = config('ORDER_LOCATION_TRACK_RETENTION_DAYS', default=90, cast=int)
+
+FCM_SERVER_KEY = config('FCM_SERVER_KEY', default='')
+PUSH_MAX_RETRY_ATTEMPTS = config('PUSH_MAX_RETRY_ATTEMPTS', default=5, cast=int)
+PUSH_RETRY_BACKOFF_SECONDS = config('PUSH_RETRY_BACKOFF_SECONDS', default=60, cast=int)
+
 CELERY_BEAT_SCHEDULE = {
     'update-active-order-locations': {
         'task': 'apps.orders.tasks.update_active_order_locations',
@@ -265,6 +393,18 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.orders.tasks.generate_weekly_operations_report',
         'schedule': 604800.0,
     },
+    'purge-old-location-tracks': {
+        'task': 'apps.orders.tasks.purge_old_location_tracks',
+        'schedule': 86400.0,
+    },
+    'retry-failed-push-notifications': {
+        'task': 'apps.notifications.tasks.retry_failed_push_notifications',
+        'schedule': 120.0,
+    },
+    'check-driver-document-expiry': {
+        'task': 'apps.users.tasks.check_driver_document_expiry',
+        'schedule': 86400.0,
+    },
 }
 
 # Logging configuration
@@ -280,6 +420,9 @@ LOGGING = {
             'format': '{levelname} {message}',
             'style': '{',
         },
+        'json': {
+            '()': 'apps.common.structured_logging.JsonFormatter',
+        },
     },
     'filters': {
         'require_debug_true': {
@@ -290,13 +433,13 @@ LOGGING = {
         'console': {
             'level': 'INFO',
             'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
+            'formatter': 'json' if STRUCTURED_LOGS else 'verbose',
         },
         'file': {
             'level': 'ERROR',
             'class': 'logging.FileHandler',
             'filename': BASE_DIR / 'logs' / 'error.log',
-            'formatter': 'verbose',
+            'formatter': 'json' if STRUCTURED_LOGS else 'verbose',
         },
     },
     'root': {

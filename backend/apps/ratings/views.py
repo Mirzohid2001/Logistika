@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema
 from django.db.models import Avg, Count, Q
-from .models import Rating
+from .models import Rating, Complaint
 from .serializers import RatingSerializer, RatingCreateSerializer
 from apps.orders.models import Order
 from apps.users.models import User
@@ -58,7 +58,21 @@ class RatingCreateView(APIView):
                 rating.rating = rating_value
                 rating.comment = comment
                 rating.save()
-            
+
+            try:
+                from apps.notifications.services import create_notification
+
+                rater_name = f'{request.user.first_name} {request.user.last_name}'.strip() or 'Foydalanuvchi'
+                create_notification(
+                    user=to_user,
+                    notification_type='rating_received',
+                    title='Yangi baho',
+                    message=f'{rater_name} sizga {rating_value} yulduzcha baho qoldirdi.',
+                    order=order,
+                )
+            except Exception:
+                pass
+
             return Response(RatingSerializer(rating).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -118,6 +132,12 @@ class UserRatingStatsView(APIView):
             one_star=Count('id', filter=Q(rating=1)),
         )
         
+        complaint_stats = Complaint.objects.filter(to_user=user).aggregate(
+            total_complaints=Count('id'),
+            pending_complaints=Count('id', filter=Q(status='pending')),
+            in_review_complaints=Count('id', filter=Q(status='in_review')),
+        )
+
         return Response({
             'user_id': user_id,
             'average_rating': round(stats['average_rating'] or 0, 2),
@@ -128,5 +148,8 @@ class UserRatingStatsView(APIView):
                 '3': stats['three_star'] or 0,
                 '2': stats['two_star'] or 0,
                 '1': stats['one_star'] or 0,
-            }
+            },
+            'complaints_received': complaint_stats['total_complaints'] or 0,
+            'complaints_pending': complaint_stats['pending_complaints'] or 0,
+            'complaints_in_review': complaint_stats['in_review_complaints'] or 0,
         }, status=status.HTTP_200_OK)

@@ -3,21 +3,26 @@ DEBUG = True
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'monday',
-        'USER': '',
+        'NAME': 'logistika',
+        'USER': 'postgres',
         'PASSWORD': '',
         'HOST': 'localhost',
         'PORT': 5432,
     }
 }
 
-SMS_CODE_ACTIVE = False
-ESKIZ_TOKEN = ''
-MAPS_API_KEY = ''
+# Local dev: SMS va mock to'lov
+SMS_VERIFICATION_REQUIRED = False
+PAYMENTS_ALLOW_MOCK = True
+SUBSCRIPTIONS_ENFORCED = False
 
-EMAIL_HOST = 'smtp.sendgrid.net'
-EMAIL_PORT = 587
-EMAIL_HOST_USER = 'apikey'
-EMAIL_HOST_PASSWORD = ''  # SendGrid API Key
-SERVER_EMAIL = EMAIL_HOST_USER
-DEFAULT_FROM_EMAIL = ''
+# Eskiz SMS
+ESKIZ_EMAIL = ''
+ESKIZ_PASSWORD = ''
+
+# Maps
+GOOGLE_MAPS_API_KEY = ''
+YANDEX_ROUTING_API_KEY = ''
+
+# Email (ixtiyoriy)
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

@@ -254,6 +254,21 @@ class DispatcherAPITest(TestCase):
         self.assertIsNotNone(assignment)
         self.assertEqual(assignment.assigned_driver, self.driver)
 
+    def test_dispatcher_assign_rejects_in_transit_order(self):
+        in_transit, _ = OrderStatus.objects.get_or_create(
+            code='in_transit',
+            defaults={'name_ru': 'In transit', 'name_en': 'In transit', 'name_uz': "Yo'lda"},
+        )
+        self.order.status = in_transit
+        self.order.save(update_fields=['status'])
+        self.client.force_authenticate(user=self.dispatcher)
+        response = self.client.post(
+            f'/api/dispatcher/orders/{self.order.id}/assign/',
+            {'driver_id': self.driver.id, 'notes': 'Too late'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_dispatcher_assign_unverified_driver(self):
         unverified_driver = User.objects.create_user(
             phone='998901234569',

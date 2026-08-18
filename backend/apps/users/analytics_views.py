@@ -3,12 +3,18 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema
-from django.db.models import Sum, Count, Avg, Q, F
 from django.utils import timezone
 from datetime import datetime, timedelta
+
+from apps.orders.financial import (
+    client_gross_settled_spend,
+    driver_gross_settled_earnings,
+    earnings_by_completed_date,
+    route_totals_from_settled_orders,
+    settled_orders_q,
+    spending_by_completed_date,
+)
 from apps.orders.models import Order
-from apps.payments.models import Payment
-from apps.advertisements.models import Advertisement
 
 
 class AdvancedAnalyticsView(APIView):
@@ -58,29 +64,10 @@ class AdvancedAnalyticsView(APIView):
         )
 
         completed_orders = orders.filter(status__code='completed')
-        
-        earnings_data = Payment.objects.filter(
-            user=user,
-            payment_status='completed',
-            created_at__date__gte=date_from,
-            created_at__date__lte=date_to
-        ).aggregate(
-            total_earnings=Sum('amount'),
-            count=Count('id')
-        )
-
-        daily_earnings = []
-        for i in range((date_to - date_from).days + 1):
-            date = date_from + timedelta(days=i)
-            day_earnings = Payment.objects.filter(
-                user=user,
-                payment_status='completed',
-                created_at__date=date
-            ).aggregate(total=Sum('amount'))['total'] or 0
-            daily_earnings.append({
-                'date': date.strftime('%Y-%m-%d'),
-                'earnings': float(day_earnings)
-            })
+        settled_orders = completed_orders.filter(settled_orders_q())
+        total_earnings = driver_gross_settled_earnings(user, date_from=date_from, date_to=date_to)
+        settled_count = settled_orders.count()
+        daily_earnings = earnings_by_completed_date(user, date_from, date_to)
 
         hourly_distribution = []
         for hour in range(24):
@@ -90,28 +77,16 @@ class AdvancedAnalyticsView(APIView):
                 'count': count
             })
 
-        route_stats = completed_orders.values(
-            'advertisement__departure_city__name_uz',
-            'advertisement__destination_city__name_uz'
-        ).annotate(
-            count=Count('id'),
-            total_earnings=Sum('advertisement__proposed_cost')
-        ).order_by('-count')[:10]
-
-        routes = []
-        for route in route_stats:
-            routes.append({
-                'from': route['advertisement__departure_city__name_uz'],
-                'to': route['advertisement__destination_city__name_uz'],
-                'count': route['count'],
-                'total_earnings': float(route['total_earnings'] or 0)
-            })
+        routes = route_totals_from_settled_orders(
+            settled_orders,
+            amount_key='total_earnings',
+        )
 
         return Response({
             'earnings_analysis': {
-                'total_earnings': float(earnings_data['total_earnings'] or 0),
-                'total_payments': earnings_data['count'] or 0,
-                'average_per_order': float(earnings_data['total_earnings'] or 0) / max(completed_orders.count(), 1),
+                'total_earnings': float(total_earnings),
+                'total_payments': settled_count,
+                'average_per_order': float(total_earnings) / max(settled_count, 1),
                 'daily_earnings': daily_earnings
             },
             'best_times': {
@@ -129,29 +104,10 @@ class AdvancedAnalyticsView(APIView):
         )
 
         completed_orders = orders.filter(status__code='completed')
-
-        expenses_data = Payment.objects.filter(
-            order__client=user,
-            payment_status='completed',
-            created_at__date__gte=date_from,
-            created_at__date__lte=date_to
-        ).aggregate(
-            total_expenses=Sum('amount'),
-            count=Count('id')
-        )
-
-        daily_expenses = []
-        for i in range((date_to - date_from).days + 1):
-            date = date_from + timedelta(days=i)
-            day_expenses = Payment.objects.filter(
-                order__client=user,
-                payment_status='completed',
-                created_at__date=date
-            ).aggregate(total=Sum('amount'))['total'] or 0
-            daily_expenses.append({
-                'date': date.strftime('%Y-%m-%d'),
-                'expenses': float(day_expenses)
-            })
+        settled_orders = completed_orders.filter(settled_orders_q())
+        total_expenses = client_gross_settled_spend(user, date_from=date_from, date_to=date_to)
+        settled_count = settled_orders.count()
+        daily_expenses = spending_by_completed_date(user, date_from, date_to)
 
         hourly_distribution = []
         for hour in range(24):
@@ -161,28 +117,16 @@ class AdvancedAnalyticsView(APIView):
                 'count': count
             })
 
-        route_stats = completed_orders.values(
-            'advertisement__departure_city__name_uz',
-            'advertisement__destination_city__name_uz'
-        ).annotate(
-            count=Count('id'),
-            total_cost=Sum('advertisement__proposed_cost')
-        ).order_by('-count')[:10]
-
-        routes = []
-        for route in route_stats:
-            routes.append({
-                'from': route['advertisement__departure_city__name_uz'],
-                'to': route['advertisement__destination_city__name_uz'],
-                'count': route['count'],
-                'total_cost': float(route['total_cost'] or 0)
-            })
+        routes = route_totals_from_settled_orders(
+            settled_orders,
+            amount_key='total_cost',
+        )
 
         return Response({
             'expenses_analysis': {
-                'total_expenses': float(expenses_data['total_expenses'] or 0),
-                'total_payments': expenses_data['count'] or 0,
-                'average_per_order': float(expenses_data['total_expenses'] or 0) / max(completed_orders.count(), 1),
+                'total_expenses': float(total_expenses),
+                'total_payments': settled_count,
+                'average_per_order': float(total_expenses) / max(settled_count, 1),
                 'daily_expenses': daily_expenses
             },
             'best_times': {

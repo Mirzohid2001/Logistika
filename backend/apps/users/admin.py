@@ -7,19 +7,19 @@ from django.shortcuts import redirect
 from django.contrib import messages
 from apps.common.admin_mixins import OperatorUserMixin
 from config.admin import admin_site
-from .models import User, DriverDocument
+from .models import User, DriverDocument, DeviceFcmToken, Company
 
 
 @admin.register(User, site=admin_site)
 class UserAdmin(OperatorUserMixin, BaseUserAdmin):
-    list_display = ['phone', 'first_name', 'last_name', 'email', 'is_driver', 'is_client', 'is_operator', 'is_admin', 'is_dispatcher', 'is_updater', 'is_verified', 'is_blocked', 'is_staff', 'created_at']
+    list_display = ['phone', 'company_inn', 'first_name', 'last_name', 'email', 'is_driver', 'is_client', 'is_operator', 'is_admin', 'is_dispatcher', 'is_updater', 'is_verified', 'is_blocked', 'is_staff', 'created_at']
     list_filter = ['is_driver', 'is_client', 'is_operator', 'is_admin', 'is_dispatcher', 'is_updater', 'is_verified', 'is_blocked', 'is_staff', 'is_superuser']
-    search_fields = ['phone', 'first_name', 'last_name', 'email']
+    search_fields = ['phone', 'company_inn', 'first_name', 'last_name', 'email']
     ordering = ['-created_at']
     
     fieldsets = (
         (None, {'fields': ('phone', 'password')}),
-        (_('Personal info'), {'fields': ('first_name', 'last_name', 'email', 'avatar', 'document_photos')}),
+        (_('Personal info'), {'fields': ('first_name', 'last_name', 'email', 'company_inn', 'avatar', 'document_photos')}),
         (_('Permissions'), {
             'fields': ('is_active', 'is_staff', 'is_superuser', 'is_driver', 'is_client', 'is_operator', 'is_admin', 'is_dispatcher', 'is_updater', 'is_verified', 'is_blocked', 'groups', 'user_permissions'),
         }),
@@ -54,9 +54,9 @@ class UserAdmin(OperatorUserMixin, BaseUserAdmin):
     def verify_driver(self, request, user_id):
         if request.method == 'POST':
             try:
+                from apps.users.verification import mark_driver_verification_approved
                 user = User.objects.get(id=user_id, is_driver=True)
-                user.is_verified = True
-                user.save()
+                mark_driver_verification_approved(user)
                 messages.success(request, f'Haydovchi {user.first_name} {user.last_name} tasdiqlandi.')
             except User.DoesNotExist:
                 messages.error(request, 'Haydovchi topilmadi.')
@@ -82,3 +82,18 @@ class DriverDocumentAdmin(admin.ModelAdmin):
     list_filter = ['document_type', 'is_active', 'expires_at']
     search_fields = ['user__phone', 'document_number']
     readonly_fields = ['created_at', 'updated_at', 'reminder_sent_at']
+
+
+@admin.register(DeviceFcmToken, site=admin_site)
+class DeviceFcmTokenAdmin(admin.ModelAdmin):
+    list_display = ['user', 'platform', 'device_id', 'is_active', 'last_seen_at']
+    list_filter = ['platform', 'is_active']
+    search_fields = ['user__phone', 'device_id', 'token']
+    readonly_fields = ['created_at', 'updated_at', 'last_seen_at']
+
+
+@admin.register(Company, site=admin_site)
+class CompanyAdmin(admin.ModelAdmin):
+    list_display = ['inn', 'name', 'director_name', 'phone', 'mfo']
+    search_fields = ['inn', 'name', 'director_name', 'bank_account']
+    readonly_fields = ['created_at', 'updated_at']

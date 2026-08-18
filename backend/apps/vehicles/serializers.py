@@ -5,8 +5,12 @@ from .models import Vehicle
 class VehicleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vehicle
-        fields = ['id', 'user', 'model', 'make', 'number', 'photo', 'document_photos', 'cargo_volume', 'load_capacity', 'is_verified', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'user', 'is_verified', 'created_at', 'updated_at']
+        fields = [
+            'id', 'user', 'model', 'make', 'number', 'photo', 'document_photos',
+            'cargo_volume', 'load_capacity', 'body_type', 'has_adr', 'is_reefer',
+            'is_heavy_haul', 'is_verified', 'verification_status', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'user', 'is_verified', 'verification_status', 'created_at', 'updated_at']
 
 
 class VehicleCreateSerializer(serializers.ModelSerializer):
@@ -18,7 +22,15 @@ class VehicleCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Vehicle
-        fields = ['model', 'make', 'number', 'photo', 'cargo_volume', 'load_capacity', 'document_photos']
+        fields = [
+            'model', 'make', 'number', 'photo', 'cargo_volume', 'load_capacity',
+            'body_type', 'has_adr', 'is_reefer', 'is_heavy_haul', 'document_photos',
+        ]
+
+    def validate(self, attrs):
+        if attrs.get('body_type') == 'reefer':
+            attrs['is_reefer'] = True
+        return attrs
     
     def create(self, validated_data):
         document_photos = validated_data.pop('document_photos', [])
@@ -43,8 +55,10 @@ class VehicleCreateSerializer(serializers.ModelSerializer):
                 else:
                     photo_urls.append(str(photo))
             vehicle.document_photos = photo_urls
-            vehicle.save()
-        
+
+        extra_fields = ['document_photos'] if document_photos else []
+        from apps.users.verification import mark_vehicle_verification_pending
+        mark_vehicle_verification_pending(vehicle, save_fields=extra_fields)
         return vehicle
     
     def update(self, instance, validated_data):
@@ -63,7 +77,13 @@ class VehicleCreateSerializer(serializers.ModelSerializer):
                 else:
                     photo_urls.append(str(photo))
             instance.document_photos = photo_urls
-        
+            if photo_urls:
+                instance.verification_status = 'pending'
+                instance.is_verified = False
+
         instance.save()
+        if document_photos is not None and instance.document_photos:
+            from apps.users.verification import mark_vehicle_verification_pending
+            mark_vehicle_verification_pending(instance)
         return instance
 

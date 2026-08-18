@@ -5,7 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema
 from django.db.models import Q
 from .models import Notification
-from .serializers import NotificationSerializer
+from .serializers import NotificationSerializer, NotificationPreferencesSerializer
+from .preferences import get_user_preferences, update_user_preferences
 
 
 class NotificationListView(APIView):
@@ -91,6 +92,21 @@ class NotificationUnreadCountView(APIView):
         return Response({
             'unread_count': unread_count
         }, status=status.HTTP_200_OK)
+
+
+class NotificationPreferencesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(responses={200: NotificationPreferencesSerializer})
+    def get(self, request):
+        return Response(get_user_preferences(request.user), status=status.HTTP_200_OK)
+
+    @extend_schema(request=NotificationPreferencesSerializer, responses={200: NotificationPreferencesSerializer})
+    def patch(self, request):
+        serializer = NotificationPreferencesSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        updated = update_user_preferences(request.user, serializer.validated_data)
+        return Response(updated, status=status.HTTP_200_OK)
 
 
 class NotificationDeleteView(APIView):

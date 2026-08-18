@@ -6,11 +6,13 @@ from .models import StaticContent
 
 class StaticContentModelTest(TestCase):
     def setUp(self):
-        self.content = StaticContent.objects.create(
+        self.content, _ = StaticContent.objects.update_or_create(
             content_type='public_offer',
-            content_ru='Публичная оферта на русском',
-            content_en='Public offer in English',
-            content_uz='Ommaviy oferta o\'zbek tilida'
+            defaults={
+                'content_ru': 'Публичная оферта на русском',
+                'content_en': 'Public offer in English',
+                'content_uz': 'Ommaviy oferta o\'zbek tilida',
+            },
         )
 
     def test_content_creation(self):
@@ -21,17 +23,21 @@ class StaticContentModelTest(TestCase):
 class StaticContentAPITest(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.public_offer = StaticContent.objects.create(
+        self.public_offer, _ = StaticContent.objects.update_or_create(
             content_type='public_offer',
-            content_ru='Публичная оферта на русском',
-            content_en='Public offer in English',
-            content_uz='Ommaviy oferta o\'zbek tilida'
+            defaults={
+                'content_ru': 'Публичная оферта на русском',
+                'content_en': 'Public offer in English',
+                'content_uz': 'Ommaviy oferta o\'zbek tilida',
+            },
         )
-        self.disclaimer = StaticContent.objects.create(
+        self.disclaimer, _ = StaticContent.objects.update_or_create(
             content_type='disclaimer',
-            content_ru='Отказ от ответственности на русском',
-            content_en='Disclaimer in English',
-            content_uz='Mas\'uliyatdan voz kechish o\'zbek tilida'
+            defaults={
+                'content_ru': 'Отказ от ответственности на русском',
+                'content_en': 'Disclaimer in English',
+                'content_uz': 'Mas\'uliyatdan voz kechish o\'zbek tilida',
+            },
         )
 
     def test_get_public_offer(self):

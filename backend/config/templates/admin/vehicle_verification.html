@@ -1,0 +1,112 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+    .vehicles-container { display: grid; gap: 20px; }
+    .vehicle-card {
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .vehicle-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+    .vehicle-info h3 { margin: 0 0 5px 0; color: #417690; }
+    .vehicle-info p { margin: 5px 0; color: #666; }
+    .status-badge {
+        display: inline-block;
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+        background: #fff3cd;
+        color: #856404;
+    }
+    .documents-section {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid #eee;
+    }
+    .document-images img {
+        max-width: 200px;
+        max-height: 200px;
+        margin: 5px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    .action-buttons { margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 14px;
+    }
+    .btn-verify { background: #28a745; color: white; }
+    .btn-reject { background: #dc3545; color: white; }
+    .btn-view { background: #007bff; color: white; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+<p>Ko'rib chiqish kutilayotgan transport vositalari</p>
+
+<div class="vehicles-container">
+    {% for item in vehicles %}
+    <div class="vehicle-card">
+        <div class="vehicle-header">
+            <div class="vehicle-info">
+                <h3>{{ item.vehicle.make }} {{ item.vehicle.model }}</h3>
+                <p>Raqam: <strong>{{ item.vehicle.number }}</strong></p>
+                <p>Haydovchi: {{ item.driver.first_name }} {{ item.driver.last_name }} ({{ item.driver.phone }})</p>
+                <p>Yuk: {{ item.vehicle.load_capacity }} kg · Hajm: {{ item.vehicle.cargo_volume }} m³</p>
+            </div>
+            <span class="status-badge">Ko'rib chiqilmoqda</span>
+        </div>
+
+        <div class="documents-section">
+            <h4>Hujjatlar: {{ item.document_count }} ta</h4>
+            {% if item.document_urls %}
+            <div class="document-images">
+                {% for photo_url in item.document_urls %}
+                <img src="{{ photo_url }}" alt="Hujjat" onclick="window.open('{{ photo_url }}', '_blank')">
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color: #999; font-style: italic;">Hujjat rasmlari yo'q</p>
+            {% endif %}
+        </div>
+
+        <div class="action-buttons">
+            <a href="/admin/vehicles/vehicle/{{ item.vehicle.id }}/change/" class="btn btn-view" target="_blank">Batafsil</a>
+            <form method="post" action="/admin/vehicle-verification/" style="display: inline;">
+                {% csrf_token %}
+                <input type="hidden" name="vehicle_id" value="{{ item.vehicle.id }}">
+                <input type="hidden" name="action" value="approve">
+                <button type="submit" class="btn btn-verify" onclick="return confirm('{{ item.vehicle.number }} ni tasdiqlashni xohlaysizmi?');">Tasdiqlash</button>
+            </form>
+            <form method="post" action="/admin/vehicle-verification/" style="display: inline;">
+                {% csrf_token %}
+                <input type="hidden" name="vehicle_id" value="{{ item.vehicle.id }}">
+                <input type="hidden" name="action" value="reject">
+                <button type="submit" class="btn btn-reject" onclick="return confirm('Rad etishni xohlaysizmi?');">Rad etish</button>
+            </form>
+        </div>
+    </div>
+    {% empty %}
+    <div class="vehicle-card">
+        <p>Tasdiqlash kerak bo'lgan transport yo'q</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

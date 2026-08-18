@@ -22,17 +22,18 @@ from .serializers import (
     FCMTokenSerializer,
     DriverDocumentSerializer,
 )
+from .phone import normalize_phone, phone_lookup_variants
 from .permissions import IsDriver, IsDispatcherOrUpdater
 
 
 class RegisterThrottle(AnonRateThrottle):
     """Throttle for registration endpoint."""
-    rate = '3/hour'
+    scope = 'register'
 
 
 class LoginThrottle(AnonRateThrottle):
     """Throttle for login endpoint."""
-    rate = '5/minute'
+    scope = 'login'
 
 
 class RegisterView(APIView):
@@ -48,7 +49,7 @@ class RegisterView(APIView):
                     user = serializer.save()
                     refresh = RefreshToken.for_user(user)
                     return Response({
-                        'user': UserSerializer(user).data,
+                        'user': UserSerializer(user, context={'request': request}).data,
                         'refresh': str(refresh),
                         'access': str(refresh.access_token),
                     }, status=status.HTTP_201_CREATED)
@@ -66,23 +67,32 @@ class LoginView(APIView):
     @extend_schema(responses={200: UserSerializer})
     def post(self, request):
         try:
-            phone = request.data.get('phone')
+            phone_raw = request.data.get('phone')
             password = request.data.get('password')
             
-            if not phone or not password:
+            if not phone_raw or not password:
                 raise ValidationError(detail='Telefon raqam va parol kiritilishi shart')
-            
-            user = authenticate(request, username=phone, password=password)
+
+            user = None
+            for variant in phone_lookup_variants(phone_raw):
+                user = authenticate(request, username=variant, password=password)
+                if user is not None:
+                    break
             
             if user is None:
                 raise AuthenticationError(detail='Noto\'g\'ri telefon raqam yoki parol')
             
             if user.is_blocked:
                 raise PermissionDeniedError(detail='Foydalanuvchi bloklangan')
+
+            device_id = (request.data.get('device_id') or '').strip() or None
+            if device_id:
+                from apps.subscriptions.trial import ensure_user_trial_initialized
+                ensure_user_trial_initialized(user, device_id=device_id)
             
             refresh = RefreshToken.for_user(user)
             return Response({
-                'user': UserSerializer(user).data,
+                'user': UserSerializer(user, context={'request': request}).data,
                 'refresh': str(refresh),
                 'access': str(refresh.access_token),
             }, status=status.HTTP_200_OK)
@@ -119,10 +129,11 @@ class RefreshTokenView(APIView):
 
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = []
 
     @extend_schema(responses={200: UserSerializer})
     def get(self, request):
-        serializer = UserSerializer(request.user)
+        serializer = UserSerializer(request.user, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(request=UserProfileUpdateSerializer, responses={200: UserSerializer})
@@ -130,7 +141,11 @@ class MeView(APIView):
         serializer = UserProfileUpdateSerializer(request.user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response(UserSerializer(request.user).data, status=status.HTTP_200_OK)
+            request.user.refresh_from_db()
+            return Response(
+                UserSerializer(request.user, context={'request': request}).data,
+                status=status.HTTP_200_OK,
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -151,24 +166,9 @@ class UserEarningsView(APIView):
     
     @extend_schema(responses={200: {'type': 'object', 'properties': {'completed_orders': {'type': 'integer'}, 'total_earnings': {'type': 'number'}}}})
     def get(self, request):
-        from apps.orders.models import Order
-        from apps.payments.models import Payment
-        from django.db.models import Sum
-        
-        completed_orders = Order.objects.filter(
-            driver=request.user,
-            status__code='completed'
-        ).count()
-        
-        total_earnings = Payment.objects.filter(
-            user=request.user,
-            payment_status='completed'
-        ).aggregate(total=Sum('amount'))['total'] or 0
-        
-        return Response({
-            'completed_orders': completed_orders,
-            'total_earnings': float(total_earnings)
-        }, status=status.HTTP_200_OK)
+        from apps.orders.financial import driver_earnings_payload
+
+        return Response(driver_earnings_payload(request.user), status=status.HTTP_200_OK)
 
 
 class UserUploadDocumentsView(APIView):
@@ -222,7 +222,14 @@ class UserUploadDocumentsView(APIView):
         
         current_documents = request.user.document_photos if isinstance(request.user.document_photos, list) else []
         request.user.document_photos = current_documents + uploaded_files
-        request.user.save()
+        if request.user.is_driver:
+            from .verification import mark_driver_verification_pending
+            mark_driver_verification_pending(
+                request.user,
+                save_fields=['document_photos', 'verification_status', 'is_verified', 'updated_at'],
+            )
+        else:
+            request.user.save(update_fields=['document_photos', 'updated_at'])
         
         serializer = UserSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -240,8 +247,14 @@ class UpdateFCMTokenView(APIView):
     def post(self, request):
         serializer = FCMTokenSerializer(data=request.data)
         if serializer.is_valid():
-            request.user.fcm_token = serializer.validated_data['fcm_token']
-            request.user.save()
+            from apps.users.device_tokens import register_device_token
+
+            register_device_token(
+                request.user,
+                serializer.validated_data['fcm_token'],
+                device_id=serializer.validated_data.get('device_id') or '',
+                platform=serializer.validated_data.get('platform') or '',
+            )
             return Response({
                 'success': True,
                 'message': 'FCM token updated successfully'
@@ -265,6 +278,8 @@ class DriverDocumentListCreateView(APIView):
         serializer = DriverDocumentSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         document = serializer.save(user=request.user)
+        from .verification import mark_driver_verification_pending
+        mark_driver_verification_pending(request.user)
         return Response(
             DriverDocumentSerializer(document, context={'request': request}).data,
             status=status.HTTP_201_CREATED
@@ -283,6 +298,8 @@ class DriverDocumentDetailView(APIView):
         serializer = DriverDocumentSerializer(document, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        from .verification import mark_driver_verification_pending
+        mark_driver_verification_pending(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(responses={204: None})

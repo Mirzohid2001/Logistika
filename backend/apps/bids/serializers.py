@@ -1,12 +1,15 @@
 from rest_framework import serializers
 from .models import Bid
 from apps.advertisements.models import Advertisement
+from apps.users.serializers import UserReputationSerializer
 
 
 class BidSerializer(serializers.ModelSerializer):
     current_amount = serializers.SerializerMethodField()
     can_counter_by_driver = serializers.SerializerMethodField()
     can_counter_by_client = serializers.SerializerMethodField()
+    can_agree_to_counter_by_driver = serializers.SerializerMethodField()
+    driver_user = UserReputationSerializer(source='driver', read_only=True)
 
     def get_current_amount(self, obj):
         return obj.get_current_amount()
@@ -17,9 +20,19 @@ class BidSerializer(serializers.ModelSerializer):
     def get_can_counter_by_client(self, obj):
         return obj.can_counter_offer_by_client()
 
+    def get_can_agree_to_counter_by_driver(self, obj):
+        return obj.can_agree_to_counter_by_driver()
+
     class Meta:
         model = Bid
-        fields = ['id', 'advertisement', 'client', 'driver', 'is_driver_agreed_to_amount', 'proposed_amounts', 'is_rejected_by_client', 'is_accepted_by_client', 'is_rejected_by_driver', 'last_counter_by', 'current_amount', 'can_counter_by_driver', 'can_counter_by_client', 'created_at', 'updated_at']
+        fields = [
+            'id', 'advertisement', 'client', 'driver', 'driver_user',
+            'is_driver_agreed_to_amount', 'proposed_amounts', 'is_rejected_by_client',
+            'is_accepted_by_client', 'is_rejected_by_driver', 'last_counter_by',
+            'current_amount', 'can_counter_by_driver', 'can_counter_by_client',
+            'can_agree_to_counter_by_driver',
+            'created_at', 'updated_at',
+        ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 

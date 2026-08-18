@@ -1,11 +1,20 @@
 import json
+import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
+from apps.subscriptions.services import (
+    subscriptions_enforced,
+    user_has_marketplace_access,
+    user_requires_subscription,
+)
+from apps.users.permissions import can_access_chat
+
 from .models import Chat, Message
 from .serializers import MessageSerializer
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -18,8 +27,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.close()
             return
 
-        chat = await self.get_chat()
-        if not chat:
+        if not await self.can_join_chat():
             await self.close()
             return
 
@@ -76,7 +84,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     'type': 'pong',
                 }))
         except json.JSONDecodeError:
-            pass
+            logger.warning(
+                'Invalid WebSocket payload',
+                extra={'event': 'chat_ws_invalid_json'},
+            )
 
     async def chat_message(self, event):
         message_data = event['message']
@@ -111,11 +122,17 @@ class ChatConsumer(AsyncWebsocketConsumer):
             }))
 
     @database_sync_to_async
-    def get_chat(self):
+    def can_join_chat(self) -> bool:
         try:
-            return Chat.objects.get(pk=self.chat_id)
+            chat = Chat.objects.get(pk=self.chat_id)
         except Chat.DoesNotExist:
-            return None
+            return False
+        if not can_access_chat(self.user, chat):
+            return False
+        if subscriptions_enforced() and user_requires_subscription(self.user):
+            if not user_has_marketplace_access(self.user):
+                return False
+        return True
 
     @database_sync_to_async
     def mark_message_as_read(self, message_id):
@@ -125,4 +142,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 message.is_read = True
                 message.save()
         except Message.DoesNotExist:
-            pass
+            logger.info(
+                'Read receipt for missing message',
+                extra={'event': 'chat_read_missing_message'},
+            )

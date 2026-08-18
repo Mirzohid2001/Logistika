@@ -6,6 +6,7 @@ from .views import (
     NotificationMarkAllReadView,
     NotificationUnreadCountView,
     NotificationDeleteView,
+    NotificationPreferencesView,
 )
 
 app_name = 'notifications'
@@ -16,5 +17,6 @@ urlpatterns = [
     path('mark-read/', NotificationMarkReadView.as_view(), name='notification-mark-read'),
     path('mark-all-read/', NotificationMarkAllReadView.as_view(), name='notification-mark-all-read'),
     path('unread-count/', NotificationUnreadCountView.as_view(), name='notification-unread-count'),
+    path('preferences/', NotificationPreferencesView.as_view(), name='notification-preferences'),
     path('<int:pk>/delete/', NotificationDeleteView.as_view(), name='notification-delete'),
 ]

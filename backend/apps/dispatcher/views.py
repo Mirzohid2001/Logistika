@@ -20,9 +20,53 @@ from .serializers import (
     DispatcherExceptionSnoozeSerializer,
     DispatcherSuggestionAssignSerializer,
 )
+from apps.orders.services import order_allows_driver_assignment
 from apps.orders.serializers import OrderSerializer
 from apps.vehicles.serializers import VehicleSerializer
 from apps.notifications.services import create_notification
+from apps.users.document_expiry import expired_documents_error_payload
+
+
+def _reject_if_trip_locked(order: Order):
+    if not order_allows_driver_assignment(order.status.code):
+        return Response(
+            {'error': "Safar boshlangan buyurtmaga haydovchini o'zgartirib bo'lmaydi."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return None
+
+
+def _reject_if_expired_documents(driver: User):
+    from apps.users.document_expiry import document_expiry_forbidden_response
+    return document_expiry_forbidden_response(driver)
+
+
+def _apply_assigned_driver(order: Order, driver: User) -> None:
+    order.driver = driver
+    if order.status.code != 'approved_by_client':
+        pending_status = OrderStatus.objects.filter(code='pending').first()
+        if pending_status:
+            order.status = pending_status
+    order.save()
+
+
+def _driver_presence(last_seen_at):
+    if not last_seen_at:
+        return {'status': 'offline', 'stale_level': 'offline', 'age_seconds': None}
+    age_seconds = max(0, int((timezone.now() - last_seen_at).total_seconds()))
+    if age_seconds <= 30:
+        level = 'online'
+    elif age_seconds <= 60:
+        level = 'warning'
+    elif age_seconds <= 180:
+        level = 'stale'
+    else:
+        level = 'offline'
+    return {
+        'status': 'online' if level in ['online', 'warning'] else 'offline',
+        'stale_level': level,
+        'age_seconds': age_seconds,
+    }
 
 
 class DispatcherDashboardView(APIView):
@@ -155,6 +199,14 @@ class DispatcherAssignView(APIView):
                     return Response({
                         'error': 'Driver is not verified. Only verified drivers can be assigned.'
                     }, status=status.HTTP_400_BAD_REQUEST)
+
+                expired = _reject_if_expired_documents(driver)
+                if expired:
+                    return expired
+
+                blocked = _reject_if_trip_locked(order)
+                if blocked:
+                    return blocked
                 
                 assignment = DispatcherAssignment.objects.create(
                     dispatcher=request.user,
@@ -162,12 +214,7 @@ class DispatcherAssignView(APIView):
                     assigned_driver=driver,
                     notes=serializer.validated_data.get('notes', '')
                 )
-                
-                pending_status = OrderStatus.objects.filter(code='pending').first()
-                if pending_status:
-                    order.status = pending_status
-                    order.driver = driver
-                    order.save()
+                _apply_assigned_driver(order, driver)
                 
                 return Response(
                     DispatcherAssignmentSerializer(assignment).data,
@@ -196,6 +243,14 @@ class DispatcherReassignView(APIView):
                     return Response({
                         'error': 'Driver is not verified. Only verified drivers can be assigned.'
                     }, status=status.HTTP_400_BAD_REQUEST)
+
+                expired = _reject_if_expired_documents(driver)
+                if expired:
+                    return expired
+
+                blocked = _reject_if_trip_locked(assignment.order)
+                if blocked:
+                    return blocked
                 
                 assignment.assigned_driver = driver
                 assignment.reassigned_at = timezone.now()
@@ -203,9 +258,8 @@ class DispatcherReassignView(APIView):
                 if serializer.validated_data.get('notes'):
                     assignment.notes = serializer.validated_data['notes']
                 assignment.save()
-                
                 assignment.order.driver = driver
-                assignment.order.save()
+                assignment.order.save(update_fields=['driver', 'updated_at'])
                 
                 return Response(
                     DispatcherAssignmentSerializer(assignment).data,
@@ -228,6 +282,8 @@ class DispatcherCancelOrderView(APIView):
             cancelled_status = OrderStatus.objects.filter(code='cancelled').first()
             
             if cancelled_status:
+                from apps.payments.escrow import settle_order_cancellation
+                settle_order_cancellation(order, actor='dispatcher')
                 order.status = cancelled_status
                 order.save()
             
@@ -515,6 +571,20 @@ class DispatcherBulkOperationsView(APIView):
                     except User.DoesNotExist:
                         results['failed'].append({'order_id': order.id, 'error': 'Driver not found or not verified'})
                         continue
+                    expired_payload = expired_documents_error_payload(driver)
+                    if expired_payload:
+                        results['failed'].append({
+                            'order_id': order.id,
+                            'error': expired_payload['error'],
+                            'code': expired_payload['code'],
+                        })
+                        continue
+                    if not order_allows_driver_assignment(order.status.code):
+                        results['failed'].append({
+                            'order_id': order.id,
+                            'error': "Safar boshlangan buyurtmaga haydovchini o'zgartirib bo'lmaydi.",
+                        })
+                        continue
                     
                     DispatcherAssignment.objects.create(
                         dispatcher=request.user,
@@ -522,11 +592,7 @@ class DispatcherBulkOperationsView(APIView):
                         assigned_driver=driver,
                         notes=notes
                     )
-                    pending_status = OrderStatus.objects.filter(code='pending').first()
-                    if pending_status:
-                        order.status = pending_status
-                        order.driver = driver
-                        order.save()
+                    _apply_assigned_driver(order, driver)
                     results['success'].append(order.id)
                 
                 elif action == 'cancel':
@@ -553,6 +619,20 @@ class DispatcherBulkOperationsView(APIView):
                     except User.DoesNotExist:
                         results['failed'].append({'order_id': order.id, 'error': 'Driver not found or not verified'})
                         continue
+                    expired_payload = expired_documents_error_payload(driver)
+                    if expired_payload:
+                        results['failed'].append({
+                            'order_id': order.id,
+                            'error': expired_payload['error'],
+                            'code': expired_payload['code'],
+                        })
+                        continue
+                    if not order_allows_driver_assignment(order.status.code):
+                        results['failed'].append({
+                            'order_id': order.id,
+                            'error': "Safar boshlangan buyurtmaga haydovchini o'zgartirib bo'lmaydi.",
+                        })
+                        continue
                     
                     assignment = DispatcherAssignment.objects.filter(
                         order=order,
@@ -566,7 +646,7 @@ class DispatcherBulkOperationsView(APIView):
                             assignment.notes = notes
                         assignment.save()
                         order.driver = driver
-                        order.save()
+                        order.save(update_fields=['driver', 'updated_at'])
                         results['success'].append(order.id)
                     else:
                         results['failed'].append({'order_id': order.id, 'error': 'Assignment not found'})
@@ -723,58 +803,14 @@ class DispatcherMonitoringView(APIView):
     ESCALATION_NOTIFICATION_COOLDOWN_MINUTES = 30
 
     def _build_document_expiry_alerts(self):
-        today = timezone.now().date()
-        warning_date = today + timedelta(days=self.DOCUMENT_EXPIRY_WARNING_DAYS)
-        documents = DriverDocument.objects.select_related('user', 'vehicle').filter(
-            is_active=True,
-            user__is_driver=True,
-            user__is_active=True,
-            expires_at__lte=warning_date
-        ).order_by('expires_at')[:200]
+        from apps.users.document_expiry import process_driver_document_expiry_reminders
 
-        alerts = []
-        expired_count = 0
-        expiring_soon_count = 0
-        now = timezone.now()
-        for doc in documents:
-            days_left = (doc.expires_at - today).days
-            severity = 'high' if days_left < 0 else ('medium' if days_left <= 7 else 'low')
-            if days_left < 0:
-                expired_count += 1
-            else:
-                expiring_soon_count += 1
-
-            if doc.reminder_sent_at is None or doc.reminder_sent_at.date() != today:
-                create_notification(
-                    user=doc.user,
-                    notification_type='document_expiry',
-                    title='Hujjat muddati tugayapti',
-                    message=(
-                        f"{doc.get_document_type_display()} hujjati muddati "
-                        f"{doc.expires_at.strftime('%Y-%m-%d')} da tugaydi."
-                    ),
-                    send_push=True
-                )
-                doc.reminder_sent_at = now
-                doc.save(update_fields=['reminder_sent_at', 'updated_at'])
-
-            alerts.append({
-                'document_id': doc.id,
-                'driver_id': doc.user_id,
-                'driver_phone': doc.user.phone,
-                'document_type': doc.document_type,
-                'document_type_name': doc.get_document_type_display(),
-                'expires_at': doc.expires_at.isoformat(),
-                'days_left': days_left,
-                'severity': severity,
-                'vehicle_number': doc.vehicle.number if doc.vehicle else None,
-            })
-
+        result = process_driver_document_expiry_reminders()
         return {
-            'items': alerts,
-            'count': len(alerts),
-            'expired_count': expired_count,
-            'expiring_soon_count': expiring_soon_count,
+            'items': result['items'],
+            'count': result['count'],
+            'expired_count': result['expired_count'],
+            'expiring_soon_count': result['expiring_soon_count'],
         }
 
     def _get_eta_risk_and_score(self, order, latest_track, now):
@@ -855,6 +891,8 @@ class DispatcherMonitoringView(APIView):
                 assigned_by_order.setdefault(item['order_id'], set()).add(item['assigned_driver_id'])
 
         driver_load_map = self._build_driver_load_map()
+        from apps.users.document_expiry import expired_driver_user_ids
+        expired_ids = set(expired_driver_user_ids())
         candidates = User.objects.filter(
             is_driver=True,
             is_verified=True,
@@ -869,6 +907,8 @@ class DispatcherMonitoringView(APIView):
 
             for driver in candidates:
                 if driver.id in excluded_driver_ids:
+                    continue
+                if driver.id in expired_ids:
                     continue
 
                 vehicle = next((v for v in driver.vehicles.all() if v.is_verified), None)
@@ -1176,6 +1216,12 @@ class DispatcherMonitoringView(APIView):
                         'lat': float(active_order.current_location_lat),
                         'lng': float(active_order.current_location_lng),
                     },
+                    'driver_last_seen_at': (
+                        active_order.driver_last_seen_at.isoformat()
+                        if active_order.driver_last_seen_at else None
+                    ),
+                    'driver_app_state': active_order.driver_app_state,
+                    'driver_presence': _driver_presence(active_order.driver_last_seen_at or active_order.updated_at),
                     'vehicle': VehicleSerializer(vehicles.first(), context={'request': request}).data if vehicles.exists() else None,
                 })
         
@@ -1340,18 +1386,21 @@ class DispatcherSuggestionsAssignView(APIView):
         except User.DoesNotExist:
             return Response({'error': 'Suggested driver not found'}, status=status.HTTP_404_NOT_FOUND)
 
+        expired = _reject_if_expired_documents(driver)
+        if expired:
+            return expired
+
+        blocked = _reject_if_trip_locked(order)
+        if blocked:
+            return blocked
+
         assignment = DispatcherAssignment.objects.create(
             dispatcher=request.user,
             order=order,
             assigned_driver=driver,
             notes='Auto-assigned by suggestion engine'
         )
-
-        pending_status = OrderStatus.objects.filter(code='pending').first()
-        if pending_status:
-            order.status = pending_status
-        order.driver = driver
-        order.save(update_fields=['status', 'driver', 'updated_at'])
+        _apply_assigned_driver(order, driver)
 
         return Response(DispatcherAssignmentSerializer(assignment).data, status=status.HTTP_200_OK)
 
@@ -1379,10 +1428,11 @@ class DispatcherAllDriversLocationView(APIView):
         driver_ids = [driver.id for driver in active_drivers]
 
         active_orders = list(
-            Order.objects.select_related('status').filter(
+            Order.objects.select_related('status').prefetch_related('location_tracks').filter(
                 driver_id__in=driver_ids
             ).exclude(status__code__in=['completed', 'cancelled']).order_by('-created_at')
         )
+        order_serializer = OrderSerializer(context={'request': request})
         active_order_map = {}
         for order in active_orders:
             if order.driver_id not in active_order_map:
@@ -1427,8 +1477,12 @@ class DispatcherAllDriversLocationView(APIView):
                 },
                 'vehicle': VehicleSerializer(vehicle, context={'request': request}).data if vehicle else None,
                 'active_order': None,
+                'order': None,
                 'location': None,
                 'location_updated_at': None,
+                'driver_last_seen_at': None,
+                'driver_app_state': None,
+                'driver_presence': {'status': 'offline', 'stale_level': 'offline', 'age_seconds': None},
             }
             
             if active_order:
@@ -1447,6 +1501,7 @@ class DispatcherAllDriversLocationView(APIView):
                         'name': active_order.status.name_uz,
                     },
                 }
+                driver_data['order'] = driver_data['active_order']
                 
                 if active_order.current_location_lat and active_order.current_location_lng:
                     driver_data['location'] = {
@@ -1454,6 +1509,16 @@ class DispatcherAllDriversLocationView(APIView):
                         'lng': float(active_order.current_location_lng),
                     }
                     driver_data['location_updated_at'] = active_order.updated_at.isoformat()
+                driver_data['driver_last_seen_at'] = (
+                    active_order.driver_last_seen_at.isoformat()
+                    if active_order.driver_last_seen_at else None
+                )
+                driver_data['driver_app_state'] = active_order.driver_app_state
+                driver_data['driver_presence'] = _driver_presence(
+                    active_order.driver_last_seen_at or active_order.updated_at
+                )
+                driver_data['tracking_summary'] = order_serializer.get_tracking_summary(active_order)
+                driver_data['estimated_eta_minutes'] = order_serializer.get_estimated_eta_minutes(active_order)
             
             drivers_data.append(driver_data)
         

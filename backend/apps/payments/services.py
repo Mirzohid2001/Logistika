@@ -25,14 +25,16 @@ class PaymentSecurityService:
 
 class ClickPaymentService:
     @staticmethod
-    def create_payment(amount, order_id=None):
+    def create_payment(amount, payment_id=None, order_id=None):
         try:
             url = settings.CLICK_API_URL
+            merchant_trans_id = str(payment_id) if payment_id is not None else str(uuid.uuid4())
             data = {
                 'merchant_id': settings.CLICK_MERCHANT_ID,
                 'service_id': settings.CLICK_SERVICE_ID,
                 'amount': float(amount),
-                'transaction_param': str(uuid.uuid4()),
+                'merchant_trans_id': merchant_trans_id,
+                'transaction_param': str(order_id or payment_id or uuid.uuid4()),
             }
             response = requests.post(url, json=data)
             return response.json() if response.status_code == 200 else None
@@ -42,7 +44,7 @@ class ClickPaymentService:
     @staticmethod
     def verify_signature(merchant_trans_id, service_id, amount, action, sign_time, click_trans_id, sign_string):
         if not settings.CLICK_SECRET_KEY:
-            return True
+            return settings.DEBUG
         
         secret_key = settings.CLICK_SECRET_KEY
         sign_data = f"{click_trans_id}{service_id}{secret_key}{merchant_trans_id}{amount}{action}{sign_time}"
@@ -93,7 +95,7 @@ class PaymePaymentService:
     @staticmethod
     def verify_signature(data):
         if not settings.PAYME_SECRET_KEY:
-            return True
+            return settings.DEBUG
         
         params = data.get('params', {}).copy()
         signature = params.pop('signature', '')
@@ -155,7 +157,7 @@ class UzumPaymentService:
     @staticmethod
     def verify_signature(data):
         if not settings.UZUM_SECRET_KEY:
-            return True
+            return settings.DEBUG
         
         signature = data.pop('signature', '')
         if not signature:

@@ -6,7 +6,7 @@ from .models import Bid
 from apps.advertisements.models import Advertisement
 from apps.locations.models import Country, City
 from apps.vehicles.models import Vehicle
-from apps.orders.models import OrderStatus
+from apps.orders.models import Order, OrderStatus
 
 User = get_user_model()
 
@@ -33,7 +33,7 @@ class BidModelTest(TestCase):
             name_ru='Узбекистан',
             name_en='Uzbekistan',
             name_uz='O\'zbekiston',
-            code='UZ'
+            code='BZ1'
         )
         self.city = City.objects.create(
             country=self.country,
@@ -104,7 +104,7 @@ class BidAPITest(TestCase):
             name_ru='Узбекистан',
             name_en='Uzbekistan',
             name_uz='O\'zbekiston',
-            code='UZ'
+            code='BZ2'
         )
         self.city = City.objects.create(
             country=self.country,
@@ -219,7 +219,7 @@ class BidWorkflowTest(TestCase):
             name_ru='Узбекистан',
             name_en='Uzbekistan',
             name_uz='O\'zbekiston',
-            code='UZ'
+            code='BZ3'
         )
         self.city = City.objects.create(
             country=self.country,
@@ -412,6 +412,42 @@ class BidWorkflowTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         bid = Bid.objects.get(id=bid_id)
         self.assertTrue(bid.is_accepted_by_client)
+
+    def test_accept_price_rejects_driver_with_active_order(self):
+        bid = Bid.objects.create(
+            advertisement=self.advertisement,
+            client=self.client_user,
+            driver=self.driver_user,
+            proposed_amounts=[{'amount': '45000', 'by': 'driver', 'timestamp': None}],
+            last_counter_by='driver',
+        )
+        pending_status = OrderStatus.objects.get(code='pending')
+        other_ad = Advertisement.objects.create(
+            client=self.client_user,
+            title_ru='Other',
+            title_en='Other',
+            title_uz='Other',
+            description_ru='Other',
+            description_en='Other',
+            description_uz='Other',
+            weight=100.0,
+            proposed_cost=55000.00,
+            departure_address='Another departure',
+            departure_city=self.city,
+            destination_address='Another destination',
+            destination_city=self.city,
+        )
+        Order.objects.create(
+            advertisement=other_ad,
+            driver=self.driver_user,
+            client=self.client_user,
+            status=pending_status,
+        )
+
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.post(f'/api/bids/{bid.id}/accept-price/')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('faol buyurtma', response.data['error'].lower())
 
     def test_get_current_amount(self):
         bid = Bid.objects.create(

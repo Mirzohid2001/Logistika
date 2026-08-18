@@ -44,7 +44,12 @@ class Advertisement(models.Model):
     receiver_name = models.CharField(max_length=255, blank=True, default='')
     receiver_phone = models.CharField(max_length=30, blank=True, default='')
     special_requirements = models.JSONField(default=list, blank=True)
+    required_body_type = models.CharField(max_length=20, blank=True, default='')
+    requires_adr = models.BooleanField(default=False)
+    requires_reefer = models.BooleanField(default=False)
+    is_heavy = models.BooleanField(default=False)
     route_preference = models.CharField(max_length=20, choices=ROUTE_PREFERENCE_CHOICES, default='balanced')
+    route_stops = models.JSONField(default=list, blank=True)
     proposed_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     currency = models.CharField(max_length=3, default='UZS')
     photo = models.ImageField(upload_to='advertisements/', null=True, blank=True)
@@ -111,6 +116,7 @@ class SavedSearch(models.Model):
     min_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     max_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     filters = models.JSONField(default=dict, blank=True)
+    alerts_enabled = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -122,3 +128,51 @@ class SavedSearch(models.Model):
 
     def __str__(self):
         return f"{self.user.phone} - {self.name}"
+
+
+class DriverAvailability(models.Model):
+    STATUS_AVAILABLE = 'available'
+    STATUS_BUSY = 'busy'
+    STATUS_SCHEDULED = 'scheduled'
+    STATUS_CHOICES = [
+        (STATUS_AVAILABLE, 'Available'),
+        (STATUS_BUSY, 'Busy'),
+        (STATUS_SCHEDULED, 'Scheduled'),
+    ]
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='driver_availability')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_AVAILABLE)
+    available_from = models.DateTimeField(null=True, blank=True)
+    current_city = models.ForeignKey(City, on_delete=models.SET_NULL, null=True, blank=True, related_name='driver_availability')
+    note = models.CharField(max_length=255, blank=True, default='')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'driver_availability'
+
+    def __str__(self):
+        return f"{self.user.phone} {self.status}"
+
+
+class DriverLane(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='driver_lanes')
+    departure_city = models.ForeignKey(City, on_delete=models.PROTECT, related_name='driver_lanes_departure')
+    destination_city = models.ForeignKey(City, on_delete=models.PROTECT, related_name='driver_lanes_destination')
+    weekdays = models.JSONField(default=list, blank=True)
+    # Local pickup hour window (0–23). Null = any time.
+    time_from_hour = models.PositiveSmallIntegerField(null=True, blank=True)
+    time_to_hour = models.PositiveSmallIntegerField(null=True, blank=True)
+    include_backhaul = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'driver_lanes'
+        ordering = ['-updated_at']
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.phone} {self.departure_city_id}->{self.destination_city_id}"

@@ -2,14 +2,14 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Sum, Count, Q, Prefetch
+from django.db.models import Q
 from django.utils import timezone
-from datetime import datetime, timedelta
+from datetime import datetime
 from drf_spectacular.utils import extend_schema
 from .permissions import IsAdmin
 from .models import User
+from apps.orders.financial import driver_gross_settled_earnings, driver_settled_orders_qs
 from apps.orders.models import Order, OrderStatus
-from apps.payments.models import Payment
 import csv
 from io import StringIO
 
@@ -85,15 +85,16 @@ class DriverEarningsStatisticsView(APIView):
         if driver_id:
             drivers_queryset = drivers_queryset.filter(id=driver_id)
 
+        completed_date_from = None
+        completed_date_to = None
         orders_date_filter = Q()
-        payments_date_filter = Q()
 
         if date_from:
             try:
                 date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
                 date_from_datetime = timezone.make_aware(datetime.combine(date_from_obj, datetime.min.time()))
                 orders_date_filter &= Q(created_at__gte=date_from_datetime)
-                payments_date_filter &= Q(created_at__gte=date_from_datetime)
+                completed_date_from = date_from_obj
             except ValueError:
                 return Response({'error': 'Invalid date_from format. Use YYYY-MM-DD'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -102,7 +103,7 @@ class DriverEarningsStatisticsView(APIView):
                 date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
                 date_to_datetime = timezone.make_aware(datetime.combine(date_to_obj, datetime.max.time()))
                 orders_date_filter &= Q(created_at__lte=date_to_datetime)
-                payments_date_filter &= Q(created_at__lte=date_to_datetime)
+                completed_date_to = date_to_obj
             except ValueError:
                 return Response({'error': 'Invalid date_to format. Use YYYY-MM-DD'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -116,12 +117,8 @@ class DriverEarningsStatisticsView(APIView):
 
         for driver in drivers_queryset:
             orders_filter = Q(driver=driver)
-            payments_filter = Q(user=driver, payment_status='completed')
-
             if orders_date_filter:
                 orders_filter &= orders_date_filter
-            if payments_date_filter:
-                payments_filter &= payments_date_filter
 
             completed_orders = Order.objects.filter(
                 orders_filter,
@@ -138,9 +135,19 @@ class DriverEarningsStatisticsView(APIView):
                 status=in_progress_status
             ).count() if in_progress_status else 0
 
-            earnings = Payment.objects.filter(payments_filter).aggregate(
-                total=Sum('amount')
-            )['total'] or 0
+            earnings = driver_gross_settled_earnings(
+                driver,
+                date_from=completed_date_from,
+                date_to=completed_date_to,
+            )
+            if completed_date_from is None and completed_date_to is None:
+                settled_orders_count = driver_settled_orders_qs(driver).count()
+            else:
+                settled_orders_count = driver_settled_orders_qs(
+                    driver,
+                    date_from=completed_date_from,
+                    date_to=completed_date_to,
+                ).count()
 
             total_earnings += float(earnings)
             total_completed_orders += completed_orders
@@ -150,6 +157,7 @@ class DriverEarningsStatisticsView(APIView):
                 'driver_name': f"{driver.first_name} {driver.last_name}",
                 'driver_phone': driver.phone,
                 'completed_orders': completed_orders,
+                'settled_orders': settled_orders_count,
                 'total_earnings': float(earnings),
                 'pending_orders': pending_orders,
                 'in_progress_orders': in_progress_orders
@@ -176,6 +184,7 @@ class DriverEarningsStatisticsView(APIView):
             'Driver Name',
             'Phone',
             'Completed Orders',
+            'Settled Orders',
             'Total Earnings',
             'Pending Orders',
             'In Progress Orders'
@@ -187,6 +196,7 @@ class DriverEarningsStatisticsView(APIView):
                 driver['driver_name'],
                 driver['driver_phone'],
                 driver['completed_orders'],
+                driver.get('settled_orders', 0),
                 driver['total_earnings'],
                 driver['pending_orders'],
                 driver['in_progress_orders']
@@ -196,4 +206,3 @@ class DriverEarningsStatisticsView(APIView):
         response = Response(output.getvalue(), content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="driver_earnings_statistics.csv"'
         return response
-

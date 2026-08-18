@@ -1,0 +1,101 @@
+import { useEffect, useRef, useState } from 'react';
+import type { LatLng } from '../utils/mapGeo';
+import {
+  computeDeadReckonedTarget,
+  computeNextSmoothLocation,
+  type DriverMotionTarget,
+} from '../utils/mapTracking';
+
+const TICK_MS = 33;
+
+function toMotionTarget(target: DriverMotionTarget | LatLng): DriverMotionTarget {
+  const motion = target as DriverMotionTarget;
+  return {
+    latitude: target.latitude,
+    longitude: target.longitude,
+    heading: motion.heading ?? null,
+    speedMps: motion.speedMps ?? null,
+    updatedAtMs: motion.updatedAtMs ?? Date.now(),
+    routeProgressM: motion.routeProgressM ?? null,
+  };
+}
+
+/**
+ * Smooths the driver marker between GPS fixes using dead reckoning + easing.
+ * Prefer along-route prediction when a polyline is supplied.
+ */
+export function useSmoothDriverLocation(
+  target: DriverMotionTarget | LatLng | null,
+  enabled = true,
+  routePolyline: LatLng[] | null = null
+) {
+  const [display, setDisplay] = useState<LatLng | null>(
+    target ? { latitude: target.latitude, longitude: target.longitude } : null
+  );
+  const displayRef = useRef<LatLng | null>(
+    target ? { latitude: target.latitude, longitude: target.longitude } : null
+  );
+  const targetRef = useRef<DriverMotionTarget | null>(target ? toMotionTarget(target) : null);
+  const routeRef = useRef<LatLng[] | null>(routePolyline);
+
+  const heading = (target as DriverMotionTarget | null)?.heading;
+  const speedMps = (target as DriverMotionTarget | null)?.speedMps;
+  const updatedAtMs = (target as DriverMotionTarget | null)?.updatedAtMs;
+  const routeProgressM = (target as DriverMotionTarget | null)?.routeProgressM;
+
+  useEffect(() => {
+    routeRef.current = routePolyline;
+  }, [routePolyline]);
+
+  useEffect(() => {
+    if (!target) {
+      targetRef.current = null;
+      displayRef.current = null;
+      setDisplay(null);
+      return;
+    }
+    const motion = toMotionTarget(target);
+    targetRef.current = motion;
+    if (!enabled || !displayRef.current) {
+      const snap = { latitude: motion.latitude, longitude: motion.longitude };
+      displayRef.current = snap;
+      setDisplay(snap);
+    }
+  }, [target?.latitude, target?.longitude, heading, speedMps, updatedAtMs, routeProgressM, enabled]);
+
+  useEffect(() => {
+    if (!enabled) {
+      if (targetRef.current) {
+        const snap = {
+          latitude: targetRef.current.latitude,
+          longitude: targetRef.current.longitude,
+        };
+        displayRef.current = snap;
+        setDisplay(snap);
+      }
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const fix = targetRef.current;
+      const cur = displayRef.current;
+      if (!fix) return;
+      const predicted = computeDeadReckonedTarget(fix, Date.now(), {
+        routePolyline: routeRef.current,
+      });
+      if (!cur) {
+        displayRef.current = predicted;
+        setDisplay(predicted);
+        return;
+      }
+      const next = computeNextSmoothLocation(cur, predicted);
+      if (!next) return;
+      displayRef.current = next;
+      setDisplay(next);
+    }, TICK_MS);
+
+    return () => clearInterval(interval);
+  }, [enabled]);
+
+  return display;
+}

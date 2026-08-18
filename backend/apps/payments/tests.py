@@ -1,4 +1,4 @@
-from django.test import TestCase, RequestFactory
+from django.test import TestCase, RequestFactory, override_settings
 from rest_framework.test import APIClient
 from rest_framework import status
 from django.contrib.auth import get_user_model
@@ -34,6 +34,7 @@ class PaymentModelTest(TestCase):
         self.assertEqual(payment.payment_status, 'pending')
 
 
+@override_settings(DEBUG=True)
 class PaymentCallbackSecurityTest(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -45,17 +46,21 @@ class PaymentCallbackSecurityTest(TestCase):
             last_name='User'
         )
         
-        self.country = Country.objects.create(
-            name_ru='Узбекистан',
-            name_en='Uzbekistan',
-            name_uz='O\'zbekiston',
-            code='UZ'
+        self.country, _ = Country.objects.get_or_create(
+            code='UZ',
+            defaults={
+                'name_ru': 'Узбекистан',
+                'name_en': 'Uzbekistan',
+                'name_uz': "O'zbekiston",
+            },
         )
-        self.city = City.objects.create(
+        self.city, _ = City.objects.get_or_create(
             country=self.country,
-            name_ru='Ташкент',
             name_en='Tashkent',
-            name_uz='Toshkent'
+            defaults={
+                'name_ru': 'Ташкент',
+                'name_uz': 'Toshkent',
+            },
         )
         self.advertisement = Advertisement.objects.create(
             client=self.user,

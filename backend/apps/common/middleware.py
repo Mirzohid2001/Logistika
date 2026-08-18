@@ -5,6 +5,7 @@ import json
 from typing import Optional
 
 from django.conf import settings
+from django.core.exceptions import RequestDataTooBig
 from django.http import JsonResponse
 
 
@@ -38,13 +39,21 @@ class RequestValidationMiddleware:
             return None
 
         content_type = (request.content_type or "").lower()
-        raw_body = request.body or b""
-        has_body = bool(raw_body and raw_body.strip())
-
         is_json = self.JSON_CONTENT_TYPE in content_type
         is_form = any(form_type in content_type for form_type in self.FORM_CONTENT_TYPES)
 
+        # Multipart/form-data and urlencoded requests are validated by serializers/views.
+        # Do not touch request.body here to avoid loading large file uploads into memory.
+        if is_form:
+            return None
+
         if is_json:
+            try:
+                raw_body = request.body or b""
+            except RequestDataTooBig:
+                return self._validation_response("Request body is too large.")
+
+            has_body = bool(raw_body and raw_body.strip())
             if not has_body:
                 return self._validation_response("Request body is required for this endpoint.")
 
@@ -58,9 +67,11 @@ class RequestValidationMiddleware:
 
             return None
 
-        if is_form:
-            # Multipart/form-data and urlencoded requests are validated by serializers/views.
-            return None
+        content_length_header = request.META.get("CONTENT_LENGTH")
+        try:
+            has_body = int(content_length_header or 0) > 0
+        except (TypeError, ValueError):
+            has_body = bool(content_length_header)
 
         if has_body:
             return self._validation_response("Unsupported content type for request body.")

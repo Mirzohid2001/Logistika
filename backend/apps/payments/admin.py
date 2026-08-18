@@ -1,7 +1,7 @@
 from django.contrib import admin
 from apps.common.admin_mixins import OperatorMixin
 from config.admin import admin_site
-from .models import Payment, PaymentHistory
+from .models import Payment, PaymentHistory, Wallet, LedgerEntry, OrderEscrow
 
 
 @admin.register(Payment, site=admin_site)
@@ -25,6 +25,27 @@ class PaymentAdmin(OperatorMixin, admin.ModelAdmin):
             'fields': ('created_at', 'updated_at', 'paid_at')
         }),
     )
+
+
+@admin.register(Wallet, site=admin_site)
+class WalletAdmin(OperatorMixin, admin.ModelAdmin):
+    list_display = ['id', 'user', 'available', 'held', 'legacy_seeded', 'updated_at']
+    search_fields = ['user__phone']
+    readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(LedgerEntry, site=admin_site)
+class LedgerEntryAdmin(OperatorMixin, admin.ModelAdmin):
+    list_display = ['id', 'entry_type', 'user', 'order', 'amount', 'available_delta', 'held_delta', 'created_at']
+    list_filter = ['entry_type', 'created_at']
+    search_fields = ['idempotency_key', 'user__phone', 'note']
+    readonly_fields = ['created_at']
+
+
+@admin.register(OrderEscrow, site=admin_site)
+class OrderEscrowAdmin(OperatorMixin, admin.ModelAdmin):
+    list_display = ['id', 'order', 'status', 'funded_amount', 'released_to_driver', 'commission_amount', 'refunded_amount']
+    list_filter = ['status']
 
 
 @admin.register(PaymentHistory, site=admin_site)

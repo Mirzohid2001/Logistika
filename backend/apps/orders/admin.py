@@ -8,6 +8,7 @@ from .models import (
     OrderProofOfDelivery,
     OrderReturnQuality,
     OrderTrackingShareLink,
+    OrderDocument,
 )
 
 
@@ -24,10 +25,27 @@ class OrderStatusAdmin(OperatorMixin, admin.ModelAdmin):
 
 @admin.register(Order, site=admin_site)
 class OrderAdmin(OperatorOrderMixin, admin.ModelAdmin):
-    list_display = ['id', 'advertisement', 'driver', 'client', 'status', 'route_deviation_count', 'created_at']
+    list_display = [
+        'id',
+        'advertisement',
+        'driver',
+        'client',
+        'status',
+        'tracked_distance_meters',
+        'route_deviation_count',
+        'created_at',
+    ]
     list_filter = ['status', 'created_at']
     search_fields = ['advertisement__title_ru', 'advertisement__title_en', 'advertisement__title_uz', 'driver__phone', 'client__phone']
-    readonly_fields = ['created_at', 'updated_at', 'started_at', 'completed_at']
+    readonly_fields = [
+        'created_at',
+        'updated_at',
+        'started_at',
+        'in_transit_at',
+        'completed_at',
+        'tracked_distance_computed_at',
+        'client_delivery_confirmed_at',
+    ]
 
     def get_readonly_fields(self, request, obj=None):
         readonly_fields = list(super().get_readonly_fields(request, obj))
@@ -63,6 +81,14 @@ class OrderReturnQualityAdmin(OperatorMixin, admin.ModelAdmin):
     list_filter = ['quality_status', 'classified_at']
     search_fields = ['order__id', 'classified_by__phone', 'note']
     readonly_fields = ['created_at', 'updated_at', 'classified_at']
+
+
+@admin.register(OrderDocument, site=admin_site)
+class OrderDocumentAdmin(OperatorMixin, admin.ModelAdmin):
+    list_display = ['order', 'doc_type', 'number', 'generated_at']
+    list_filter = ['doc_type', 'generated_at']
+    search_fields = ['number', 'order__id']
+    readonly_fields = ['download_token', 'generated_at', 'created_at', 'snapshot']
 
 
 @admin.register(OrderTrackingShareLink, site=admin_site)

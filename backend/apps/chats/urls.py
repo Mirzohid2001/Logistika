@@ -3,6 +3,7 @@ from .views import (
     ChatListView,
     ChatDetailView,
     ChatCreateView,
+    WebSocketTicketView,
     MessageCreateView,
     MessageMarkReadView,
     MessageUpdateView,
@@ -21,6 +22,7 @@ app_name = 'chats'
 urlpatterns = [
     path('', ChatListView.as_view(), name='chat-list'),
     path('create/', ChatCreateView.as_view(), name='chat-create'),
+    path('ws-ticket/', WebSocketTicketView.as_view(), name='ws-ticket'),
     path('<int:pk>/', ChatDetailView.as_view(), name='chat-detail'),
     path('<int:chat_id>/messages/', MessageCreateView.as_view(), name='message-create'),
     path('<int:chat_id>/mark-read/', MessageMarkReadView.as_view(), name='message-mark-read'),

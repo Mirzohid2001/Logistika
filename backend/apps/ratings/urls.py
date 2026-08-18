@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import RatingCreateView, RatingListView, RatingDetailView, UserRatingStatsView
+from .complaint_views import ComplaintCreateView, ComplaintListView, ComplaintStaffListView, ComplaintResolveView
 from .history_views import ReviewsHistoryView, ReviewsStatisticsView, ReviewsRecommendationsView
 
 app_name = 'ratings'
@@ -12,4 +13,8 @@ urlpatterns = [
     path('history/', ReviewsHistoryView.as_view(), name='history'),
     path('statistics/', ReviewsStatisticsView.as_view(), name='statistics'),
     path('recommendations/', ReviewsRecommendationsView.as_view(), name='recommendations'),
+    path('complaints/', ComplaintListView.as_view(), name='complaints-list'),
+    path('complaints/staff/', ComplaintStaffListView.as_view(), name='complaints-staff-list'),
+    path('complaints/create/', ComplaintCreateView.as_view(), name='complaints-create'),
+    path('complaints/<int:pk>/resolve/', ComplaintResolveView.as_view(), name='complaints-resolve'),
 ]

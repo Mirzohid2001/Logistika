@@ -9,6 +9,12 @@ from datetime import datetime, timedelta
 from apps.users.permissions import IsUpdater
 from apps.orders.models import Order, OrderStatus, OrderLocationTrack
 from apps.orders.serializers import OrderSerializer, OrderLocationTrackSerializer
+from apps.orders.updater_policy import (
+    assert_updater_may_change_status,
+    assert_updater_may_touch_order_payment,
+    assert_updater_may_update_location,
+)
+from apps.common.exceptions import PermissionDeniedError, ValidationError
 from apps.payments.models import Payment
 from .models import UpdateLog
 from .serializers import (
@@ -80,17 +86,27 @@ class UpdaterUpdateStatusView(APIView):
         if serializer.is_valid():
             try:
                 order = Order.objects.get(pk=pk)
+                status_code = serializer.validated_data['status_code']
+                try:
+                    assert_updater_may_change_status(order, status_code)
+                except (PermissionDeniedError, ValidationError) as exc:
+                    return Response({'error': exc.detail}, status=exc.status_code)
+
                 old_status = order.status.code if order.status else None
                 
-                new_status = OrderStatus.objects.filter(
-                    code=serializer.validated_data['status_code']
-                ).first()
+                new_status = OrderStatus.objects.filter(code=status_code).first()
                 
                 if not new_status:
                     return Response({'error': 'Status not found'}, status=status.HTTP_400_BAD_REQUEST)
                 
                 order.status = new_status
-                order.save()
+                if status_code == 'completed':
+                    from apps.orders.distance_tracking import on_order_completed
+
+                    order.save()
+                    on_order_completed(order)
+                else:
+                    order.save()
                 
                 UpdateLog.objects.create(
                     updater=request.user,
@@ -123,6 +139,11 @@ class UpdaterUpdateLocationView(APIView):
         if serializer.is_valid():
             try:
                 order = Order.objects.get(pk=pk)
+                try:
+                    assert_updater_may_update_location(order)
+                except PermissionDeniedError as exc:
+                    return Response({'error': exc.detail}, status=exc.status_code)
+
                 old_location = {
                     'lat': float(order.current_location_lat) if order.current_location_lat else None,
                     'lng': float(order.current_location_lng) if order.current_location_lng else None,
@@ -169,6 +190,11 @@ class UpdaterUpdatePaymentView(APIView):
         responses={200: {'type': 'object'}}
     )
     def post(self, request, pk):
+        try:
+            assert_updater_may_touch_order_payment()
+        except PermissionDeniedError as exc:
+            return Response({'error': exc.detail}, status=exc.status_code)
+
         serializer = UpdatePaymentSerializer(data=request.data)
         if serializer.is_valid():
             try:
@@ -215,15 +241,24 @@ class UpdaterBulkUpdateView(APIView):
                 new_values = {}
                 
                 if serializer.validated_data.get('status_code'):
+                    status_code = serializer.validated_data['status_code']
+                    try:
+                        assert_updater_may_change_status(order, status_code)
+                    except (PermissionDeniedError, ValidationError) as exc:
+                        return Response({'error': exc.detail}, status=exc.status_code)
+
                     old_values['status'] = order.status.code if order.status else None
-                    new_status = OrderStatus.objects.filter(
-                        code=serializer.validated_data['status_code']
-                    ).first()
+                    new_status = OrderStatus.objects.filter(code=status_code).first()
                     if new_status:
                         order.status = new_status
-                        new_values['status'] = serializer.validated_data['status_code']
+                        new_values['status'] = status_code
                 
                 if serializer.validated_data.get('lat') and serializer.validated_data.get('lng'):
+                    try:
+                        assert_updater_may_update_location(order)
+                    except PermissionDeniedError as exc:
+                        return Response({'error': exc.detail}, status=exc.status_code)
+
                     old_values['location'] = {
                         'lat': float(order.current_location_lat) if order.current_location_lat else None,
                         'lng': float(order.current_location_lng) if order.current_location_lng else None,
@@ -243,12 +278,21 @@ class UpdaterBulkUpdateView(APIView):
                     )
                 
                 if serializer.validated_data.get('payment_status'):
+                    try:
+                        assert_updater_may_touch_order_payment()
+                    except PermissionDeniedError as exc:
+                        return Response({'error': exc.detail}, status=exc.status_code)
+
                     payments = Payment.objects.filter(order=order)
                     old_values['payment_status'] = payments.first().payment_status if payments.exists() else None
                     payments.update(payment_status=serializer.validated_data['payment_status'])
                     new_values['payment_status'] = serializer.validated_data['payment_status']
                 
                 order.save()
+                if new_values.get('status') == 'completed':
+                    from apps.orders.distance_tracking import on_order_completed
+
+                    on_order_completed(order)
                 
                 UpdateLog.objects.create(
                     updater=request.user,
@@ -564,6 +608,12 @@ class UpdaterBulkOperationsView(APIView):
         
         if action not in ['update_status', 'update_location', 'update_payment']:
             return Response({'error': 'Invalid action'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if action == 'update_payment':
+            try:
+                assert_updater_may_touch_order_payment()
+            except PermissionDeniedError as exc:
+                return Response({'error': exc.detail}, status=exc.status_code)
         
         orders = Order.objects.filter(id__in=order_ids)
         results = {'success': [], 'failed': []}
@@ -575,6 +625,12 @@ class UpdaterBulkOperationsView(APIView):
                     if not status_code:
                         results['failed'].append({'order_id': order.id, 'error': 'status_code is required'})
                         continue
+
+                    try:
+                        assert_updater_may_change_status(order, status_code)
+                    except (PermissionDeniedError, ValidationError) as exc:
+                        results['failed'].append({'order_id': order.id, 'error': exc.detail})
+                        continue
                     
                     new_status = OrderStatus.objects.filter(code=status_code).first()
                     if not new_status:
@@ -583,7 +639,13 @@ class UpdaterBulkOperationsView(APIView):
                     
                     old_status = order.status.code if order.status else None
                     order.status = new_status
-                    order.save()
+                    if status_code == 'completed':
+                        order.save()
+                        from apps.orders.distance_tracking import on_order_completed
+
+                        on_order_completed(order)
+                    else:
+                        order.save()
                     
                     UpdateLog.objects.create(
                         updater=request.user,
@@ -600,6 +662,12 @@ class UpdaterBulkOperationsView(APIView):
                     lng = request.data.get('lng')
                     if not lat or not lng:
                         results['failed'].append({'order_id': order.id, 'error': 'lat and lng are required'})
+                        continue
+
+                    try:
+                        assert_updater_may_update_location(order)
+                    except PermissionDeniedError as exc:
+                        results['failed'].append({'order_id': order.id, 'error': exc.detail})
                         continue
                     
                     old_location = {
@@ -627,6 +695,12 @@ class UpdaterBulkOperationsView(APIView):
                     results['success'].append(order.id)
                 
                 elif action == 'update_payment':
+                    try:
+                        assert_updater_may_touch_order_payment()
+                    except PermissionDeniedError as exc:
+                        results['failed'].append({'order_id': order.id, 'error': exc.detail})
+                        continue
+
                     payment_status = request.data.get('payment_status')
                     if not payment_status:
                         results['failed'].append({'order_id': order.id, 'error': 'payment_status is required'})

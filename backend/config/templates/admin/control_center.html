@@ -63,6 +63,7 @@
   .cc-fresh-fresh { background:#dcfce7; color:#166534; }
   .cc-fresh-warm { background:#fef3c7; color:#92400e; }
   .cc-fresh-stale { background:#fee2e2; color:#991b1b; }
+  .cc-fresh-offline { background:#e5e7eb; color:#111827; }
   #driverLiveMap { height: 320px; border-radius: 10px; border:1px solid #dbe4ee; }
 </style>
 {% endblock %}
@@ -90,6 +91,64 @@
   </div>
 
   <div class="cc-section">
+    <h2>Infratuzilma holati</h2>
+    <div class="cc-grid">
+      <div class="cc-card">
+        <p class="cc-title">Umumiy holat</p>
+        <p class="cc-value {% if infrastructure_snapshot.overall_ok %}cc-ok{% else %}cc-danger{% endif %}">
+          {% if infrastructure_snapshot.overall_ok %}OK{% else %}Muammo{% endif %}
+        </p>
+        <div class="cc-sub">Tekshirilgan: {{ infrastructure_snapshot.checked_at|date:"d.m.Y H:i:s" }}</div>
+      </div>
+      <div class="cc-card">
+        <p class="cc-title">Redis (Celery broker)</p>
+        <p class="cc-value {% if infrastructure_snapshot.redis_broker.ok %}cc-ok{% else %}cc-danger{% endif %}">
+          {% if infrastructure_snapshot.redis_broker.ok %}Online{% else %}Offline{% endif %}
+        </p>
+        <div class="cc-sub">
+          {% if infrastructure_snapshot.redis_broker.latency_ms %}{{ infrastructure_snapshot.redis_broker.latency_ms }} ms{% endif %}
+          {% if infrastructure_snapshot.redis_broker.error %} · {{ infrastructure_snapshot.redis_broker.error }}{% endif %}
+        </div>
+      </div>
+      <div class="cc-card">
+        <p class="cc-title">Redis (Cache)</p>
+        <p class="cc-value {% if infrastructure_snapshot.redis_cache.ok %}cc-ok{% elif infrastructure_snapshot.redis_cache.ok == False %}cc-danger{% else %}cc-warn{% endif %}">
+          {% if infrastructure_snapshot.redis_cache.ok %}Online{% elif infrastructure_snapshot.redis_cache.ok == False %}Offline{% else %}LocMem (dev){% endif %}
+        </p>
+        <div class="cc-sub">
+          {% if infrastructure_snapshot.redis_cache.latency_ms %}{{ infrastructure_snapshot.redis_cache.latency_ms }} ms{% endif %}
+          {% if infrastructure_snapshot.redis_cache.error %} · {{ infrastructure_snapshot.redis_cache.error }}{% endif %}
+        </div>
+      </div>
+      <div class="cc-card">
+        <p class="cc-title">Celery workerlar</p>
+        <p class="cc-value {% if infrastructure_snapshot.celery.ok %}cc-ok{% else %}cc-danger{% endif %}">
+          {{ infrastructure_snapshot.celery.workers_online }}
+        </p>
+        <div class="cc-sub">
+          {% if infrastructure_snapshot.celery.worker_names %}{{ infrastructure_snapshot.celery.worker_names|join:", " }}{% else %}{{ infrastructure_snapshot.celery.error }}{% endif %}
+        </div>
+      </div>
+      <div class="cc-card">
+        <p class="cc-title">Push retry navbati</p>
+        <p class="cc-value {% if infrastructure_snapshot.push_queue.failed or infrastructure_snapshot.push_queue.dead %}cc-warn{% else %}cc-ok{% endif %}">
+          {{ infrastructure_snapshot.push_queue.pending }}
+        </p>
+        <div class="cc-sub">
+          Failed: {{ infrastructure_snapshot.push_queue.failed }} |
+          Dead: {{ infrastructure_snapshot.push_queue.dead }} |
+          Retry vaqti kelgan: {{ infrastructure_snapshot.push_queue.due_retry }}
+        </div>
+      </div>
+      <div class="cc-card">
+        <p class="cc-title">Push yuborilgan</p>
+        <p class="cc-value cc-info">{{ infrastructure_snapshot.push_queue.sent }}</p>
+        <div class="cc-sub"><a href="{{ infrastructure_snapshot.push_queue.admin_url }}" class="cc-link" style="padding:0;border:0;background:transparent;color:#2563eb;">Navbatni boshqarish →</a></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cc-section">
     <h2>SLA / Alert Engine</h2>
     <div class="cc-grid">
       <div class="cc-card">
@@ -109,6 +168,20 @@
         <p class="cc-title">Route deviation (24 soat)</p>
         <p id="slaRouteDeviation" class="cc-value cc-warn">{{ sla_alerts.route_deviation_count }}</p>
       </div>
+    </div>
+    <div id="liveIncidentsList" class="cc-list-card" style="margin-top:12px;">
+      <p class="cc-trend-title">Live incidents</p>
+      {% for incident in live_incidents %}
+        <div class="cc-list-item">
+          <div>
+            <div style="font-weight:700; color:#0f172a;">{{ incident.title }}</div>
+            <div style="font-size:12px; color:#64748b;">{{ incident.message }}</div>
+          </div>
+          <a class="cc-btn" href="/admin/orders/order/{{ incident.order_id }}/change/">Ochish</a>
+        </div>
+      {% empty %}
+        <div class="cc-empty">Hozircha kritik incident yo'q</div>
+      {% endfor %}
     </div>
   </div>
 
@@ -226,8 +299,10 @@
                 <span class="cc-fresh cc-fresh-fresh">Yangi</span>
               {% elif item.freshness == 'warm' %}
                 <span class="cc-fresh cc-fresh-warm">E'tibor</span>
+              {% elif item.freshness == 'stale' %}
+                <span class="cc-fresh cc-fresh-stale">Stale</span>
               {% else %}
-                <span class="cc-fresh cc-fresh-stale">Eskirgan</span>
+                <span class="cc-fresh cc-fresh-offline">Offline</span>
               {% endif %}
             </td>
             <td>{% if item.map_url %}<a href="{{ item.map_url }}" target="_blank" rel="noopener">Xaritada ochish</a>{% else %}—{% endif %}</td>
@@ -505,6 +580,11 @@
         <div class="cc-kv"><span class="cc-kv-label">Haydovchi verifikatsiyasi</span><span class="cc-kv-value">{{ moderation_queue.driver_verification_pending }}</span></div>
         <div class="cc-kv"><span class="cc-kv-label">Transport verifikatsiyasi</span><span class="cc-kv-value">{{ moderation_queue.vehicle_verification_pending }}</span></div>
         <div class="cc-kv"><span class="cc-kv-label">Ochiq bid muzokara</span><span class="cc-kv-value">{{ moderation_queue.open_bid_negotiations }}</span></div>
+        <div class="cc-kv"><span class="cc-kv-label">Kutilayotgan jalobalar</span><span class="cc-kv-value">{{ moderation_queue.pending_complaints }}</span></div>
+        <div class="cc-kv"><span class="cc-kv-label">Jalobalar (ko'rib chiqilmoqda)</span><span class="cc-kv-value">{{ moderation_queue.complaints_in_review }}</span></div>
+        <div class="cc-kv"><span class="cc-kv-label">Trial o'chirilgan akkauntlar</span><span class="cc-kv-value">{{ moderation_queue.trial_disabled_accounts }}</span></div>
+        <div class="cc-kv"><span class="cc-kv-label">Trial tugagan akkauntlar</span><span class="cc-kv-value">{{ moderation_queue.trial_exhausted_accounts }}</span></div>
+        <div class="cc-kv"><span class="cc-kv-label">Qurilma trial bog'lanishlari</span><span class="cc-kv-value">{{ moderation_queue.trial_device_grants }}</span></div>
       </div>
     </div>
   </div>
@@ -521,6 +601,11 @@
       <a href="/admin/chats/message/?is_read__exact=0" class="cc-link">O'qilmagan xabarlar</a>
       <a href="/admin/notifications/notification/?is_read__exact=0" class="cc-link">O'qilmagan notification</a>
       <a href="/admin/vehicles/vehicle/?is_verified__exact=0" class="cc-link">Tasdiqlanmagan transportlar</a>
+      <a href="/admin/vehicle-verification/" class="cc-link success">Transport verifikatsiyasi</a>
+      <a href="/admin/driver-verification/" class="cc-link success">Haydovchi verifikatsiyasi</a>
+      <a href="/admin/ratings/complaint/?status__exact=pending" class="cc-link">Kutilayotgan jalobalar</a>
+      <a href="/admin/subscriptions/marketplacetrialaccount/?trial_disabled__exact=1" class="cc-link">Trial o'chirilgan</a>
+      <a href="/admin/subscriptions/trialdevicegrant/" class="cc-link">Qurilma trial ro'yxati</a>
     </div>
   </div>
 
@@ -644,7 +729,11 @@
       const geofenceLayer = L.layerGroup();
       const points = mapPoints.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
       points.forEach((p) => {
-        const color = p.freshness === 'fresh' ? '#16a34a' : (p.freshness === 'warm' ? '#d97706' : '#dc2626');
+        const color = p.freshness === 'fresh'
+          ? '#16a34a'
+          : (p.freshness === 'warm'
+            ? '#d97706'
+            : (p.freshness === 'stale' ? '#dc2626' : '#6b7280'));
         const icon = L.divIcon({
           className: '',
           html: `<div style="width:14px;height:14px;border-radius:999px;background:${color};border:2px solid #fff;box-shadow:0 0 0 2px ${color}55;"></div>`,
@@ -840,6 +929,23 @@
         `;
       }).join('');
     };
+    const updateLiveIncidents = (incidents) => {
+      const el = byId('liveIncidentsList');
+      if (!el) return;
+      if (!incidents || !incidents.length) {
+        el.innerHTML = '<div class="cc-empty">Hozircha kritik incident yo\'q</div>';
+        return;
+      }
+      el.innerHTML = incidents.map((incident) => `
+        <div class="cc-list-item">
+          <div>
+            <div style="font-weight:700; color:#0f172a;">${incident.title || '-'}</div>
+            <div style="font-size:12px; color:#64748b;">${incident.message || ''}</div>
+          </div>
+          <a class="cc-btn" href="/admin/orders/order/${incident.order_id}/change/">Ochish</a>
+        </div>
+      `).join('');
+    };
     const refreshWidgets = async () => {
       const params = new URLSearchParams(window.location.search);
       const url = `/admin/live-data/?${params.toString()}`;
@@ -860,6 +966,7 @@
       setText('dqNoPayment', data.data_quality?.completed_without_payment);
       setText('dqNoRating', data.data_quality?.completed_without_rating);
       updateLiveTable(data.active_rows || []);
+      updateLiveIncidents(data.live_incidents || []);
     };
     const autoRefreshToggle = byId('autoRefreshToggle');
     let refreshTimer = null;
@@ -897,7 +1004,7 @@
       socket.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data || '{}');
-          if (payload.type === 'location_update' || payload.type === 'route_deviation' || payload.type === 'geofence_event' || payload.type === 'ops_refresh') {
+          if (payload.type === 'location_update' || payload.type === 'route_deviation' || payload.type === 'geofence_event' || payload.type === 'ops_refresh' || payload.type === 'stop_alert') {
             refreshWidgets();
           }
         } catch (e) {

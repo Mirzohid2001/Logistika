@@ -42,7 +42,7 @@ class UpdaterModelTest(TestCase):
             name_ru='Узбекистан',
             name_en='Uzbekistan',
             name_uz='O\'zbekiston',
-            code='UZ'
+            code='UZU'
         )
         self.city = City.objects.create(
             country=self.country,
@@ -65,11 +65,13 @@ class UpdaterModelTest(TestCase):
             destination_address='Test address 2',
             proposed_cost=500000
         )
-        self.order_status = OrderStatus.objects.create(
+        self.order_status, _ = OrderStatus.objects.get_or_create(
             code='pending',
-            name_ru='Ожидание',
-            name_en='Pending',
-            name_uz='Kutilmoqda'
+            defaults={
+                'name_ru': 'Ожидание',
+                'name_en': 'Pending',
+                'name_uz': 'Kutilmoqda',
+            },
         )
         self.order = Order.objects.create(
             advertisement=self.advertisement,
@@ -124,7 +126,7 @@ class UpdaterAPITest(TestCase):
             name_ru='Узбекистан',
             name_en='Uzbekistan',
             name_uz='O\'zbekiston',
-            code='UZ'
+            code='UZU'
         )
         self.city = City.objects.create(
             country=self.country,
@@ -147,17 +149,37 @@ class UpdaterAPITest(TestCase):
             destination_address='Test address 2',
             proposed_cost=500000
         )
-        self.pending_status = OrderStatus.objects.create(
+        self.pending_status, _ = OrderStatus.objects.get_or_create(
             code='pending',
-            name_ru='Ожидание',
-            name_en='Pending',
-            name_uz='Kutilmoqda'
+            defaults={
+                'name_ru': 'Ожидание',
+                'name_en': 'Pending',
+                'name_uz': 'Kutilmoqda',
+            },
         )
-        self.in_progress_status = OrderStatus.objects.create(
+        self.in_progress_status, _ = OrderStatus.objects.get_or_create(
             code='in_progress',
-            name_ru='В процессе',
-            name_en='In Progress',
-            name_uz='Jarayonda'
+            defaults={
+                'name_ru': 'В процессе',
+                'name_en': 'In Progress',
+                'name_uz': 'Jarayonda',
+            },
+        )
+        self.stopped_status, _ = OrderStatus.objects.get_or_create(
+            code='stopped',
+            defaults={
+                'name_ru': 'Остановлен',
+                'name_en': 'Stopped',
+                'name_uz': 'To\'xtatilgan',
+            },
+        )
+        self.completed_status, _ = OrderStatus.objects.get_or_create(
+            code='completed',
+            defaults={
+                'name_ru': 'Завершен',
+                'name_en': 'Completed',
+                'name_uz': 'Yakunlangan',
+            },
         )
         self.order = Order.objects.create(
             advertisement=self.advertisement,
@@ -188,14 +210,14 @@ class UpdaterAPITest(TestCase):
     def test_updater_update_status(self):
         self.client.force_authenticate(user=self.updater)
         data = {
-            'status_code': 'in_progress',
+            'status_code': 'stopped',
             'description': 'Status updated by updater'
         }
         response = self.client.post(f'/api/updater/orders/{self.order.id}/update-status/', data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
         self.order.refresh_from_db()
-        self.assertEqual(self.order.status.code, 'in_progress')
+        self.assertEqual(self.order.status.code, 'stopped')
         
         log = UpdateLog.objects.filter(
             order=self.order,
@@ -203,7 +225,19 @@ class UpdaterAPITest(TestCase):
             update_type='status'
         ).first()
         self.assertIsNotNone(log)
-        self.assertEqual(log.new_value['status'], 'in_progress')
+        self.assertEqual(log.new_value['status'], 'stopped')
+
+    def test_updater_cannot_set_in_progress_status(self):
+        self.client.force_authenticate(user=self.updater)
+        data = {'status_code': 'in_progress'}
+        response = self.client.post(f'/api/updater/orders/{self.order.id}/update-status/', data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_updater_cannot_set_completed_status(self):
+        self.client.force_authenticate(user=self.updater)
+        data = {'status_code': 'completed'}
+        response = self.client.post(f'/api/updater/orders/{self.order.id}/update-status/', data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_updater_update_status_invalid(self):
         self.client.force_authenticate(user=self.updater)
@@ -215,6 +249,9 @@ class UpdaterAPITest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_updater_update_location(self):
+        self.order.status = self.in_progress_status
+        self.order.save(update_fields=['status', 'updated_at'])
+
         self.client.force_authenticate(user=self.updater)
         data = {
             'lat': Decimal('41.3111'),
@@ -253,22 +290,17 @@ class UpdaterAPITest(TestCase):
             'description': 'Payment updated'
         }
         response = self.client.post(f'/api/updater/orders/{self.order.id}/update-payment/', data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
         payment.refresh_from_db()
-        self.assertEqual(payment.payment_status, 'completed')
-        
-        log = UpdateLog.objects.filter(
-            order=self.order,
-            updater=self.updater,
-            update_type='payment'
-        ).first()
-        self.assertIsNotNone(log)
+        self.assertEqual(payment.payment_status, 'pending')
 
     def test_updater_bulk_update(self):
+        self.order.status = self.in_progress_status
+        self.order.save(update_fields=['status', 'updated_at'])
+
         self.client.force_authenticate(user=self.updater)
         data = {
-            'status_code': 'in_progress',
             'lat': Decimal('41.3111'),
             'lng': Decimal('69.2797'),
             'description': 'Bulk update'
