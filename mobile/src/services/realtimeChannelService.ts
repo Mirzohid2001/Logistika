@@ -34,12 +34,14 @@ const DEFAULT_HEARTBEAT_TIMEOUT_MS = 10000;
 
 class ManagedRealtimeChannel implements RealtimeChannelHandle {
   private ws: WebSocket | null = null;
+  private connectInFlight = false;
   private readonly options: Required<RealtimeChannelOptions>;
   private reconnectAttempts = 0;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private heartbeatTimeout: NodeJS.Timeout | null = null;
   private pollInterval: NodeJS.Timeout | null = null;
+  private pollInFlight = false;
   private appState: AppStateStatus = AppState.currentState;
   private shouldRun = true;
   private appStateSub: { remove: () => void } | null = null;
@@ -57,15 +59,19 @@ class ManagedRealtimeChannel implements RealtimeChannelHandle {
       onDisconnected: options.onDisconnected ?? (() => undefined),
     };
     this.appStateSub = AppState.addEventListener('change', this.onAppStateChange);
-    this.connect();
+    void this.connect();
     this.startPolling();
   }
 
   private onAppStateChange = (nextState: AppStateStatus) => {
     this.appState = nextState;
     if (nextState === 'active') {
-      if (!this.isConnected() && this.shouldRun) {
-        this.connect();
+      this.reconnectAttempts = 0;
+      void this.runPoll(true);
+      if (this.isConnected()) {
+        this.startHeartbeat();
+      } else if (this.shouldRun) {
+        void this.connect();
       }
       if (!this.pollInterval) {
         this.startPolling();
@@ -77,61 +83,83 @@ class ManagedRealtimeChannel implements RealtimeChannelHandle {
 
   private async connect() {
     if (!this.shouldRun || this.appState !== 'active') {return;}
+    if (this.connectInFlight) {return;}
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
+    this.connectInFlight = true;
     try {
       const hasTokens = await secureTokenStorage.hasTokens();
       if (!hasTokens) {return;}
 
       const wsUrl = await websocketAuthService.getAuthorizedUrl(this.options.wsUrl);
-      this.ws = new WebSocket(wsUrl);
-    } catch {
-      this.scheduleReconnect();
-      return;
-    }
+      if (!this.shouldRun || this.appState !== 'active') {return;}
+      const socket = new WebSocket(wsUrl);
+      this.ws = socket;
 
-    this.ws.onopen = () => {
-      this.reconnectAttempts = 0;
-      this.startHeartbeat();
-      this.options.onConnected();
-    };
-
-    this.ws.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (payload.type === 'pong') {
-          this.clearHeartbeatTimeout();
+      socket.onopen = () => {
+        if (this.ws !== socket || !this.shouldRun) {
+          socket.close();
           return;
         }
-        this.options.onMessage(payload);
-      } catch (error) {
-        console.error('Realtime WS parse error:', error);
-      }
-    };
+        this.reconnectAttempts = 0;
+        this.startHeartbeat();
+        this.options.onConnected();
+        // Fill the possible gap between the last poll and WebSocket handshake.
+        void this.runPoll(true);
+      };
 
-    this.ws.onerror = () => {
-      this.scheduleReconnect();
-    };
+      socket.onmessage = (event) => {
+        if (this.ws !== socket || !this.shouldRun) {return;}
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.type === 'pong') {
+            this.clearHeartbeatTimeout();
+            return;
+          }
+          this.options.onMessage(payload);
+        } catch (error) {
+          console.error('Realtime WS parse error:', error);
+        }
+      };
 
-    this.ws.onclose = () => {
-      this.stopHeartbeat();
-      this.options.onDisconnected();
+      socket.onerror = () => {
+        if (this.ws === socket && socket.readyState < WebSocket.CLOSING) {
+          socket.close();
+        }
+      };
+
+      socket.onclose = () => {
+        if (this.ws !== socket) {return;}
+        this.ws = null;
+        this.stopHeartbeat();
+        this.options.onDisconnected();
+        void this.runPoll(true);
+        this.scheduleReconnect();
+      };
+    } catch {
       this.scheduleReconnect();
-    };
+    } finally {
+      this.connectInFlight = false;
+    }
   }
 
   private scheduleReconnect() {
     if (!this.shouldRun || this.appState !== 'active') {return;}
-    if (this.reconnectAttempts >= this.options.maxReconnectAttempts) {return;}
     if (this.reconnectTimer) {return;}
 
     this.reconnectAttempts += 1;
-    const delayMs = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), REALTIME_RECONNECT_MAX_DELAY_MS);
+    // Keep retrying forever at the capped delay. A temporary outage must not
+    // permanently disable live tracking until the app is restarted.
+    const exponent = Math.max(
+      0,
+      Math.min(this.reconnectAttempts, Math.max(1, this.options.maxReconnectAttempts)) - 1,
+    );
+    const delayMs = Math.min(1000 * Math.pow(2, exponent), REALTIME_RECONNECT_MAX_DELAY_MS);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      this.connect();
+      void this.connect();
     }, delayMs);
   }
 
@@ -165,11 +193,22 @@ class ManagedRealtimeChannel implements RealtimeChannelHandle {
   private startPolling() {
     if (this.pollInterval) {return;}
     this.pollInterval = setInterval(() => {
-      if (!this.shouldRun) {return;}
-      if (this.appState !== 'active' && !this.options.pollInBackground) {return;}
-      if (this.isConnected()) {return;}
-      this.options.onPoll();
+      void this.runPoll();
     }, this.options.pollIntervalMs);
+  }
+
+  private async runPoll(force = false) {
+    if (!this.shouldRun || this.pollInFlight) {return;}
+    if (this.appState !== 'active' && !this.options.pollInBackground) {return;}
+    if (!force && this.isConnected()) {return;}
+    this.pollInFlight = true;
+    try {
+      await this.options.onPoll();
+    } catch (error) {
+      console.error('Realtime polling error:', error);
+    } finally {
+      this.pollInFlight = false;
+    }
   }
 
   send(payload: any) {
@@ -198,8 +237,13 @@ class ManagedRealtimeChannel implements RealtimeChannelHandle {
     }
     this.stopHeartbeat();
     if (this.ws) {
-      this.ws.close();
+      const socket = this.ws;
       this.ws = null;
+      socket.onopen = null;
+      socket.onmessage = null;
+      socket.onerror = null;
+      socket.onclose = null;
+      socket.close();
     }
   }
 }

@@ -19,7 +19,7 @@ import type { AppColors } from '../theme/colors';
 import { useThemedStyles } from '../theme/useThemedStyles';
 import { useAppTheme } from '../theme/useAppTheme';
 
-type CheckoutMode = 'order' | 'subscription';
+type CheckoutMode = 'order' | 'subscription' | 'service_fee';
 
 const PaymentCheckoutScreen = () => {
   const styles = useThemedStyles(createStyles);
@@ -45,14 +45,20 @@ const PaymentCheckoutScreen = () => {
       setPayment(data);
 
       if (data.payment_status === 'completed') {
-        if (mode === 'subscription') {
-          await refreshUser();
+        if (mode === 'subscription' || mode === 'service_fee') {
+          await refreshUser({ force: true });
         }
         toastService.success(
-          mode === 'subscription' ? t('subscriptions.purchaseSuccess') : t('payments.paymentCreatedCompleted'),
+          mode === 'subscription'
+            ? t('subscriptions.purchaseSuccess')
+            : mode === 'service_fee'
+              ? t('payments.serviceFeePaid')
+              : t('payments.paymentCreatedCompleted'),
         );
         if (mode === 'subscription') {
           (navigation as any).navigate('Main');
+        } else if (mode === 'service_fee') {
+          (navigation as any).navigate('ServiceFees');
         } else {
           navigation.goBack();
         }

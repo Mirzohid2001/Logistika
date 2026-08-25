@@ -2,6 +2,8 @@ import {
   applyLocationUpdateToOrder,
   applyOrderRealtimePayload,
   appendLocationTrack,
+  mergeLocationTracks,
+  mergeOrderTrackingSnapshot,
 } from '../utils/trackingUpdates';
 import { Order } from '../types';
 
@@ -38,6 +40,15 @@ describe('trackingUpdates', () => {
     it('returns original order when payload has no coordinates', () => {
       expect(applyLocationUpdateToOrder(baseOrder, {})).toBe(baseOrder);
       expect(applyLocationUpdateToOrder(null, { lat: 1, lng: 2 })).toBeNull();
+    });
+
+    it('ignores an older websocket location packet', () => {
+      const updated = applyLocationUpdateToOrder(baseOrder, {
+        lat: 40,
+        lng: 65,
+        driver_last_seen_at: '2026-01-01T09:59:59Z',
+      });
+      expect(updated).toBe(baseOrder);
     });
   });
 
@@ -139,5 +150,44 @@ describe('trackingUpdates', () => {
 
       expect(second).toHaveLength(1);
     });
+
+    it('does not prepend an out-of-order live point', () => {
+      const current = appendLocationTrack([], {
+        lat: 39.5,
+        lng: 64.9,
+        updated_at: '2026-01-01T10:05:00Z',
+      });
+      const older = appendLocationTrack(current, {
+        lat: 39.4,
+        lng: 64.8,
+        updated_at: '2026-01-01T10:04:00Z',
+      });
+      expect(older).toBe(current);
+    });
+  });
+
+  it('preserves newer live motion when an old poll resolves', () => {
+    const live: Order = {
+      ...baseOrder,
+      current_location_lat: 41,
+      current_location_lng: 69,
+      current_speed_mps: 12,
+      driver_last_seen_at: '2026-01-01T10:05:00Z',
+    };
+    const merged = mergeOrderTrackingSnapshot(live, baseOrder);
+    expect(merged.current_location_lat).toBe(41);
+    expect(merged.current_speed_mps).toBe(12);
+    expect(merged.driver_last_seen_at).toBe('2026-01-01T10:05:00Z');
+  });
+
+  it('merges and sorts REST and live tracks without duplicates', () => {
+    const live = [{ id: 2, lat: 40, lng: 65, timestamp: '2026-01-01T10:05:00Z' }];
+    const rest = [
+      { id: 1, lat: 39.5, lng: 64.9, timestamp: '2026-01-01T10:00:00Z' },
+      { id: 3, lat: 40, lng: 65, timestamp: '2026-01-01T10:05:00Z' },
+    ];
+    const merged = mergeLocationTracks(live, rest);
+    expect(merged).toHaveLength(2);
+    expect(merged[0].timestamp).toBe('2026-01-01T10:05:00Z');
   });
 });

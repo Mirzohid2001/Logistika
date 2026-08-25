@@ -9,7 +9,7 @@ from django.conf import settings
 from django.db import transaction
 import uuid
 from decimal import Decimal
-from .models import Payment, PaymentHistory
+from .models import OrderCompletionFee, Payment, PaymentHistory
 from apps.orders.models import Order
 from apps.common.pagination import StandardResultsSetPagination
 from apps.common.openapi import EmptySerializer
@@ -22,7 +22,14 @@ from apps.common.exceptions import (
     ExternalServiceError,
     DatabaseError,
 )
-from .serializers import PaymentSerializer, PaymentCreateSerializer, PaymentHistorySerializer, PaymentRefundSerializer
+from .serializers import (
+    OrderCompletionFeePaySerializer,
+    OrderCompletionFeeSerializer,
+    PaymentSerializer,
+    PaymentCreateSerializer,
+    PaymentHistorySerializer,
+    PaymentRefundSerializer,
+)
 from .services import ClickPaymentService, PaymePaymentService, UzumPaymentService, PaymentSecurityService
 from .gateway_init import initiate_gateway_payment
 from .order_payment import (
@@ -67,6 +74,119 @@ class WalletView(APIView):
             payload.update(driver_earnings_payload(request.user))
             payload['available'] = payload.get('available_balance', payload['available'])
         return Response(payload, status=status.HTTP_200_OK)
+
+
+class OrderCompletionFeeListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(responses={200: {'type': 'object'}})
+    def get(self, request):
+        from .completion_fees import completion_fee_summary
+
+        fee_status = request.query_params.get('status', OrderCompletionFee.STATUS_PENDING)
+        queryset = OrderCompletionFee.objects.filter(user=request.user).select_related(
+            'order', 'paid_payment'
+        )
+        if fee_status in dict(OrderCompletionFee.STATUS_CHOICES):
+            queryset = queryset.filter(status=fee_status)
+        elif fee_status != 'all':
+            raise ValidationError(detail={'status': 'Noto\'g\'ri xizmat to\'lovi holati'})
+
+        return Response(
+            {
+                'summary': completion_fee_summary(request.user),
+                'results': OrderCompletionFeeSerializer(queryset, many=True).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class OrderCompletionFeeSummaryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(responses={200: {'type': 'object'}})
+    def get(self, request):
+        from .completion_fees import completion_fee_summary
+
+        return Response(completion_fee_summary(request.user), status=status.HTTP_200_OK)
+
+
+class OrderCompletionFeePayView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(request=OrderCompletionFeePaySerializer, responses={200: PaymentSerializer, 201: PaymentSerializer})
+    def post(self, request, pk):
+        serializer = OrderCompletionFeePaySerializer(data=request.data)
+        if not serializer.is_valid():
+            raise ValidationError(detail=serializer.errors)
+        payment_method = serializer.validated_data['payment_method']
+
+        with transaction.atomic():
+            try:
+                fee = OrderCompletionFee.objects.select_for_update().select_related('order').get(
+                    pk=pk,
+                    user=request.user,
+                )
+            except OrderCompletionFee.DoesNotExist:
+                raise NotFoundError(detail='Xizmat to\'lovi topilmadi')
+
+            if fee.status == OrderCompletionFee.STATUS_WAIVED:
+                raise ValidationError(detail='Bu xizmat to\'lovi administrator tomonidan bekor qilingan')
+            if fee.status == OrderCompletionFee.STATUS_PAID:
+                payment = fee.paid_payment or fee.payments.filter(payment_status='completed').order_by('-paid_at', '-id').first()
+                if not payment:
+                    raise PaymentError(detail='Xizmat to\'lovi allaqachon to\'langan')
+                return Response(
+                    PaymentSerializer(payment, context={'request': request, 'include_history': True}).data,
+                    status=status.HTTP_200_OK,
+                )
+
+            payment = fee.payments.filter(
+                payment_status__in=['pending', 'processing'],
+            ).order_by('-created_at').first()
+            created = False
+            if payment is None:
+                payment = Payment.objects.create(
+                    user=request.user,
+                    order=fee.order,
+                    completion_fee=fee,
+                    amount=fee.amount,
+                    currency=fee.currency,
+                    payment_method=payment_method,
+                    gateway_response={
+                        'purpose': 'order_completion_fee',
+                        'completion_fee_id': fee.id,
+                        'order_id': fee.order_id,
+                        'role': fee.role,
+                    },
+                )
+                created = True
+
+                if payment_method == 'mock':
+                    if not getattr(settings, 'PAYMENTS_ALLOW_MOCK', False):
+                        raise PermissionDeniedError(detail='Mock to\'lov usuli o\'chirilgan')
+                    payment.transaction_id = f'mock-fee-{payment.pk}-{uuid.uuid4().hex[:10]}'
+                    payment.save(update_fields=['transaction_id', 'updated_at'])
+                    gateway_response = {
+                        **payment.gateway_response,
+                        'mock': True,
+                    }
+                    mark_payment_completed(payment, gateway_response=gateway_response)
+                    PaymentHistory.objects.create(
+                        payment=payment,
+                        status='pending',
+                        status_new='completed',
+                        gateway_response=gateway_response,
+                    )
+                else:
+                    initiate_gateway_payment(payment)
+
+        payment = Payment.objects.select_related('order', 'completion_fee').prefetch_related('history').get(pk=payment.pk)
+        _invalidate_payment_list_caches(payment)
+        return Response(
+            PaymentSerializer(payment, context={'request': request, 'include_history': True}).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
 
 class PaymentCreateView(APIView):
@@ -122,7 +242,7 @@ class PaymentCreateView(APIView):
                     except Exception:
                         raise
 
-            payment = Payment.objects.select_related('order').get(pk=payment.pk)
+            payment = Payment.objects.select_related('order', 'completion_fee').get(pk=payment.pk)
             _invalidate_payment_list_caches(payment)
             
             return Response(PaymentSerializer(payment, context={'request': request, 'include_history': True}).data, status=status.HTTP_201_CREATED)
@@ -138,7 +258,7 @@ class PaymentStatusView(APIView):
     @extend_schema(responses={200: PaymentSerializer})
     def get(self, request, pk):
         try:
-            payment = Payment.objects.select_related('order', 'user').prefetch_related('history').get(pk=pk)
+            payment = Payment.objects.select_related('order', 'user', 'completion_fee').prefetch_related('history').get(pk=pk)
             if not can_access_payment(request.user, payment):
                 raise PermissionDeniedError(detail='Bu to\'lovga kirish huquqingiz yo\'q')
             serializer = PaymentSerializer(payment, context={'request': request, 'include_history': True})
@@ -328,7 +448,7 @@ class MyPaymentsView(APIView):
         if cached_payload is not None:
             return Response(cached_payload, status=status.HTTP_200_OK)
 
-        payments = Payment.objects.filter(user=request.user).select_related('order').order_by('-created_at')
+        payments = Payment.objects.filter(user=request.user).select_related('order', 'completion_fee').order_by('-created_at')
         if status_filter:
             payments = payments.filter(payment_status=status_filter)
 
@@ -349,7 +469,10 @@ class OrderPaymentsView(APIView):
             order = Order.objects.select_related('client', 'driver').get(pk=order_id)
             if not can_access_order(request.user, order):
                 raise PermissionDeniedError(detail='Bu buyurtmaga kirish huquqingiz yo\'q')
-            payments = Payment.objects.filter(order=order).select_related('order').order_by('-created_at')
+            payments = Payment.objects.filter(
+                order=order,
+                completion_fee__isnull=True,
+            ).select_related('order').order_by('-created_at')
             serializer = PaymentSerializer(payments, many=True, context={'request': request, 'include_history': False})
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Order.DoesNotExist:
@@ -362,7 +485,7 @@ class PaymentHistoryView(APIView):
     @extend_schema(responses={200: PaymentHistorySerializer(many=True)})
     def get(self, request, pk):
         try:
-            payment = Payment.objects.select_related('order', 'user').get(pk=pk)
+            payment = Payment.objects.select_related('order', 'user', 'completion_fee').get(pk=pk)
             if not can_access_payment(request.user, payment):
                 raise PermissionDeniedError(detail='Bu to\'lov tarixiga kirish huquqingiz yo\'q')
             history = PaymentHistory.objects.filter(payment=payment).order_by('-created_at')
@@ -378,10 +501,15 @@ class PaymentRefundView(APIView):
     @extend_schema(request=PaymentRefundSerializer, responses={200: PaymentSerializer})
     def post(self, request, pk):
         try:
-            payment = Payment.objects.select_related('order', 'user').get(pk=pk)
+            payment = Payment.objects.select_related('order', 'user', 'completion_fee').get(pk=pk)
             from apps.users.permissions import _has_admin_like_role
             if not _has_admin_like_role(request.user) and payment.user_id != request.user.id:
                 raise PermissionDeniedError(detail='Faqat to\'lov qilgan mijoz to\'lovni qaytara oladi')
+
+            if payment.completion_fee_id:
+                raise PermissionDeniedError(
+                    detail='Hisobni qayta bloklamaslik uchun xizmat to\'lovlari avtomatik qaytarilmaydi. Administratorga murojaat qiling.'
+                )
             
             if payment.payment_status != 'completed':
                 raise PaymentError(detail='Faqat yakunlangan to\'lovlar qaytarilishi mumkin')

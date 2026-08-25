@@ -1,5 +1,11 @@
 import { apiService } from './api';
-import { Payment, PaymentHistory, PaginatedResponse } from '../types';
+import {
+  OrderCompletionFeeListResponse,
+  OrderCompletionFeeSummary,
+  Payment,
+  PaymentHistory,
+  PaginatedResponse,
+} from '../types';
 
 export const paymentsService = {
   // Создать платеж
@@ -39,5 +45,19 @@ export const paymentsService = {
   // Возврат платежа
   async refundPayment(id: number, data?: { reason?: string; amount?: number }): Promise<Payment> {
     return apiService.post(`/payments/${id}/refund/`, data || {});
+  },
+
+  async getCompletionFees(status: 'pending' | 'paid' | 'waived' | 'all' = 'pending'): Promise<OrderCompletionFeeListResponse> {
+    return apiService.get('/payments/completion-fees/', { status });
+  },
+
+  async getCompletionFeeSummary(): Promise<OrderCompletionFeeSummary> {
+    return apiService.get('/payments/completion-fees/summary/');
+  },
+
+  async payCompletionFee(id: number, paymentMethod: 'click' | 'payme' | 'uzum' | 'mock'): Promise<Payment> {
+    return apiService.post(`/payments/completion-fees/${id}/pay/`, {
+      payment_method: paymentMethod,
+    });
   },
 };

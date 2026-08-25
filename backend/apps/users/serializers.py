@@ -194,6 +194,9 @@ class UserSerializer(serializers.ModelSerializer):
         trial = get_trial_status_payload(obj)
         can_access = is_staff_account(obj) or (not needs_sub) or user_has_marketplace_access(obj)
         company_inn_required = obj.is_client and not normalize_company_inn(obj.company_inn)
+        from apps.payments.completion_fees import completion_fee_summary
+
+        service_fee = completion_fee_summary(obj)
 
         return {
             'role': role,
@@ -204,6 +207,9 @@ class UserSerializer(serializers.ModelSerializer):
             'trial': trial,
             'driver_verification_required': role == 'driver' and obj.verification_status != 'approved',
             'company_inn_required': company_inn_required,
+            'service_fee_required': service_fee['required'],
+            'marketplace_actions_allowed': service_fee['marketplace_actions_allowed'],
+            'service_fee': service_fee,
             'subscription': subscription,
         }
 

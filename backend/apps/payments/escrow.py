@@ -59,7 +59,7 @@ def _remaining_escrow(escrow: OrderEscrow) -> Decimal:
 
 @transaction.atomic
 def fund_escrow_from_payment(payment: Payment) -> OrderEscrow | None:
-    if not payment.order_id:
+    if not payment.order_id or payment.completion_fee_id:
         return None
     if payment.payment_status != 'completed':
         return None
@@ -200,7 +200,11 @@ def _refund_escrow_amount(order: Order, escrow: OrderEscrow, amount: Decimal, *,
         return ZERO
 
     payment = (
-        Payment.objects.filter(order=order, payment_status='completed')
+        Payment.objects.filter(
+            order=order,
+            payment_status='completed',
+            completion_fee__isnull=True,
+        )
         .order_by('-paid_at', '-id')
         .first()
     )

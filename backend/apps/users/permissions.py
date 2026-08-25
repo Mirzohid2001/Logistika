@@ -37,10 +37,12 @@ def can_access_chat(user, chat) -> bool:
 def can_access_payment(user, payment) -> bool:
     if not _is_authenticated(user):
         return False
-    if getattr(user, 'is_dispatcher', False) or getattr(user, 'is_updater', False):
+    if _has_admin_like_role(user):
         return True
     if payment.user_id == user.id:
         return True
+    if payment.completion_fee_id:
+        return False
     if payment.order_id:
         return can_access_order(user, payment.order)
     return False
@@ -108,4 +110,3 @@ class IsStaffModerator(permissions.BasePermission):
 
     def has_permission(self, request, view):
         return _is_authenticated(request.user) and _has_admin_like_role(request.user)
-

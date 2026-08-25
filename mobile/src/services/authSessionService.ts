@@ -4,10 +4,12 @@ type SessionExpiredPayload = {
 
 type SessionExpiredListener = (payload: SessionExpiredPayload) => void;
 type SubscriptionRequiredListener = () => void;
+type ServiceFeeRequiredListener = () => void;
 
 class AuthSessionService {
   private listeners = new Set<SessionExpiredListener>();
   private subscriptionListeners = new Set<SubscriptionRequiredListener>();
+  private serviceFeeListeners = new Set<ServiceFeeRequiredListener>();
 
   onSessionExpired(listener: SessionExpiredListener): () => void {
     this.listeners.add(listener);
@@ -35,6 +37,21 @@ class AuthSessionService {
         listener();
       } catch (error) {
         console.error('Subscription listener error:', error);
+      }
+    });
+  }
+
+  onServiceFeeRequired(listener: ServiceFeeRequiredListener): () => void {
+    this.serviceFeeListeners.add(listener);
+    return () => this.serviceFeeListeners.delete(listener);
+  }
+
+  emitServiceFeeRequired(): void {
+    this.serviceFeeListeners.forEach((listener) => {
+      try {
+        listener();
+      } catch (error) {
+        console.error('Service fee listener error:', error);
       }
     });
   }

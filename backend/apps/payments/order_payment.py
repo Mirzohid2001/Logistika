@@ -65,6 +65,29 @@ def record_payment_refund(payment, amount: Decimal, *, reason: str = '') -> Deci
 def finalize_completed_payment(payment) -> None:
     from apps.notifications.services import create_notification
 
+    if payment.completion_fee_id:
+        from apps.payments.completion_fees import settle_completion_fee_payment
+
+        fee = settle_completion_fee_payment(payment)
+        if fee:
+            try:
+                create_notification(
+                    user=payment.user,
+                    notification_type='payment_received',
+                    title='Xizmat to\'lovi qabul qilindi',
+                    message=(
+                        f'Buyurtma #{fee.order_id} uchun {fee.amount} {fee.currency} '
+                        'xizmat to\'lovi qabul qilindi.'
+                    ),
+                    order=fee.order,
+                )
+            except Exception:
+                logger.exception(
+                    'Failed to notify user about completed service fee payment',
+                    extra={'event': 'completion_fee_payment_notify_failed', 'payment_id': payment.id},
+                )
+        return
+
     _maybe_activate_subscription_payment(payment)
 
     if payment.order_id:

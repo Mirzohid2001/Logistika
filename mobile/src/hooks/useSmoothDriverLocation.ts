@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { LatLng } from '../utils/mapGeo';
 import {
+  buildRouteCumulativeMeters,
   computeDeadReckonedTarget,
   computeNextSmoothLocation,
+  reconcileMotionTarget,
   type DriverMotionTarget,
 } from '../utils/mapTracking';
 
@@ -15,6 +17,7 @@ function toMotionTarget(target: DriverMotionTarget | LatLng): DriverMotionTarget
     longitude: target.longitude,
     heading: motion.heading ?? null,
     speedMps: motion.speedMps ?? null,
+    receivedAtMs: motion.receivedAtMs ?? Date.now(),
     updatedAtMs: motion.updatedAtMs ?? Date.now(),
     routeProgressM: motion.routeProgressM ?? null,
   };
@@ -37,9 +40,16 @@ export function useSmoothDriverLocation(
   );
   const targetRef = useRef<DriverMotionTarget | null>(target ? toMotionTarget(target) : null);
   const routeRef = useRef<LatLng[] | null>(routePolyline);
+  const routeCumulativeRef = useRef<number[] | null>(
+    routePolyline ? buildRouteCumulativeMeters(routePolyline) : null,
+  );
+  const lastTickAtRef = useRef(Date.now());
 
   useEffect(() => {
     routeRef.current = routePolyline;
+    routeCumulativeRef.current = routePolyline
+      ? buildRouteCumulativeMeters(routePolyline)
+      : null;
   }, [routePolyline]);
 
   useEffect(() => {
@@ -49,7 +59,10 @@ export function useSmoothDriverLocation(
       setDisplay(null);
       return;
     }
-    const motion = toMotionTarget(target);
+    const motion = reconcileMotionTarget(targetRef.current, toMotionTarget(target));
+    if (!motion) {
+      return;
+    }
     targetRef.current = motion;
     if (!enabled || !displayRef.current) {
       const snap = { latitude: motion.latitude, longitude: motion.longitude };
@@ -71,19 +84,25 @@ export function useSmoothDriverLocation(
       return;
     }
 
+    lastTickAtRef.current = Date.now();
+
     const interval = setInterval(() => {
       const fix = targetRef.current;
       const cur = displayRef.current;
       if (!fix) {return;}
-      const predicted = computeDeadReckonedTarget(fix, Date.now(), {
+      const now = Date.now();
+      const elapsedMs = Math.max(1, now - lastTickAtRef.current);
+      lastTickAtRef.current = now;
+      const predicted = computeDeadReckonedTarget(fix, now, {
         routePolyline: routeRef.current,
+        routeCumulativeMeters: routeCumulativeRef.current,
       });
       if (!cur) {
         displayRef.current = predicted;
         setDisplay(predicted);
         return;
       }
-      const next = computeNextSmoothLocation(cur, predicted);
+      const next = computeNextSmoothLocation(cur, predicted, undefined, undefined, elapsedMs);
       if (!next) {return;}
       if (shouldSkipMarkerUpdate(cur, next)) {
         return;

@@ -200,7 +200,7 @@ class UpdaterUpdatePaymentView(APIView):
         if serializer.is_valid():
             try:
                 order = Order.objects.get(pk=pk)
-                payments = Payment.objects.filter(order=order)
+                payments = Payment.objects.filter(order=order, completion_fee__isnull=True)
                 
                 old_payment_status = payments.first().payment_status if payments.exists() else None
                 
@@ -284,7 +284,7 @@ class UpdaterBulkUpdateView(APIView):
                     except PermissionDeniedError as exc:
                         return Response({'error': exc.detail}, status=exc.status_code)
 
-                    payments = Payment.objects.filter(order=order)
+                    payments = Payment.objects.filter(order=order, completion_fee__isnull=True)
                     old_values['payment_status'] = payments.first().payment_status if payments.exists() else None
                     payments.update(payment_status=serializer.validated_data['payment_status'])
                     new_values['payment_status'] = serializer.validated_data['payment_status']
@@ -697,7 +697,7 @@ class UpdaterBulkOperationsView(APIView):
                         continue
                     
                     from apps.payments.models import Payment
-                    payments = Payment.objects.filter(order=order)
+                    payments = Payment.objects.filter(order=order, completion_fee__isnull=True)
                     old_payment_status = payments.first().payment_status if payments.exists() else None
                     payments.update(payment_status=payment_status)
                     

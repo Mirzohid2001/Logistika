@@ -3,6 +3,7 @@ import type { LatLng } from '../utils/mapGeo';
 import {
   computeDeadReckonedTarget,
   computeNextSmoothLocation,
+  reconcileMotionTarget,
   type DriverMotionTarget,
 } from '../utils/mapTracking';
 
@@ -12,17 +13,27 @@ export type FleetMotionTarget = DriverMotionTarget & {
   driverId: number;
 };
 
-function toTargetsMap(targets: FleetMotionTarget[]): Map<number, DriverMotionTarget> {
+function toTargetsMap(
+  targets: FleetMotionTarget[],
+  previous?: Map<number, DriverMotionTarget>,
+): Map<number, DriverMotionTarget> {
   const next = new Map<number, DriverMotionTarget>();
   for (const item of targets) {
-    next.set(item.driverId, {
+    const candidate: DriverMotionTarget = {
       latitude: item.latitude,
       longitude: item.longitude,
       heading: item.heading ?? null,
       speedMps: item.speedMps ?? null,
+      receivedAtMs: Date.now(),
       updatedAtMs: item.updatedAtMs ?? Date.now(),
       routeProgressM: item.routeProgressM ?? null,
-    });
+    };
+    const accepted = reconcileMotionTarget(previous?.get(item.driverId) ?? null, candidate);
+    if (accepted) {
+      next.set(item.driverId, accepted);
+    } else if (previous?.has(item.driverId)) {
+      next.set(item.driverId, previous.get(item.driverId)!);
+    }
   }
   return next;
 }
@@ -48,6 +59,7 @@ export function useSmoothFleetLocations(
   );
   const displayRef = useRef<Record<number, LatLng>>(toDisplaySeed(targets));
   const targetsRef = useRef<Map<number, DriverMotionTarget>>(toTargetsMap(targets));
+  const lastTickAtRef = useRef(Date.now());
 
   const signature = useMemo(
     () =>
@@ -61,7 +73,7 @@ export function useSmoothFleetLocations(
   );
 
   useEffect(() => {
-    const next = toTargetsMap(targets);
+    const next = toTargetsMap(targets, targetsRef.current);
     const nextDisplay: Record<number, LatLng> = { ...displayRef.current };
     next.forEach((fix, id) => {
       if (!nextDisplay[id]) {
@@ -90,14 +102,23 @@ export function useSmoothFleetLocations(
     if (!enabled) {
       return;
     }
+    lastTickAtRef.current = Date.now();
     const interval = setInterval(() => {
       const now = Date.now();
+      const elapsedMs = Math.max(1, now - lastTickAtRef.current);
+      lastTickAtRef.current = now;
       let changed = false;
       const nextDisplay: Record<number, LatLng> = { ...displayRef.current };
       targetsRef.current.forEach((fix, id) => {
         const predicted = computeDeadReckonedTarget(fix, now);
         const current = nextDisplay[id] ?? null;
-        const stepped = computeNextSmoothLocation(current, predicted);
+        const stepped = computeNextSmoothLocation(
+          current,
+          predicted,
+          undefined,
+          undefined,
+          elapsedMs,
+        );
         if (!stepped) {
           return;
         }

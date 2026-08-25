@@ -27,6 +27,9 @@ export interface UserAccountStatus {
   trial?: TrialStatus;
   driver_verification_required: boolean;
   company_inn_required?: boolean;
+  service_fee_required?: boolean;
+  marketplace_actions_allowed?: boolean;
+  service_fee?: OrderCompletionFeeSummary;
   subscription: UserSubscriptionStatus;
 }
 
@@ -427,6 +430,8 @@ export interface Payment {
   id: number;
   user?: number;
   order?: number;
+  completion_fee?: number;
+  purpose?: 'order' | 'subscription' | 'order_completion_fee' | 'generic' | string;
   amount: number;
   currency: string;
   payment_method: string;
@@ -443,6 +448,40 @@ export interface Payment {
   is_refunded?: boolean;
   refundable_amount?: number;
   history?: PaymentHistory[];
+}
+
+export interface OrderCompletionFeeTotal {
+  currency: string;
+  amount: number;
+  count: number;
+}
+
+export interface OrderCompletionFeeSummary {
+  required: boolean;
+  marketplace_actions_allowed: boolean;
+  pending_count: number;
+  totals: OrderCompletionFeeTotal[];
+}
+
+export interface OrderCompletionFee {
+  id: number;
+  order: number;
+  role: 'client' | 'driver';
+  role_display: string;
+  amount: number;
+  currency: string;
+  status: 'pending' | 'paid' | 'waived';
+  status_display: string;
+  paid_payment?: number | null;
+  paid_at?: string | null;
+  waived_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrderCompletionFeeListResponse {
+  summary: OrderCompletionFeeSummary;
+  results: OrderCompletionFee[];
 }
 
 export interface PaymentHistory {

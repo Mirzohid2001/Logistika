@@ -75,7 +75,7 @@ export const LOCATION_POST_INTERVAL_MS = 1000;
 /** Keepalive while parked; native watch still posts on movement. */
 export const LOCATION_HEARTBEAT_INTERVAL_MS = 8000;
 export const LOCATION_BACKGROUND_HEARTBEAT_MS = 15000;
-export const LOCATION_MOVEMENT_THRESHOLD_METERS = 8;
+export const LOCATION_MOVEMENT_THRESHOLD_METERS = 3;
 /** Skip GPS fixes worse than this accuracy (meters). */
 export const LOCATION_MAX_ACCURACY_METERS = 45;
 

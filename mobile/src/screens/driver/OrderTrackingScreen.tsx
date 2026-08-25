@@ -58,7 +58,12 @@ import {
 } from '../../utils/orderRoute';
 import { openYandexNavigatorToAddress, openYandexNavigatorToPoint } from '../../utils/navigationLinks';
 import { getEmbeddedAdvertisement, resolveOrderAdvertisement } from '../../utils/orderAdvertisement';
-import { applyOrderRealtimePayload, appendLocationTrack } from '../../utils/trackingUpdates';
+import {
+  applyOrderRealtimePayload,
+  appendLocationTrack,
+  mergeLocationTracks,
+  mergeOrderTrackingSnapshot,
+} from '../../utils/trackingUpdates';
 import { Advertisement, Order, OrderLocationTrack, OrderRouteStop } from '../../types';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ScreenBackground } from '../../components/ScreenBackground';
@@ -262,7 +267,7 @@ const OrderTrackingScreen = () => {
         ...(resolvedAd && typeof data.advertisement !== 'object' ? { advertisement: resolvedAd } : {}),
         route_stops: stops,
       };
-      setOrder(enrichedOrder);
+      setOrder((prev) => mergeOrderTrackingSnapshot(prev, enrichedOrder));
       setAdvertisement(resolvedAd);
       const fromServer = routePointsToEndpoints(enrichedOrder.planned_route_points);
       if (fromServer) {
@@ -283,7 +288,7 @@ const OrderTrackingScreen = () => {
   const loadTracking = async () => {
     try {
       const data = await ordersService.getOrderTracking(id);
-      setTracks(data);
+      setTracks((prev) => mergeLocationTracks(prev, data));
     } catch (error) {
       console.error('Error loading tracking:', error);
     } finally {
@@ -305,7 +310,10 @@ const OrderTrackingScreen = () => {
       ? embeddedAdvertisement.destination_city.name
       : '';
 
-  const effectiveEndpoints = getEffectiveRouteEndpoints(embeddedAdvertisement, routeEndpoints, order);
+  const effectiveEndpoints = useMemo(
+    () => getEffectiveRouteEndpoints(embeddedAdvertisement, routeEndpoints, order),
+    [embeddedAdvertisement, order, routeEndpoints],
+  );
   const navPhase = getDriverNavPhase(order?.status?.code);
   const activeTarget = getActiveNavigationTarget(navPhase, effectiveEndpoints, order);
 
@@ -626,6 +634,34 @@ const OrderTrackingScreen = () => {
   };
 
   const plannedPolyline = useMemo(() => getPlannedRouteCoordinates(order), [order]);
+  const stopRouteCoordinates = useMemo(
+    () => routeStopsToMapCoordinates(routeStops),
+    [routeStops],
+  );
+  const mapRouteCoordinates = useMemo(() => {
+    if (plannedPolyline.length > 1) {return plannedPolyline;}
+    if (stopRouteCoordinates.length > 1) {return stopRouteCoordinates;}
+    return effectiveEndpoints
+      ? [effectiveEndpoints.departure, effectiveEndpoints.destination]
+      : [];
+  }, [effectiveEndpoints, plannedPolyline, stopRouteCoordinates]);
+  const coordinates = useMemo(
+    () =>
+      downsamplePolyline(
+        filterTrackCoordinates(
+          tracks
+            .map((track) => ({
+              latitude:
+                typeof track.lat === 'number' ? track.lat : parseFloat(String(track.lat)),
+              longitude:
+                typeof track.lng === 'number' ? track.lng : parseFloat(String(track.lng)),
+            }))
+            .filter((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude))
+            .reverse(),
+        ),
+      ),
+    [tracks],
+  );
 
   const driverMotion = useMemo(() => {
     if (currentLocation) {
@@ -687,6 +723,28 @@ const OrderTrackingScreen = () => {
     displayHeading,
     driverMotion?.speedMps,
   );
+  const mapRegion = useMemo(() => {
+    const mapBoundsPoints: LatLng[] = [...mapRouteCoordinates];
+    if (driverMotion) {
+      mapBoundsPoints.push({
+        latitude: driverMotion.latitude,
+        longitude: driverMotion.longitude,
+      });
+    }
+    return regionFromBounds(mapBoundsPoints) ?? regionFromCenter(41.3111, 69.2797, 0.12);
+  }, [driverMotion, mapRouteCoordinates]);
+  const routeProgressM = useMemo(
+    () =>
+      driverMotion?.routeProgressM ??
+      (driverMotion && mapRouteCoordinates.length > 1
+        ? nearestProgressOnRoute(mapRouteCoordinates, driverMotion)
+        : 0),
+    [driverMotion, mapRouteCoordinates],
+  );
+  const routeSplit = useMemo(
+    () => splitRouteByProgress(mapRouteCoordinates, routeProgressM),
+    [mapRouteCoordinates, routeProgressM],
+  );
 
   if (loading && !order) {
     return (
@@ -715,55 +773,13 @@ const OrderTrackingScreen = () => {
     );
   }
 
-  const plannedRouteCoordinates = getPlannedRouteCoordinates(order);
-  const stopRouteCoordinates = routeStopsToMapCoordinates(routeStops);
-  const fallbackRouteCoordinates =
-    plannedRouteCoordinates.length > 1
-      ? plannedRouteCoordinates
-      : stopRouteCoordinates.length > 1
-      ? stopRouteCoordinates
-      : effectiveEndpoints != null
-      ? [effectiveEndpoints.departure, effectiveEndpoints.destination]
-      : [];
-  const mapRouteCoordinates =
-    plannedRouteCoordinates.length > 1
-      ? plannedRouteCoordinates
-      : stopRouteCoordinates.length > 1
-      ? stopRouteCoordinates
-      : fallbackRouteCoordinates;
-
-  const coordinates = downsamplePolyline(
-    filterTrackCoordinates(
-    tracks
-      .map((track) => ({
-        latitude: typeof track.lat === 'number' ? track.lat : parseFloat(String(track.lat)),
-        longitude: typeof track.lng === 'number' ? track.lng : parseFloat(String(track.lng)),
-      }))
-      .filter((p) => Number.isFinite(p.latitude) && Number.isFinite(p.longitude))
-      .reverse(),
-    ),
-  );
-
   const lastTrack = tracks.length > 0 ? tracks[0] : null;
   const driverPoint: LatLng | null = smoothDriverPoint;
-
-  const mapBoundsPoints: LatLng[] = [...mapRouteCoordinates];
-  if (driverPoint) {mapBoundsPoints.push(driverPoint);}
-  const mapRegion =
-    regionFromBounds(mapBoundsPoints) ?? regionFromCenter(41.3111, 69.2797, 0.12);
 
   const driverBearing = displayHeading;
   const driverMoving = (driverMotion?.speedMps ?? 0) >= 0.6;
   const followNavigation = followCamera && !!driverPoint;
-  const routeProgressM =
-    driverMotion?.routeProgressM ??
-    (driverPoint && mapRouteCoordinates.length > 1
-      ? nearestProgressOnRoute(mapRouteCoordinates, driverPoint)
-      : 0);
-  const { traveled: traveledRoute, remaining: remainingRoute } = splitRouteByProgress(
-    mapRouteCoordinates,
-    routeProgressM,
-  );
+  const { traveled: traveledRoute, remaining: remainingRoute } = routeSplit;
 
   const activeRouteStop = getActiveRouteStop(routeStops);
   const activeStopPoint = activeRouteStop ? stopToLatLng(activeRouteStop) : null;

@@ -39,6 +39,21 @@ describe('errorService payment_required', () => {
     expect(errorService.isExpectedError(parsed)).toBe(true);
   });
 
+  it('maps service_fee_required and treats it as an expected account gate', () => {
+    const parsed = errorService.parseError({
+      response: {
+        status: 403,
+        data: {
+          code: 'service_fee_required',
+          error: 'Avval xizmat to\'lovini to\'lang',
+        },
+      },
+    });
+    expect(parsed.code).toBe(ErrorCode.SERVICE_FEE_REQUIRED);
+    expect(parsed.message).toBe('Avval xizmat to\'lovini to\'lang');
+    expect(errorService.isExpectedError(parsed)).toBe(true);
+  });
+
   it('maps document_expired 403 to DOCUMENT_EXPIRED', () => {
     const parsed = errorService.parseError({
       response: {

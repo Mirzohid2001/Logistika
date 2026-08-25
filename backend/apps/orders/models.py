@@ -148,6 +148,7 @@ class Order(models.Model):
         total = Payment.objects.filter(
             order=self,
             payment_status='completed',
+            completion_fee__isnull=True,
         ).aggregate(
             total=Sum(
                 Coalesce(F('amount'), Value(Decimal('0')))

@@ -78,7 +78,7 @@ import { getSortedRouteStops, hydrateRouteStopCoordinates } from '../../utils/ro
 const OrderDetailScreen = () => {
   const route = useRoute();
   const navigation = useNavigation();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { t, currentLanguage } = useTranslation();
   const { colors } = useAppTheme();
   const styles = useThemedStyles(createStyles);
@@ -300,10 +300,11 @@ const OrderDetailScreen = () => {
         onPress: async () => {
           try {
             setActionLoading(true);
-            await ordersService.completeOrder(id);
+            const completedOrder = await ordersService.completeOrder(id);
+            setOrder(completedOrder);
             await stopActiveOrderLocationSession();
+            await refreshUser({ force: true });
             Alert.alert(t('common.success'), t('orders.orderCompleted'));
-            loadOrder();
           } catch (error: unknown) {
             const appError = error as AppError;
             if (appError?.code === ErrorCode.PAYMENT_REQUIRED) {

@@ -757,7 +757,8 @@ class DispatcherClientDetailView(APIView):
             
             total_spent = Payment.objects.filter(
                 order__client=client,
-                payment_status='completed'
+                payment_status='completed',
+                completion_fee__isnull=True,
             ).aggregate(total=Sum('amount'))['total'] or 0
             
             recent_orders = Order.objects.filter(client=client).order_by('-created_at')[:5]

@@ -57,6 +57,8 @@ class CustomAdminSite(AdminSite):
             {"title": "Trial monitoring", "url": "/admin/subscriptions/marketplacetrialaccount/", "kind": "warning"},
             {"title": "Buyurtmalar", "url": "/admin/orders/order/", "kind": "default"},
             {"title": "To'lovlar", "url": "/admin/payments/payment/", "kind": "default"},
+            {"title": "Xizmat to'lovi sozlamalari", "url": "/admin/payments/ordercompletionfeesettings/1/change/", "kind": "warning"},
+            {"title": "Kutilayotgan xizmat to'lovlari", "url": "/admin/payments/ordercompletionfee/?status__exact=pending", "kind": "warning"},
             {"title": "Foydalanuvchilar", "url": "/admin/users/user/", "kind": "default"},
             {"title": "Chatlar", "url": "/admin/chats/chat/", "kind": "default"},
         ]

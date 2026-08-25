@@ -233,6 +233,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [syncActiveMarketplaceRole]);
 
   useEffect(() => {
+    const unsubscribe = authSessionService.onServiceFeeRequired(() => {
+      void refreshUser({ force: true });
+    });
+    return unsubscribe;
+  }, [refreshUser]);
+
+  useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active' && userRef.current) {
         refreshUser();

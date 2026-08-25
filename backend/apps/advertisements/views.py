@@ -186,6 +186,12 @@ class AdvertisementListView(APIView):
         if not IsClient().has_permission(request, self):
             return Response({'error': 'Only clients can create advertisements'}, status=status.HTTP_403_FORBIDDEN)
 
+        from apps.payments.completion_fees import completion_fee_forbidden_response
+
+        fee_blocked = completion_fee_forbidden_response(request.user)
+        if fee_blocked:
+            return fee_blocked
+
         from apps.users.inn import normalize_company_inn
         from apps.users.enforcement import marketplace_ban_reason, user_is_marketplace_banned
         if user_is_marketplace_banned(request.user):
@@ -294,6 +300,21 @@ class AdvertisementAcceptView(APIView):
         
         if advertisement.client == request.user:
             return Response({'error': 'You cannot accept your own advertisement'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from apps.payments.completion_fees import (
+            completion_fee_forbidden_response,
+            counterparty_completion_fee_forbidden_response,
+        )
+
+        fee_blocked = completion_fee_forbidden_response(request.user)
+        if fee_blocked:
+            return fee_blocked
+        client_fee_blocked = counterparty_completion_fee_forbidden_response(
+            advertisement.client,
+            label='Mijoz',
+        )
+        if client_fee_blocked:
+            return client_fee_blocked
         
         from apps.users.verification import is_driver_marketplace_eligible, driver_has_approved_vehicle
         if not is_driver_marketplace_eligible(request.user):
@@ -366,7 +387,7 @@ class AdvertisementAcceptView(APIView):
             from apps.common.exceptions import PermissionDeniedError
             if isinstance(exc, PermissionDeniedError):
                 return Response(
-                    {'error': str(exc.detail), 'code': getattr(exc, 'code', 'subscription_required')},
+                    {'error': str(exc.detail), 'code': getattr(exc, 'default_code', 'subscription_required')},
                     status=status.HTTP_403_FORBIDDEN,
                 )
             raise
@@ -664,6 +685,12 @@ class AdvertisementReorderFromOrderView(APIView):
 
     def post(self, request, order_id):
         from .reorder import duplicate_advertisement_from_order
+
+        from apps.payments.completion_fees import completion_fee_forbidden_response
+
+        fee_blocked = completion_fee_forbidden_response(request.user)
+        if fee_blocked:
+            return fee_blocked
 
         try:
             order = Order.objects.select_related('advertisement', 'status').get(

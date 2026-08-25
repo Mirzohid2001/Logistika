@@ -115,6 +115,42 @@ function resolveDriverPresenceAgeSeconds(driver: DriverLocation, nowTs: number):
   return Math.max(0, Math.floor((nowTs - new Date(seenAt).getTime()) / 1000));
 }
 
+function driverLocationTimestampMs(driver: DriverLocation): number | null {
+  const value = driver.driver_last_seen_at || driver.location_updated_at;
+  if (!value) {return null;}
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function mergeDriverLocationSnapshots(
+  current: DriverLocation[],
+  incoming: DriverLocation[],
+): DriverLocation[] {
+  const currentById = new Map(current.map((driver) => [driver.driver.id, driver]));
+  return incoming.map((next) => {
+    const previous = currentById.get(next.driver.id);
+    if (!previous) {return next;}
+    const previousAt = driverLocationTimestampMs(previous);
+    const nextAt = driverLocationTimestampMs(next);
+    if (previousAt == null || nextAt == null || nextAt >= previousAt) {
+      return next;
+    }
+    return {
+      ...next,
+      location: previous.location,
+      location_updated_at: previous.location_updated_at,
+      driver_last_seen_at: previous.driver_last_seen_at,
+      driver_app_state: previous.driver_app_state,
+      speed_mps: previous.speed_mps,
+      heading: previous.heading,
+      route_progress_m: previous.route_progress_m,
+      driver_presence: previous.driver_presence,
+      tracking_summary: previous.tracking_summary,
+      estimated_eta_minutes: previous.estimated_eta_minutes,
+    };
+  });
+}
+
 const DispatcherMonitoringScreen = () => {
   const navigation = useNavigation();
   const { t } = useTranslation();
@@ -122,6 +158,7 @@ const DispatcherMonitoringScreen = () => {
   const styles = useThemedStyles((c) => createDispatcherMonitoringStyles(c, height));
   const [monitoring, setMonitoring] = useState<DispatcherMonitoring | null>(null);
   const [drivers, setDrivers] = useState<DriverLocation[]>([]);
+  const driversRef = useRef<DriverLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -189,6 +226,10 @@ const DispatcherMonitoringScreen = () => {
   }, [mapRegion]);
 
   useEffect(() => {
+    driversRef.current = drivers;
+  }, [drivers]);
+
+  useEffect(() => {
     wsConnectedRef.current = isWsConnected;
   }, [isWsConnected]);
 
@@ -243,15 +284,16 @@ const DispatcherMonitoringScreen = () => {
         ordersService.getActiveSOSAlerts().catch(() => []),
       ]);
       setMonitoring(monitoringData);
-      setDrivers(driversData);
+      const mergedDrivers = mergeDriverLocationSnapshots(driversRef.current, driversData);
+      driversRef.current = mergedDrivers;
+      setDrivers(mergedDrivers);
+      if (autoFollowMap) {
+        setMapRegion(getRegionFromDrivers(mergedDrivers));
+      }
       setActiveSosAlerts(sosAlerts);
       setLoadFailed(false);
       setLastLiveUpdateAt(new Date().toISOString());
 
-      if (autoFollowMap) {
-        const nextRegion = getRegionFromDrivers(driversData);
-        setMapRegion(nextRegion);
-      }
     } catch (error) {
       console.error('Error loading monitoring:', error);
       setLoadFailed(true);
@@ -268,57 +310,67 @@ const DispatcherMonitoringScreen = () => {
     if (!updates.size) {
       return;
     }
-    setDrivers((prevDrivers) => {
-      let hasChanges = false;
-      const nextDrivers = prevDrivers.map((d) => {
-        const update = updates.get(d.driver.id);
-        if (!update) {
-          return d;
-        }
-        hasChanges = true;
-        const nextHeading = resolveDisplayHeading(
-          update.heading,
-          update.speed_mps,
-          headingByDriverRef.current[d.driver.id] ?? d.heading ?? 0
-        );
-        headingByDriverRef.current[d.driver.id] = nextHeading;
-        return {
-          ...d,
-          order: d.order
-            ? {
-                ...d.order,
-                status: {
-                  ...d.order.status,
-                  code: update.status_code || d.order.status.code,
-                },
-              }
-            : d.order,
-          // Store authoritative target; visual smoothing happens in useSmoothFleetLocations.
-          location: { lat: Number(update.lat), lng: Number(update.lng) },
-          location_updated_at: update.updated_at || d.location_updated_at,
-          driver_last_seen_at: update.updated_at || d.driver_last_seen_at,
-          speed_mps: update.speed_mps !== undefined ? update.speed_mps : d.speed_mps,
-          heading: nextHeading,
-          route_progress_m:
-            update.route_progress_m !== undefined ? update.route_progress_m : d.route_progress_m,
-          driver_presence: update.driver_presence ?? {
-            status: 'online',
-            stale_level: 'online',
-            age_seconds: 0,
-          },
-          tracking_summary: update.tracking_summary ?? d.tracking_summary,
-          estimated_eta_minutes:
-            update.estimated_eta_minutes !== undefined
-              ? update.estimated_eta_minutes
-              : d.estimated_eta_minutes,
-        };
-      });
-      updates.clear();
-      if (hasChanges && autoFollowMap) {
-        setMapRegion(getRegionFromDrivers(nextDrivers));
+    let hasChanges = false;
+    const nextDrivers = driversRef.current.map((d) => {
+      const update = updates.get(d.driver.id);
+      if (!update) {
+        return d;
       }
-      return hasChanges ? nextDrivers : prevDrivers;
+      const previousAt = driverLocationTimestampMs(d);
+      const updateAt = update.updated_at ? Date.parse(update.updated_at) : null;
+      if (
+        previousAt != null &&
+        updateAt != null &&
+        Number.isFinite(updateAt) &&
+        updateAt < previousAt
+      ) {
+        return d;
+      }
+      hasChanges = true;
+      const nextHeading = resolveDisplayHeading(
+        update.heading,
+        update.speed_mps,
+        headingByDriverRef.current[d.driver.id] ?? d.heading ?? 0
+      );
+      headingByDriverRef.current[d.driver.id] = nextHeading;
+      return {
+        ...d,
+        order: d.order
+          ? {
+              ...d.order,
+              status: {
+                ...d.order.status,
+                code: update.status_code || d.order.status.code,
+              },
+            }
+          : d.order,
+        // Store authoritative target; visual smoothing happens in useSmoothFleetLocations.
+        location: { lat: Number(update.lat), lng: Number(update.lng) },
+        location_updated_at: update.updated_at || d.location_updated_at,
+        driver_last_seen_at: update.updated_at || d.driver_last_seen_at,
+        speed_mps: update.speed_mps !== undefined ? update.speed_mps : d.speed_mps,
+        heading: nextHeading,
+        route_progress_m:
+          update.route_progress_m !== undefined ? update.route_progress_m : d.route_progress_m,
+        driver_presence: update.driver_presence ?? {
+          status: 'online',
+          stale_level: 'online',
+          age_seconds: 0,
+        },
+        tracking_summary: update.tracking_summary ?? d.tracking_summary,
+        estimated_eta_minutes:
+          update.estimated_eta_minutes !== undefined
+            ? update.estimated_eta_minutes
+            : d.estimated_eta_minutes,
+      };
     });
+    updates.clear();
+    if (!hasChanges) {return;}
+    driversRef.current = nextDrivers;
+    setDrivers(nextDrivers);
+    if (autoFollowMap) {
+      setMapRegion(getRegionFromDrivers(nextDrivers));
+    }
   }, [autoFollowMap]);
 
   const loadOrderRoute = useCallback(async (orderId: number) => {
@@ -489,11 +541,25 @@ const DispatcherMonitoringScreen = () => {
           if (payload.type !== 'location_update') {
             return;
           }
-          pendingLocationUpdatesRef.current.set(Number(payload.driver_id), {
+          const driverId = Number(payload.driver_id);
+          const updatedAt = payload.driver_last_seen_at || payload.updated_at;
+          const queued = pendingLocationUpdatesRef.current.get(driverId);
+          const queuedAt = queued?.updated_at ? Date.parse(queued.updated_at) : null;
+          const incomingAt = updatedAt ? Date.parse(updatedAt) : null;
+          if (
+            queuedAt != null &&
+            incomingAt != null &&
+            Number.isFinite(queuedAt) &&
+            Number.isFinite(incomingAt) &&
+            incomingAt < queuedAt
+          ) {
+            return;
+          }
+          pendingLocationUpdatesRef.current.set(driverId, {
             lat: Number(payload.lat),
             lng: Number(payload.lng),
             status_code: payload.status_code,
-            updated_at: payload.driver_last_seen_at || payload.updated_at,
+            updated_at: updatedAt,
             speed_mps:
               payload.speed_mps != null && Number.isFinite(Number(payload.speed_mps))
                 ? Number(payload.speed_mps)
@@ -805,18 +871,9 @@ const DispatcherMonitoringScreen = () => {
     );
   }
 
-  const driversWithLocations = drivers
-    .filter((d) => d.location)
-    .map((d) => {
-      const smooth = smoothDisplayById[d.driver.id];
-      if (!smooth) {
-        return d;
-      }
-      return {
-        ...d,
-        location: { lat: smooth.latitude, lng: smooth.longitude },
-      };
-    });
+  // Keep cluster membership based on authoritative fixes so drivers do not
+  // flicker between buckets while their visual markers are interpolating.
+  const driversWithLocations = drivers.filter((d) => d.location);
   const visibleDrivers = performanceMode && driversWithLocations.length > 60
     ? driversWithLocations.slice(0, 60)
     : driversWithLocations;
@@ -1180,6 +1237,13 @@ const DispatcherMonitoringScreen = () => {
           style={styles.map}
           region={mapRegion}
           cameraAnimationMs={autoFollowMap ? 160 : 0}
+          cameraFollowRegion={autoFollowMap}
+          onTouchStart={() => {
+            if (autoFollowMap) {
+              setAutoFollowMap(false);
+            }
+          }}
+          onUserGesture={() => setAutoFollowMap(false)}
           onRegionChangeComplete={(region) => {
             if (!autoFollowMap) {
               setMapRegion(region);
@@ -1198,8 +1262,10 @@ const DispatcherMonitoringScreen = () => {
                   key={driver.driver.id}
                   id={`driver-${driver.driver.id}`}
                   coordinate={{
-                    latitude: driver.location!.lat,
-                    longitude: driver.location!.lng,
+                    latitude:
+                      smoothDisplayById[driver.driver.id]?.latitude ?? driver.location!.lat,
+                    longitude:
+                      smoothDisplayById[driver.driver.id]?.longitude ?? driver.location!.lng,
                   }}
                   onPress={() => {
                     if (driver.order?.id) {
@@ -1219,11 +1285,23 @@ const DispatcherMonitoringScreen = () => {
                 </LogistikaMarker>
               );
             }
+            const smoothClusterLocation = item.drivers.reduce(
+              (acc, driver) => {
+                const smooth = smoothDisplayById[driver.driver.id];
+                return {
+                  latitude: acc.latitude + (smooth?.latitude ?? driver.location!.lat),
+                  longitude: acc.longitude + (smooth?.longitude ?? driver.location!.lng),
+                };
+              },
+              { latitude: 0, longitude: 0 },
+            );
+            smoothClusterLocation.latitude /= item.count;
+            smoothClusterLocation.longitude /= item.count;
             return (
               <LogistikaMarker
                 key={`cluster-${idx}`}
                 id={`cluster-${idx}`}
-                coordinate={{ latitude: item.location.lat, longitude: item.location.lng }}
+                coordinate={smoothClusterLocation}
                 onPress={() => {
                   setMapRegion((r) => ({
                     ...r,

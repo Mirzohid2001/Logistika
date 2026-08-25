@@ -44,6 +44,58 @@ export interface LocationUpdatePayload {
   has_proof_of_delivery?: boolean;
 }
 
+export function trackingTimestampMs(value: string | null | undefined): number | null {
+  if (!value) {return null;}
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function payloadLocationTimestampMs(payload: LocationUpdatePayload): number | null {
+  return trackingTimestampMs(payload.driver_last_seen_at || payload.updated_at);
+}
+
+/** Keep live motion when an older REST request resolves after a WebSocket packet. */
+export function mergeOrderTrackingSnapshot(current: Order | null, incoming: Order): Order {
+  if (!current || current.id !== incoming.id) {return incoming;}
+  const currentAt = trackingTimestampMs(current.driver_last_seen_at);
+  const incomingAt = trackingTimestampMs(incoming.driver_last_seen_at);
+  if (currentAt == null || incomingAt == null || incomingAt >= currentAt) {
+    return incoming;
+  }
+  return {
+    ...incoming,
+    current_location_lat: current.current_location_lat,
+    current_location_lng: current.current_location_lng,
+    current_speed_mps: current.current_speed_mps,
+    current_heading: current.current_heading,
+    route_progress_m: current.route_progress_m,
+    driver_last_seen_at: current.driver_last_seen_at,
+    driver_app_state: current.driver_app_state,
+    driver_presence: current.driver_presence,
+    tracking_summary: current.tracking_summary,
+    distance_summary: current.distance_summary,
+    estimated_eta_minutes: current.estimated_eta_minutes,
+  };
+}
+
+/** Merge polling history with live points without rolling the route backwards. */
+export function mergeLocationTracks(
+  current: OrderLocationTrack[],
+  incoming: OrderLocationTrack[],
+  maxPoints = 200,
+): OrderLocationTrack[] {
+  const byKey = new Map<string, OrderLocationTrack>();
+  for (const track of [...current, ...incoming]) {
+    const key = `${track.timestamp}|${Number(track.lat).toFixed(7)}|${Number(track.lng).toFixed(7)}`;
+    if (!byKey.has(key)) {
+      byKey.set(key, track);
+    }
+  }
+  return [...byKey.values()]
+    .sort((a, b) => (trackingTimestampMs(b.timestamp) ?? 0) - (trackingTimestampMs(a.timestamp) ?? 0))
+    .slice(0, maxPoints);
+}
+
 function applyRouteStopPayload(order: Order, payload: LocationUpdatePayload): Order {
   if (!payload.stop_id || !order.route_stops?.length) {
     return order;
@@ -204,6 +256,11 @@ export function applyLocationUpdateToOrder(
   if (!order || payload.lat == null || payload.lng == null) {
     return order;
   }
+  const currentAt = trackingTimestampMs(order.driver_last_seen_at);
+  const incomingAt = payloadLocationTimestampMs(payload);
+  if (currentAt != null && incomingAt != null && incomingAt < currentAt) {
+    return order;
+  }
   const trackingSummary = (payload.tracking_summary as Order['tracking_summary']) || order.tracking_summary;
   const next: Order = {
     ...order,
@@ -256,6 +313,11 @@ export function appendLocationTrack(
   }
   const timestamp = payload.updated_at || payload.driver_last_seen_at || new Date().toISOString();
   const last = tracks[0];
+  const lastTimestampMs = trackingTimestampMs(last?.timestamp);
+  const nextTimestampMs = trackingTimestampMs(timestamp);
+  if (lastTimestampMs != null && nextTimestampMs != null && nextTimestampMs < lastTimestampMs) {
+    return tracks;
+  }
   if (
     last &&
     Number(last.lat) === Number(payload.lat) &&

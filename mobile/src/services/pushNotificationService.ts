@@ -10,6 +10,7 @@ import { authService } from './authService';
 import { deviceService } from './deviceService';
 import { handleStopAlertEvent, isHighPriorityNotificationType } from '../utils/trackingAlerts';
 import { userCanAccessPlatform } from '../utils/account';
+import { authSessionService } from './authSessionService';
 
 // Dynamic imports to handle missing packages
 let messaging: any = null;
@@ -193,6 +194,10 @@ class PushNotificationService {
         const payload = (data || {}) as Record<string, string>;
         const type = payload.type;
 
+        if (payload.completion_fee_id) {
+          authSessionService.emitServiceFeeRequired();
+        }
+
         if (type === 'stop_alert') {
           handleStopAlertEvent(
             {
@@ -323,6 +328,9 @@ class PushNotificationService {
   }
 
   handleNotificationPress(data: any): void {
+    if (data?.completion_fee_id) {
+      authSessionService.emitServiceFeeRequired();
+    }
     if (!this.navigationRef) {
       console.log('Navigation ref not set');
       return;

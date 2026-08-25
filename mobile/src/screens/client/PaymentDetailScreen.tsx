@@ -286,6 +286,13 @@ const PaymentDetailScreen = () => {
           <Text style={styles.value}>{getPaymentMethodName(payment.payment_method)}</Text>
         </View>
 
+        {payment.purpose === 'order_completion_fee' && (
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>{t('payments.paymentPurpose')}:</Text>
+            <Text style={styles.value}>{t('payments.serviceFeePaymentLabel')}</Text>
+          </View>
+        )}
+
         {payment.transaction_id && (
           <View style={styles.infoRow}>
             <Text style={styles.label}>{t('payments.transactionId')}:</Text>
@@ -367,7 +374,9 @@ const PaymentDetailScreen = () => {
         </Card>
       )}
 
-      {payment.payment_status === 'completed' && !payment.is_refunded && (
+      {payment.payment_status === 'completed' &&
+        !payment.is_refunded &&
+        payment.purpose !== 'order_completion_fee' && (
         <Card style={styles.card}>
           <Input
             label={t('payments.refundPartialAmountLabel')}

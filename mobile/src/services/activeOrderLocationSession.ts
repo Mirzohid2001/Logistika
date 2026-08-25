@@ -16,7 +16,11 @@ import {
   startBackgroundTrackingSession,
   stopBackgroundTrackingSession,
 } from './backgroundTrackingService';
-import { haversineMeters } from '../utils/mapTracking';
+import {
+  haversineMeters,
+  reconcileMotionTarget,
+  type DriverMotionTarget,
+} from '../utils/mapTracking';
 
 export type ActiveLocationFix = {
   lat: number;
@@ -58,6 +62,44 @@ function appStatePayload(state: AppStateStatus): 'foreground' | 'background' | '
 
 function emit(fix: ActiveLocationFix) {
   listeners.forEach((listener) => listener(fix));
+}
+
+function nativePositionTimestampMs(timestamp: number | null | undefined): number {
+  const raw = Number(timestamp);
+  if (!Number.isFinite(raw) || raw <= 0) {
+    return Date.now();
+  }
+  // Native geolocation timestamps are milliseconds, but normalize defensive
+  // implementations that return Unix seconds.
+  return raw < 1_000_000_000_000 ? raw * 1000 : raw;
+}
+
+function reconcileActiveFix(
+  previous: ActiveLocationFix | null,
+  incoming: ActiveLocationFix,
+): ActiveLocationFix | null {
+  const previousMotion: DriverMotionTarget | null = previous
+    ? {
+        latitude: previous.lat,
+        longitude: previous.lng,
+        heading: previous.heading,
+        speedMps: previous.speedMps,
+        updatedAtMs: previous.updatedAtMs,
+      }
+    : null;
+  const accepted = reconcileMotionTarget(previousMotion, {
+    latitude: incoming.lat,
+    longitude: incoming.lng,
+    heading: incoming.heading,
+    speedMps: incoming.speedMps,
+    updatedAtMs: incoming.updatedAtMs,
+  });
+  if (!accepted) {return null;}
+  return {
+    ...incoming,
+    heading: accepted.heading,
+    speedMps: accepted.speedMps,
+  };
 }
 
 function heartbeatIntervalMs(state: AppStateStatus): number {
@@ -154,15 +196,16 @@ export async function startActiveOrderLocationSession(
         return;
       }
       const motion = motionFromCoords(position.coords);
-      const fix: ActiveLocationFix = {
+      const fix = reconcileActiveFix(session.lastFix, {
         lat: position.coords.latitude,
         lng: position.coords.longitude,
         heading: motion.heading,
         speedMps: motion.speedMps,
-        updatedAtMs: Date.now(),
-      };
+        updatedAtMs: nativePositionTimestampMs(position.timestamp),
+      });
+      if (!fix) {return;}
       session.lastFix = fix;
-      session.lastMotion = motion;
+      session.lastMotion = { heading: fix.heading, speedMps: fix.speedMps };
       markPosted(session, fix);
       emit(fix);
       postFix(orderId, fix.lat, fix.lng, session.lastMotion, session.appState);
@@ -180,15 +223,16 @@ export async function startActiveOrderLocationSession(
         return;
       }
       const motion = motionFromCoords(position.coords);
-      const fix: ActiveLocationFix = {
+      const fix = reconcileActiveFix(session.lastFix, {
         lat: position.coords.latitude,
         lng: position.coords.longitude,
         heading: motion.heading,
         speedMps: motion.speedMps,
-        updatedAtMs: Date.now(),
-      };
+        updatedAtMs: nativePositionTimestampMs(position.timestamp),
+      });
+      if (!fix) {return;}
       session.lastFix = fix;
-      session.lastMotion = motion;
+      session.lastMotion = { heading: fix.heading, speedMps: fix.speedMps };
       emit(fix);
       const lastPosted = session.lastPosted;
       const movedEnough =

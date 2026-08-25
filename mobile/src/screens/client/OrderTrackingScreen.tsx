@@ -28,7 +28,12 @@ import { toastService } from '../../services/toastService';
 import { realtimeChannelService, RealtimeChannelHandle } from '../../services/realtimeChannelService';
 import { LOCATION_POST_INTERVAL_MS } from '../../services/locationTrackingService';
 import { getOrderTrackingWsUrl } from '../../config/realtimeConfig';
-import { applyOrderRealtimePayload, appendLocationTrack } from '../../utils/trackingUpdates';
+import {
+  applyOrderRealtimePayload,
+  appendLocationTrack,
+  mergeLocationTracks,
+  mergeOrderTrackingSnapshot,
+} from '../../utils/trackingUpdates';
 import { getDriverNavPhase } from '../../utils/orderRoute';
 import { resolveOrderAdvertisement } from '../../utils/orderAdvertisement';
 import { regionFromBounds, regionFromCenter, type LatLng } from '../../utils/mapGeo';
@@ -91,8 +96,9 @@ const ClientOrderTrackingScreen = () => {
           ordersService.getOrderTracking(id),
         ]);
         const advertisement = await resolveOrderAdvertisement(orderData);
-        setOrder(advertisement ? { ...orderData, advertisement } : orderData);
-        setTracks(tracksData);
+        const snapshot = advertisement ? { ...orderData, advertisement } : orderData;
+        setOrder((prev) => mergeOrderTrackingSnapshot(prev, snapshot));
+        setTracks((prev) => mergeLocationTracks(prev, tracksData));
       } catch (error) {
         console.error('Error loading tracking data:', error);
       } finally {
@@ -103,7 +109,9 @@ const ClientOrderTrackingScreen = () => {
   );
 
   useEffect(() => {
-    loadData(false);
+    setOrder(null);
+    setTracks([]);
+    void loadData(false);
   }, [loadData]);
 
   useEffect(() => {
@@ -235,6 +243,50 @@ const ClientOrderTrackingScreen = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [smoothDriverPoint?.latitude, smoothDriverPoint?.longitude]);
 
+  const routeStops = useMemo(() => getSortedRouteStops(order?.route_stops), [order?.route_stops]);
+  const stopRouteCoordinates = useMemo(
+    () => routeStopsToMapCoordinates(routeStops),
+    [routeStops],
+  );
+  const mapRouteCoordinates = useMemo(
+    () => (routePolyline.length > 1 ? routePolyline : stopRouteCoordinates),
+    [routePolyline, stopRouteCoordinates],
+  );
+  const trackCoordinates = useMemo(
+    () =>
+      downsamplePolyline(
+        filterTrackCoordinates(
+          [...tracks]
+            .reverse()
+            .map((track) => parseTrack(track))
+            .filter((point): point is LatLng => point != null),
+        ),
+      ),
+    [tracks],
+  );
+  const overviewRegion = useMemo(() => {
+    const mapPoints: LatLng[] = [
+      ...routePolyline,
+      ...trackCoordinates,
+      ...(serverDriverMotion
+        ? [{ latitude: serverDriverMotion.latitude, longitude: serverDriverMotion.longitude }]
+        : []),
+    ];
+    return regionFromBounds(mapPoints, 1.4) ?? DEFAULT_CENTER;
+  }, [routePolyline, serverDriverMotion, trackCoordinates]);
+  const routeProgressM = useMemo(
+    () =>
+      order?.route_progress_m ??
+      (serverDriverMotion && mapRouteCoordinates.length > 1
+        ? nearestProgressOnRoute(mapRouteCoordinates, serverDriverMotion)
+        : 0),
+    [mapRouteCoordinates, order?.route_progress_m, serverDriverMotion],
+  );
+  const routeSplit = useMemo(
+    () => splitRouteByProgress(mapRouteCoordinates, routeProgressM),
+    [mapRouteCoordinates, routeProgressM],
+  );
+
   const presenceAge = computePresenceAgeSeconds(order?.driver_last_seen_at, nowTs);
   const presenceLevel = presenceLevelFromAge(presenceAge);
   const presenceTint = presenceColor(presenceLevel, colors);
@@ -262,42 +314,14 @@ const ClientOrderTrackingScreen = () => {
   const advertisement = typeof order.advertisement === 'object' ? order.advertisement : null;
   const driver = typeof order.driver === 'object' ? order.driver : null;
 
-  const plannedRouteCoordinates = routePolyline;
-  const routeStops = getSortedRouteStops(order.route_stops);
-  const stopRouteCoordinates = routeStopsToMapCoordinates(routeStops);
-  const mapRouteCoordinates =
-    plannedRouteCoordinates.length > 1 ? plannedRouteCoordinates : stopRouteCoordinates;
   const activeRouteStop = getActiveRouteStop(routeStops);
-
-  const trackCoordinates = downsamplePolyline(
-    filterTrackCoordinates(
-    [...tracks]
-      .reverse()
-      .map((track) => parseTrack(track))
-      .filter((p): p is LatLng => p != null)
-    ),
-  );
 
   const departurePoint = mapRouteCoordinates[0] ?? null;
   const destinationPoint =
     mapRouteCoordinates.length > 1 ? mapRouteCoordinates[mapRouteCoordinates.length - 1] : null;
 
-  const mapPoints: LatLng[] = [
-    ...plannedRouteCoordinates,
-    ...trackCoordinates,
-    ...(smoothDriverPoint ? [smoothDriverPoint] : []),
-  ];
-  const overviewRegion = regionFromBounds(mapPoints, 1.4) ?? DEFAULT_CENTER;
   const followNavigation = followDriver && !!smoothDriverPoint;
-  const routeProgressM =
-    order?.route_progress_m ??
-    (smoothDriverPoint && mapRouteCoordinates.length > 1
-      ? nearestProgressOnRoute(mapRouteCoordinates, smoothDriverPoint)
-      : 0);
-  const { traveled: traveledRoute, remaining: remainingRoute } = splitRouteByProgress(
-    mapRouteCoordinates,
-    routeProgressM,
-  );
+  const { traveled: traveledRoute, remaining: remainingRoute } = routeSplit;
   const driverMoving = (order?.current_speed_mps ?? 0) >= 0.6;
   const navPhase = getDriverNavPhase(order?.status?.code);
   const phaseLabel =

@@ -11,6 +11,7 @@ import {
   presenceColor,
   presenceLevelFromAge,
   projectLocation,
+  reconcileMotionTarget,
   smoothCoordinate,
   splitRouteByProgress,
 } from '../utils/mapTracking';
@@ -90,6 +91,57 @@ describe('mapTracking', () => {
     expect(computeNextSmoothLocation(null, target)).toEqual(target);
   });
 
+  it('uses time-based smoothing independent of frame rate', () => {
+    const start = { latitude: 41.0, longitude: 69.0 };
+    const target = { latitude: 41.01, longitude: 69.01 };
+    const oneFrame = computeNextSmoothLocation(start, target, 0, undefined, 100)!;
+    const halfFrame = computeNextSmoothLocation(start, target, 0, undefined, 50)!;
+    const twoFrames = computeNextSmoothLocation(halfFrame, target, 0, undefined, 50)!;
+    expect(twoFrames.latitude).toBeCloseTo(oneFrame.latitude, 8);
+    expect(twoFrames.longitude).toBeCloseTo(oneFrame.longitude, 8);
+  });
+
+  it('rejects stale and impossible motion targets', () => {
+    const previous = {
+      latitude: 41.3,
+      longitude: 69.24,
+      updatedAtMs: 10_000,
+      speedMps: 10,
+      heading: 90,
+    };
+    expect(
+      reconcileMotionTarget(previous, {
+        latitude: 41.301,
+        longitude: 69.241,
+        updatedAtMs: 9_000,
+      }),
+    ).toBeNull();
+    expect(
+      reconcileMotionTarget(previous, {
+        latitude: 42.3,
+        longitude: 70.24,
+        updatedAtMs: 11_000,
+      }),
+    ).toBeNull();
+  });
+
+  it('derives speed and heading when a packet omits motion fields', () => {
+    const previous = {
+      latitude: 41.3,
+      longitude: 69.24,
+      updatedAtMs: 1_000,
+    };
+    const next = reconcileMotionTarget(previous, {
+      latitude: 41.3,
+      longitude: 69.2402,
+      updatedAtMs: 3_000,
+    });
+    expect(next).not.toBeNull();
+    expect(next!.speedMps).toBeGreaterThan(1);
+    expect(next!.heading).toBeGreaterThan(80);
+    expect(next!.heading).toBeLessThan(100);
+  });
+
   it('projectLocation moves north by ~distance', () => {
     const origin = { latitude: 41.0, longitude: 69.0 };
     const projected = projectLocation(origin, 0, 100);
@@ -111,6 +163,20 @@ describe('mapTracking', () => {
     expect(predicted.longitude).toBeGreaterThan(fix.longitude);
     expect(haversineMeters(fix, predicted)).toBeGreaterThan(15);
     expect(haversineMeters(fix, predicted)).toBeLessThan(25);
+  });
+
+  it('uses local receipt time so server clock skew cannot break prediction', () => {
+    const fix = {
+      latitude: 41.0,
+      longitude: 69.0,
+      heading: 90,
+      speedMps: 10,
+      updatedAtMs: 9_999_999,
+      receivedAtMs: 1_000,
+    };
+    const predicted = computeDeadReckonedTarget(fix, 2_000);
+    expect(haversineMeters(fix, predicted)).toBeGreaterThan(8);
+    expect(haversineMeters(fix, predicted)).toBeLessThan(12);
   });
 
   it('computeDeadReckonedTarget stays put when nearly stopped', () => {

@@ -29,6 +29,7 @@ import PaymentCheckoutScreen from '../screens/PaymentCheckoutScreen';
 import CreatePaymentScreen from '../screens/client/CreatePaymentScreen';
 import PaymentsScreen from '../screens/client/PaymentsScreen';
 import PaymentDetailScreen from '../screens/client/PaymentDetailScreen';
+import ServiceFeesScreen from '../screens/ServiceFeesScreen';
 import PublicTrackingShareScreen from '../screens/PublicTrackingShareScreen';
 import OpenTrackingLinkScreen from '../screens/OpenTrackingLinkScreen';
 import { useAppTheme } from '../theme/useAppTheme';
@@ -36,7 +37,8 @@ import { appLinkingConfig } from './linking';
 
 const Stack = createStackNavigator();
 
-const GATED_ROUTES = new Set(['SubscriptionPaywall', 'CompanyInn']);
+const GATED_ROUTES = new Set(['SubscriptionPaywall', 'CompanyInn', 'ServiceFees']);
+const SERVICE_FEE_ALLOWED_ROUTES = new Set(['ServiceFees', 'PaymentCheckout', 'PaymentDetail']);
 
 const AppNavigator = () => {
   const {isAuthenticated, isLoading, needsSubscription, hasActiveSubscription, user} = useAuth();
@@ -62,8 +64,13 @@ const AppNavigator = () => {
     !showPaywall &&
     user?.is_client &&
     (user.account?.company_inn_required || !user.company_inn);
+  const needsServiceFeePayment =
+    isAuthenticated &&
+    !showPaywall &&
+    !needsCompanyInn &&
+    Boolean(user?.account?.service_fee_required || user?.account?.service_fee?.required);
   const navigationRef = useRef<any>(null);
-  const lastGateRef = useRef<'paywall' | 'inn' | 'none'>('none');
+  const lastGateRef = useRef<'paywall' | 'inn' | 'serviceFee' | 'none'>('none');
   const wasAuthenticatedRef = useRef(isAuthenticated);
 
   React.useEffect(() => {
@@ -85,17 +92,25 @@ const AppNavigator = () => {
           ? 'SubscriptionPaywall'
           : needsCompanyInn
             ? 'CompanyInn'
-            : 'Main';
+            : needsServiceFeePayment
+              ? 'ServiceFees'
+              : 'Main';
         nav.reset({ index: 0, routes: [{ name: routeName }] });
         lastGateRef.current =
-          routeName === 'SubscriptionPaywall' ? 'paywall' : routeName === 'CompanyInn' ? 'inn' : 'none';
+          routeName === 'SubscriptionPaywall'
+            ? 'paywall'
+            : routeName === 'CompanyInn'
+              ? 'inn'
+              : routeName === 'ServiceFees'
+                ? 'serviceFee'
+                : 'none';
       } else {
         nav.reset({ index: 0, routes: [{ name: 'Auth' }] });
         lastGateRef.current = 'none';
       }
       return;
     }
-  }, [isAuthenticated, isLoading, showPaywall, needsCompanyInn]);
+  }, [isAuthenticated, isLoading, showPaywall, needsCompanyInn, needsServiceFeePayment]);
 
   useEffect(() => {
     const nav = navigationRef.current;
@@ -105,11 +120,13 @@ const AppNavigator = () => {
     }
 
     const currentRoute = getActiveRouteName(nav.getRootState());
-    const nextGate: 'paywall' | 'inn' | 'none' = showPaywall
+    const nextGate: 'paywall' | 'inn' | 'serviceFee' | 'none' = showPaywall
       ? 'paywall'
       : needsCompanyInn
         ? 'inn'
-        : 'none';
+        : needsServiceFeePayment
+          ? 'serviceFee'
+          : 'none';
 
     if (nextGate === 'paywall' && currentRoute !== 'SubscriptionPaywall') {
       nav.reset({ index: 0, routes: [{ name: 'SubscriptionPaywall' }] });
@@ -123,6 +140,18 @@ const AppNavigator = () => {
       return;
     }
 
+    if (nextGate === 'serviceFee' && !SERVICE_FEE_ALLOWED_ROUTES.has(currentRoute || '')) {
+      nav.reset({ index: 0, routes: [{ name: 'ServiceFees' }] });
+      lastGateRef.current = 'serviceFee';
+      return;
+    }
+
+    if (nextGate === 'none' && lastGateRef.current === 'serviceFee') {
+      nav.reset({ index: 0, routes: [{ name: 'Main' }] });
+      lastGateRef.current = 'none';
+      return;
+    }
+
     if (nextGate === 'none' && lastGateRef.current !== 'none' && GATED_ROUTES.has(currentRoute || '')) {
       nav.reset({ index: 0, routes: [{ name: 'Main' }] });
       lastGateRef.current = 'none';
@@ -132,7 +161,7 @@ const AppNavigator = () => {
     if (nextGate === 'none') {
       lastGateRef.current = 'none';
     }
-  }, [isAuthenticated, showPaywall, needsCompanyInn, user?.company_inn]);
+  }, [isAuthenticated, showPaywall, needsCompanyInn, needsServiceFeePayment, user?.company_inn]);
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -168,6 +197,7 @@ const AppNavigator = () => {
             <Stack.Screen name="CreatePayment" component={CreatePaymentScreen} />
             <Stack.Screen name="Payments" component={PaymentsScreen} />
             <Stack.Screen name="PaymentDetail" component={PaymentDetailScreen} />
+            <Stack.Screen name="ServiceFees" component={ServiceFeesScreen} />
           </>
         ) : (
           <Stack.Screen name="Auth" component={AuthNavigator} />

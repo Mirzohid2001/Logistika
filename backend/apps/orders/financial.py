@@ -137,6 +137,7 @@ def _sum_platform_payments_for_driver(
     qs = Payment.objects.filter(
         order__driver=driver,
         payment_status='completed',
+        completion_fee__isnull=True,
     ).exclude(
         order__client_payment_confirmed=True,
     ).exclude(
@@ -163,6 +164,7 @@ def _sum_platform_payments_for_client(
     qs = Payment.objects.filter(
         user=client,
         payment_status='completed',
+        completion_fee__isnull=True,
     ).exclude(
         order__client_payment_confirmed=True,
     ).exclude(

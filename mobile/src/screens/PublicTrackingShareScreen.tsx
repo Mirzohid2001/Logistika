@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { LogistikaMap, DriverMarker } from '../components/map';
@@ -49,6 +49,7 @@ const PublicTrackingShareScreen = () => {
   const [errorKind, setErrorKind] = useState<'missing' | 'expired' | 'not_found' | 'generic' | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
+  const loadInFlightRef = useRef(false);
 
   const loadShare = useCallback(
     async (silent = false) => {
@@ -58,26 +59,47 @@ const PublicTrackingShareScreen = () => {
         setLoading(false);
         return;
       }
+      if (loadInFlightRef.current) {return;}
 
+      loadInFlightRef.current = true;
       try {
         if (!silent) {
           setLoading(true);
         }
         setErrorKind(null);
         const payload = await ordersService.getPublicTrackingShare(shareToken);
-        setData(payload);
+        setData((previous) => {
+          const previousAt = previous?.driver_last_seen_at || previous?.updated_at;
+          const payloadAt = payload.driver_last_seen_at || payload.updated_at;
+          const previousMs = previousAt ? Date.parse(previousAt) : null;
+          const payloadMs = payloadAt ? Date.parse(payloadAt) : null;
+          if (
+            previous &&
+            previousMs != null &&
+            payloadMs != null &&
+            Number.isFinite(previousMs) &&
+            Number.isFinite(payloadMs) &&
+            payloadMs < previousMs
+          ) {
+            return previous;
+          }
+          return payload;
+        });
         setLastRefreshedAt(new Date());
       } catch (error: any) {
-        setData(null);
         const status = error?.statusCode ?? error?.response?.status;
         if (status === 410) {
+          setData(null);
           setErrorKind('expired');
         } else if (status === 404) {
+          setData(null);
           setErrorKind('not_found');
-        } else {
+        } else if (!silent) {
+          setData(null);
           setErrorKind('generic');
         }
       } finally {
+        loadInFlightRef.current = false;
         setLoading(false);
         setRefreshing(false);
       }
@@ -246,7 +268,7 @@ const PublicTrackingShareScreen = () => {
             zoomLevel={driverPoint ? 15.8 : undefined}
             heading={driverPoint ? driverBearing : 0}
             pitch={driverPoint ? 40 : 0}
-            cameraAnimationMs={180}>
+            cameraAnimationMs={0}>
             {driverPoint ? (
               <DriverMarker
                 coordinate={driverPoint}

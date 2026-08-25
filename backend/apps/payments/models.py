@@ -1,5 +1,7 @@
 from django.conf import settings
+from django.core.validators import MinValueValidator
 from django.db import models
+from decimal import Decimal
 from apps.users.models import User
 from apps.orders.models import Order
 
@@ -22,6 +24,13 @@ class Payment(models.Model):
     
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payments')
     order = models.ForeignKey(Order, on_delete=models.SET_NULL, null=True, blank=True, related_name='payments')
+    completion_fee = models.ForeignKey(
+        'OrderCompletionFee',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='payments',
+    )
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     currency = models.CharField(max_length=3, default='UZS')
     payment_method = models.CharField(max_length=10, choices=PAYMENT_METHOD_CHOICES)
@@ -62,6 +71,108 @@ class Payment(models.Model):
         from decimal import Decimal
         refunded = self.refund_amount or Decimal('0')
         return max(Decimal('0'), self.amount - refunded)
+
+
+class OrderCompletionFeeSettings(models.Model):
+    """Singleton admin settings for fees charged after a completed order."""
+
+    CURRENCY_CHOICES = [
+        ('UZS', 'UZS (so\'m)'),
+    ]
+
+    is_enabled = models.BooleanField(default=False)
+    client_fee_enabled = models.BooleanField(default=True)
+    driver_fee_enabled = models.BooleanField(default=True)
+    client_fee_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(Decimal('0'))],
+    )
+    driver_fee_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(Decimal('0'))],
+    )
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='UZS')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'order_completion_fee_settings'
+        verbose_name = 'Order completion fee settings'
+        verbose_name_plural = 'Order completion fee settings'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        self.currency = (self.currency or 'UZS').upper()
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        return None
+
+    def __str__(self):
+        state = 'enabled' if self.is_enabled else 'disabled'
+        return f'Order completion fees ({state})'
+
+
+class OrderCompletionFee(models.Model):
+    ROLE_CLIENT = 'client'
+    ROLE_DRIVER = 'driver'
+    ROLE_CHOICES = [
+        (ROLE_CLIENT, 'Client'),
+        (ROLE_DRIVER, 'Driver'),
+    ]
+
+    STATUS_PENDING = 'pending'
+    STATUS_PAID = 'paid'
+    STATUS_WAIVED = 'waived'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_PAID, 'Paid'),
+        (STATUS_WAIVED, 'Waived by admin'),
+    ]
+
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='completion_fees')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='order_completion_fees')
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES)
+    amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))],
+    )
+    currency = models.CharField(max_length=3, default='UZS')
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    paid_payment = models.OneToOneField(
+        Payment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='settled_completion_fee',
+    )
+    paid_at = models.DateTimeField(null=True, blank=True)
+    waived_at = models.DateTimeField(null=True, blank=True)
+    admin_note = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'order_completion_fees'
+        ordering = ['-created_at']
+        verbose_name = 'Order completion fee'
+        verbose_name_plural = 'Order completion fees'
+        constraints = [
+            models.UniqueConstraint(fields=['order', 'role'], name='unique_completion_fee_order_role'),
+            models.CheckConstraint(condition=models.Q(amount__gt=0), name='completion_fee_amount_positive'),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'status'], name='completion_user_status_idx'),
+            models.Index(fields=['order', 'role'], name='completion_order_role_idx'),
+            models.Index(fields=['status', 'created_at'], name='completion_status_created_idx'),
+        ]
+
+    def __str__(self):
+        return f'Order #{self.order_id} {self.role}: {self.amount} {self.currency} ({self.status})'
 
 
 class PaymentHistory(models.Model):

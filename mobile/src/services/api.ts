@@ -122,6 +122,9 @@ class ApiService {
         if (appError.code === ErrorCode.SUBSCRIPTION_REQUIRED) {
           authSessionService.emitSubscriptionRequired();
         }
+        if (appError.code === ErrorCode.SERVICE_FEE_REQUIRED) {
+          authSessionService.emitServiceFeeRequired();
+        }
 
         if (!errorService.isExpectedError(appError)) {
           errorService.logError(appError, {
@@ -292,5 +295,4 @@ class ApiService {
 }
 
 export const apiService = new ApiService();
-
 

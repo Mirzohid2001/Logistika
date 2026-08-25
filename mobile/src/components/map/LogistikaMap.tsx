@@ -135,9 +135,7 @@ export const LogistikaMap = forwardRef<LogistikaMapRef, LogistikaMapProps>(
     const cameraRef = useRef<CameraRef>(null);
     const skipCameraSyncRef = useRef(false);
     const zoomRef = useRef(zoomLevel ?? deltaToZoom(latitudeDelta));
-    const followRef = useRef(cameraFollowRegion);
     const [manualCameraActive, setManualCameraActive] = useState(false);
-    followRef.current = cameraFollowRegion;
 
     useEffect(() => {
       if (cameraFollowRegion) {
@@ -184,27 +182,6 @@ export const LogistikaMap = forwardRef<LogistikaMapRef, LogistikaMapProps>(
     const activeZoom = zoomLevel ?? deltaToZoom(activeRegion.latitudeDelta);
     zoomRef.current = activeZoom;
 
-    const appliedRef = useRef({
-      latitude: activeRegion.latitude,
-      longitude: activeRegion.longitude,
-      zoom: activeZoom,
-      heading,
-      pitch,
-      padding,
-    });
-
-    if (cameraFollowRegion) {
-      appliedRef.current = {
-        latitude: activeRegion.latitude,
-        longitude: activeRegion.longitude,
-        zoom: activeZoom,
-        heading,
-        pitch,
-        padding,
-      };
-    }
-
-    const applied = appliedRef.current;
     const shouldControlCamera = cameraFollowRegion || !manualCameraActive;
 
     useEffect(() => {
@@ -251,7 +228,6 @@ export const LogistikaMap = forwardRef<LogistikaMapRef, LogistikaMapProps>(
       }
       const zoom = feature.properties?.zoomLevel ?? zoomRef.current;
       zoomRef.current = zoom;
-      skipCameraSyncRef.current = true;
       handler(regionFromPayload(centerPoint, zoom));
     };
 
@@ -259,10 +235,11 @@ export const LogistikaMap = forwardRef<LogistikaMapRef, LogistikaMapProps>(
       feature: GeoJSON.Feature<GeoJSON.Point, RegionPayload>,
       handler?: (region: MapRegion) => void,
     ) => {
-      if (isUserGesture(feature) && followRef.current === false) {
+      const userGesture = isUserGesture(feature);
+      if (userGesture) {
         skipCameraSyncRef.current = true;
       }
-      if (isUserGesture(feature)) {
+      if (userGesture) {
         onUserGesture?.();
       }
       emitRegion(feature, handler);
@@ -288,19 +265,7 @@ export const LogistikaMap = forwardRef<LogistikaMapRef, LogistikaMapProps>(
         attributionEnabled={attributionEnabled}
         onRegionDidChange={(feature) => handleRegionEvent(feature, onRegionChangeComplete)}
         onRegionIsChanging={(feature) => handleRegionEvent(feature, onRegionIsChanging)}>
-        {shouldControlCamera ? (
-          <Camera
-            ref={cameraRef}
-            centerCoordinate={[applied.longitude, applied.latitude]}
-            zoomLevel={applied.zoom}
-            heading={applied.heading}
-            pitch={applied.pitch}
-            padding={applied.padding}
-            animationDuration={0}
-          />
-        ) : (
-          <Camera ref={cameraRef} animationDuration={0} />
-        )}
+        <Camera ref={cameraRef} animationDuration={0} />
         {children}
       </MapView>
       </View>

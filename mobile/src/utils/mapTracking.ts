@@ -62,15 +62,20 @@ export function presenceColor(level: PresenceLevel, colors: AppColors): string {
   }
 }
 
-export const SMOOTH_DRIVER_SNAP_METERS = 1.5;
+export const SMOOTH_DRIVER_SNAP_METERS = 0.25;
 export const SMOOTH_DRIVER_FACTOR = 0.28;
+export const SMOOTH_DRIVER_RESPONSE_MS = 320;
 /** Cap how far ahead we invent position between GPS fixes. */
-export const DEAD_RECKON_MAX_PREDICT_MS = 2500;
+export const DEAD_RECKON_MAX_PREDICT_MS = 4500;
 export const DEAD_RECKON_MIN_SPEED_MPS = 0.6;
+export const MAX_REASONABLE_TRACKING_SPEED_MPS = 55;
+const MOTION_TIMESTAMP_TOLERANCE_MS = 250;
 
 export type DriverMotionTarget = LatLng & {
   heading?: number | null;
   speedMps?: number | null;
+  /** Local receipt time used for prediction, independent of server clock skew. */
+  receivedAtMs?: number | null;
   updatedAtMs?: number | null;
   /** Meters along the planned/optimized polyline when map-matched. */
   routeProgressM?: number | null;
@@ -79,7 +84,69 @@ export type DriverMotionTarget = LatLng & {
 export type DeadReckonOptions = {
   maxPredictMs?: number;
   routePolyline?: LatLng[] | null;
+  routeCumulativeMeters?: number[] | null;
 };
+
+/**
+ * Reject packets that arrive out of order and enrich incomplete GPS packets
+ * with motion derived from the previous accepted fix.
+ */
+export function reconcileMotionTarget(
+  previous: DriverMotionTarget | null,
+  incoming: DriverMotionTarget,
+): DriverMotionTarget | null {
+  const next: DriverMotionTarget = {
+    ...incoming,
+    heading:
+      incoming.heading != null && Number.isFinite(incoming.heading)
+        ? ((incoming.heading % 360) + 360) % 360
+        : null,
+    speedMps:
+      incoming.speedMps != null && Number.isFinite(incoming.speedMps) && incoming.speedMps >= 0
+        ? Math.min(incoming.speedMps, MAX_REASONABLE_TRACKING_SPEED_MPS)
+        : null,
+  };
+  if (!previous) {
+    return next;
+  }
+
+  const previousAt = previous.updatedAtMs;
+  const nextAt = next.updatedAtMs;
+  if (
+    previousAt != null &&
+    nextAt != null &&
+    Number.isFinite(previousAt) &&
+    Number.isFinite(nextAt) &&
+    nextAt < previousAt - MOTION_TIMESTAMP_TOLERANCE_MS
+  ) {
+    return null;
+  }
+
+  const distanceM = haversineMeters(previous, next);
+  const elapsedSeconds =
+    previousAt != null && nextAt != null && nextAt > previousAt
+      ? (nextAt - previousAt) / 1000
+      : 0;
+  if (elapsedSeconds > 0) {
+    const derivedSpeed = distanceM / elapsedSeconds;
+    // Large, physically impossible jumps are almost always delayed/stale GPS fixes.
+    if (distanceM >= 35 && derivedSpeed > MAX_REASONABLE_TRACKING_SPEED_MPS) {
+      return null;
+    }
+    if (next.speedMps == null && distanceM >= 1) {
+      next.speedMps = Math.min(derivedSpeed, MAX_REASONABLE_TRACKING_SPEED_MPS);
+    }
+    if (next.heading == null && distanceM >= 1.5) {
+      next.heading = bearingDegrees(previous, next);
+    }
+  }
+
+  if ((next.speedMps == null || next.speedMps < DEAD_RECKON_MIN_SPEED_MPS) && distanceM < 1.5) {
+    next.speedMps = 0;
+    next.heading = previous.heading ?? next.heading;
+  }
+  return next;
+}
 
 /** Project a point along a bearing by distanceMeters. */
 export function projectLocation(
@@ -173,11 +240,11 @@ export function splitRouteByProgress(
   if (points.length < 2) {
     return { traveled: [], remaining: points };
   }
-  const along = pointAlongRoute(points, progressM);
+  const cumulative = buildRouteCumulativeMeters(points);
+  const along = pointAlongRoute(points, progressM, cumulative);
   if (!along) {
     return { traveled: [], remaining: points };
   }
-  const cumulative = buildRouteCumulativeMeters(points);
   const traveled: LatLng[] = [];
   const remaining: LatLng[] = [along.point];
   for (let i = 0; i < points.length; i += 1) {
@@ -197,10 +264,14 @@ export function splitRouteByProgress(
 /** Point + heading at a given distance along the polyline. */
 export function pointAlongRoute(
   points: LatLng[],
-  progressMeters: number
+  progressMeters: number,
+  preparedCumulative?: number[] | null,
 ): { point: LatLng; heading: number | null } | null {
   if (points.length < 2) {return null;}
-  const cumulative = buildRouteCumulativeMeters(points);
+  const cumulative =
+    preparedCumulative?.length === points.length
+      ? preparedCumulative
+      : buildRouteCumulativeMeters(points);
   const total = cumulative[cumulative.length - 1];
   if (total <= 0) {
     return { point: points[0], heading: null };
@@ -244,7 +315,7 @@ export function computeDeadReckonedTarget(
   if (!Number.isFinite(speed) || speed < DEAD_RECKON_MIN_SPEED_MPS) {
     return base;
   }
-  const updatedAt = fix.updatedAtMs ?? nowMs;
+  const updatedAt = fix.receivedAtMs ?? fix.updatedAtMs ?? nowMs;
   const dtMs = Math.min(Math.max(0, nowMs - updatedAt), maxPredictMs);
   if (dtMs < 16) {
     return base;
@@ -257,7 +328,11 @@ export function computeDeadReckonedTarget(
     fix.routeProgressM != null &&
     Number.isFinite(fix.routeProgressM)
   ) {
-    const along = pointAlongRoute(polyline, fix.routeProgressM + advanceM);
+    const along = pointAlongRoute(
+      polyline,
+      fix.routeProgressM + advanceM,
+      opts.routeCumulativeMeters,
+    );
     if (along) {
       return along.point;
     }
@@ -294,12 +369,21 @@ export function computeNextSmoothLocation(
   target: LatLng | null,
   snapMeters = SMOOTH_DRIVER_SNAP_METERS,
   factor = SMOOTH_DRIVER_FACTOR,
+  elapsedMs?: number,
 ): LatLng | null {
   if (!target) {return null;}
   if (!current) {return target;}
   const dist = haversineMeters(current, target);
   if (dist < snapMeters) {return target;}
-  return smoothCoordinate(current, target, factor);
+  if (elapsedMs == null || !Number.isFinite(elapsedMs)) {
+    return smoothCoordinate(current, target, factor);
+  }
+  // Time-based easing behaves identically on 20fps and 60fps devices. Catch
+  // up faster after a long network gap without snapping the marker.
+  const responseMs = dist > 80 ? 180 : dist > 30 ? 240 : SMOOTH_DRIVER_RESPONSE_MS;
+  const safeElapsedMs = Math.max(0, Math.min(elapsedMs, 250));
+  const timeFactor = Math.max(0.01, Math.min(1, 1 - Math.exp(-safeElapsedMs / responseMs)));
+  return smoothCoordinate(current, target, timeFactor);
 }
 
 export function filterTrackCoordinates(

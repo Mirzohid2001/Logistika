@@ -33,6 +33,12 @@ class BidCreateView(APIView):
             if advertisement.is_closed:
                 return Response({'error': 'Advertisement is closed'}, status=status.HTTP_400_BAD_REQUEST)
 
+            from apps.payments.completion_fees import completion_fee_forbidden_response
+
+            fee_blocked = completion_fee_forbidden_response(request.user)
+            if fee_blocked:
+                return fee_blocked
+
             from apps.orders.services import advertisement_has_active_order, driver_has_active_order
             if advertisement_has_active_order(advertisement.id):
                 return Response({
@@ -116,6 +122,21 @@ class BidAcceptPriceView(APIView):
             if bid.is_rejected_by_driver:
                 return Response({'error': 'Bid is rejected by driver'}, status=status.HTTP_400_BAD_REQUEST)
 
+            from apps.payments.completion_fees import (
+                completion_fee_forbidden_response,
+                counterparty_completion_fee_forbidden_response,
+            )
+
+            fee_blocked = completion_fee_forbidden_response(request.user)
+            if fee_blocked:
+                return fee_blocked
+            driver_fee_blocked = counterparty_completion_fee_forbidden_response(
+                bid.driver,
+                label='Haydovchi',
+            )
+            if driver_fee_blocked:
+                return driver_fee_blocked
+
             # Client cannot "accept" their own counter-offer until driver agrees.
             if bid.last_counter_by == 'client' and not bid.is_driver_agreed_to_amount:
                 return Response(
@@ -169,7 +190,7 @@ class BidAcceptPriceView(APIView):
             except Exception as exc:
                 from apps.common.exceptions import PermissionDeniedError
                 if isinstance(exc, PermissionDeniedError):
-                    return Response({'error': str(exc.detail), 'code': getattr(exc, 'code', 'subscription_required')}, status=status.HTTP_403_FORBIDDEN)
+                    return Response({'error': str(exc.detail), 'code': getattr(exc, 'default_code', 'subscription_required')}, status=status.HTTP_403_FORBIDDEN)
                 raise
 
             from apps.orders.services import resolve_agreed_amount
@@ -272,6 +293,11 @@ class BidCounterOfferView(APIView):
                 bid = Bid.objects.get(pk=pk)
                 if not can_access_bid(request.user, bid):
                     return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+                from apps.payments.completion_fees import completion_fee_forbidden_response
+
+                fee_blocked = completion_fee_forbidden_response(request.user)
+                if fee_blocked:
+                    return fee_blocked
                 amount = serializer.validated_data['amount']
                 
                 from django.utils import timezone
@@ -336,6 +362,12 @@ class BidAgreeCounterView(APIView):
             bid = Bid.objects.get(pk=pk, driver=request.user)
         except Bid.DoesNotExist:
             return Response({'error': 'Bid not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.payments.completion_fees import completion_fee_forbidden_response
+
+        fee_blocked = completion_fee_forbidden_response(request.user)
+        if fee_blocked:
+            return fee_blocked
 
         if not bid.can_agree_to_counter_by_driver():
             return Response(
