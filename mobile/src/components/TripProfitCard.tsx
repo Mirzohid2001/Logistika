@@ -31,11 +31,11 @@ export const TripProfitCard: React.FC<TripProfitCardProps> = ({ advertisementId,
       setLoading(true);
       try {
         const data = await advertisementsService.getTripEstimate(advertisementId, Number(amount));
-        if (!cancelled) setEstimate(data);
+        if (!cancelled) {setEstimate(data);}
       } catch {
-        if (!cancelled) setEstimate(null);
+        if (!cancelled) {setEstimate(null);}
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {setLoading(false);}
       }
     };
     load();
@@ -44,7 +44,7 @@ export const TripProfitCard: React.FC<TripProfitCardProps> = ({ advertisementId,
     };
   }, [advertisementId, amount]);
 
-  if (!amount || Number(amount) <= 0) return null;
+  if (!amount || Number(amount) <= 0) {return null;}
   if (loading) {
     return (
       <View style={styles.card}>
@@ -52,7 +52,7 @@ export const TripProfitCard: React.FC<TripProfitCardProps> = ({ advertisementId,
       </View>
     );
   }
-  if (!estimate) return null;
+  if (!estimate) {return null;}
 
   const suffix = t('dashboard.currencySuffix');
 

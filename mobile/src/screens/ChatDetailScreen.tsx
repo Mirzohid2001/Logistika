@@ -336,7 +336,7 @@ const ChatDetailScreen = () => {
             Alert.alert(t('common.error'), t('chatUpload.imageTooLarge'));
             return;
           }
-          await handleUploadImage(asset.uri);
+          await handleUploadImage(asset.uri as string);
         }
       }
     );
@@ -358,7 +358,7 @@ const ChatDetailScreen = () => {
             Alert.alert(t('common.error'), t('chatUpload.imageTooLarge'));
             return;
           }
-          await handleUploadImage(asset.uri);
+          await handleUploadImage(asset.uri as string);
         }
       }
     );

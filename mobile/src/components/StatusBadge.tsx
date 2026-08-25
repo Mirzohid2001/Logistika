@@ -1,7 +1,6 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { borderRadius, fontSize, fontWeight } from '../theme';
-import { useAppTheme } from '../theme/useAppTheme';
 
 interface StatusBadgeProps {
   label: string;
@@ -10,9 +9,6 @@ interface StatusBadgeProps {
 }
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ label, color, compact }) => {
-  const { colors } = useAppTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-
   return (
     <View style={[styles.badge, compact && styles.badgeCompact, { backgroundColor: `${color}18`, borderColor: `${color}44` }]}>
       <View style={[styles.dot, { backgroundColor: color }]} />
@@ -23,8 +19,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ label, color, compact 
   );
 };
 
-const createStyles = (colors: ReturnType<typeof useAppTheme>['colors']) =>
-  StyleSheet.create({
+const styles = StyleSheet.create({
     badge: {
       flexDirection: 'row',
       alignItems: 'center',

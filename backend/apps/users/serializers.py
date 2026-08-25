@@ -3,6 +3,24 @@ from django.db.models import Avg, Count
 from .models import User, DriverDocument
 
 
+class LoginRequestSerializer(serializers.Serializer):
+    phone = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+    device_id = serializers.CharField(required=False, allow_blank=True, max_length=128)
+
+
+class RefreshTokenRequestSerializer(serializers.Serializer):
+    refresh = serializers.CharField(write_only=True)
+
+
+class UserDocumentUploadSerializer(serializers.Serializer):
+    document_photos = serializers.ListField(
+        child=serializers.ImageField(),
+        allow_empty=False,
+        max_length=5,
+    )
+
+
 class UserReputationSerializer(serializers.ModelSerializer):
     average_rating = serializers.SerializerMethodField()
     total_ratings = serializers.SerializerMethodField()
@@ -19,6 +37,9 @@ class UserReputationSerializer(serializers.ModelSerializer):
         ]
 
     def _trust_cache(self) -> dict:
+        context_cache = self.context.get('trust_cache')
+        if context_cache is not None:
+            return context_cache
         cache = getattr(self, '_trust_cache_dict', None)
         if cache is None:
             cache = {}
@@ -26,15 +47,24 @@ class UserReputationSerializer(serializers.ModelSerializer):
         return cache
 
     def get_average_rating(self, obj):
+        cached = self.context.get('reputation_cache', {}).get(obj.pk)
+        if cached is not None:
+            return cached['average_rating']
         from apps.ratings.models import Rating
         result = Rating.objects.filter(to_user=obj).aggregate(avg=Avg('rating'))
         return round(result['avg'] or 0, 2)
 
     def get_total_ratings(self, obj):
+        cached = self.context.get('reputation_cache', {}).get(obj.pk)
+        if cached is not None:
+            return cached['total_ratings']
         from apps.ratings.models import Rating
         return Rating.objects.filter(to_user=obj).count()
 
     def get_complaints_received_count(self, obj):
+        cached = self.context.get('reputation_cache', {}).get(obj.pk)
+        if cached is not None:
+            return cached['complaints_received_count']
         from apps.ratings.models import Complaint
         return Complaint.objects.filter(to_user=obj).count()
 
@@ -64,6 +94,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'phone', 'first_name', 'last_name', 'email', 'avatar',
+            'telegram_id', 'telegram_username', 'telegram_photo_url',
             'is_driver', 'is_client', 'marketplace_role',
             'is_operator', 'is_admin', 'is_dispatcher', 'is_updater',
             'is_verified', 'verification_status', 'average_rating', 'total_ratings',
@@ -79,6 +110,7 @@ class UserSerializer(serializers.ModelSerializer):
             'complaints_received_count', 'complaints_pending_count', 'company_inn', 'subscription',
             'trust_score', 'trust_tier', 'is_blocked', 'suspended_until',
             'has_expired_documents', 'expired_document_count',
+            'telegram_id', 'telegram_username', 'telegram_photo_url',
         ]
     
     def get_average_rating(self, obj):
@@ -248,8 +280,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         from apps.subscriptions.trial import device_id_required_on_register, normalize_device_id
 
         device_id = normalize_device_id(attrs.get('device_id'))
-        is_marketplace = attrs.get('is_driver') is not None
-        if device_id_required_on_register() and is_marketplace:
+        if device_id_required_on_register():
             if not device_id:
                 raise serializers.ValidationError({
                     'device_id': 'Qurilma identifikatori talab qilinadi. Ilovani yangilang.',
@@ -358,4 +389,3 @@ class DriverDocumentSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['id', 'user', 'reminder_sent_at', 'created_at', 'updated_at', 'driver', 'vehicle_number']
-

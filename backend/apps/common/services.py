@@ -7,6 +7,13 @@ from django.core.cache import cache
 logger = logging.getLogger(__name__)
 
 
+def external_http_timeout() -> tuple[float, float]:
+    return (
+        settings.EXTERNAL_HTTP_CONNECT_TIMEOUT,
+        settings.EXTERNAL_HTTP_READ_TIMEOUT,
+    )
+
+
 def generate_sms_code(length=6):
     return ''.join([str(random.randint(0, 9)) for _ in range(length)])
 
@@ -23,7 +30,7 @@ def send_sms_code(phone, code):
             'Authorization': f'Bearer {get_eskiz_token()}',
             'Content-Type': 'application/json',
         }
-        response = requests.post(url, json=data, headers=headers)
+        response = requests.post(url, json=data, headers=headers, timeout=external_http_timeout())
         return response.status_code == 200
     except Exception:
         logger.exception('Failed to send SMS code', extra={'event': 'sms_code_failed'})
@@ -42,7 +49,7 @@ def send_notification_sms(phone, message):
             'Authorization': f'Bearer {get_eskiz_token()}',
             'Content-Type': 'application/json',
         }
-        response = requests.post(url, json=data, headers=headers)
+        response = requests.post(url, json=data, headers=headers, timeout=external_http_timeout())
         return response.status_code == 200
     except Exception:
         logger.exception('Failed to send notification SMS', extra={'event': 'sms_notify_failed'})
@@ -62,7 +69,7 @@ def get_eskiz_token():
             'email': settings.ESKIZ_EMAIL,
             'password': settings.ESKIZ_PASSWORD,
         }
-        response = requests.post(url, json=data)
+        response = requests.post(url, json=data, timeout=external_http_timeout())
         if response.status_code == 200:
             token = response.json().get('data', {}).get('token')
             cache.set(cache_key, token, 3600 * 24)
@@ -124,4 +131,3 @@ def get_language_from_request(request):
             return lang
     
     return 'ru'
-

@@ -98,9 +98,9 @@ function resolveDriverPresenceLevel(driver: DriverLocation, nowTs: number): Driv
     return 'offline';
   }
   const ageSec = Math.max(0, Math.floor((nowTs - new Date(seenAt).getTime()) / 1000));
-  if (ageSec <= 30) return 'online';
-  if (ageSec <= 60) return 'warning';
-  if (ageSec <= 180) return 'stale';
+  if (ageSec <= 30) {return 'online';}
+  if (ageSec <= 60) {return 'warning';}
+  if (ageSec <= 180) {return 'stale';}
   return 'offline';
 }
 

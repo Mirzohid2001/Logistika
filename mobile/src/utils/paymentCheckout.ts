@@ -7,7 +7,7 @@ function isHttpUrl(value: unknown): value is string {
 }
 
 export function extractPaymentCheckoutUrl(payment: Payment | null | undefined): string | null {
-  if (!payment) return null;
+  if (!payment) {return null;}
   if (isHttpUrl(payment.checkout_url)) {
     return payment.checkout_url;
   }
@@ -28,7 +28,7 @@ export function extractCheckoutUrlFromGateway(gateway: unknown): string | null {
     const nested = record[nestedKey];
     if (nested && typeof nested === 'object') {
       const found = extractCheckoutUrlFromGateway(nested);
-      if (found) return found;
+      if (found) {return found;}
     }
   }
   return null;

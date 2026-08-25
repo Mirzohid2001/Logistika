@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { spacing, fontSize, fontWeight, shadows, borderRadius } from '../theme';
+import { spacing, fontSize, fontWeight, borderRadius } from '../theme';
 import { useAppTheme } from '../theme/useAppTheme';
 import { useTranslation } from '../hooks/useTranslation';
 import { a11yHeader } from '../utils/accessibility';

@@ -23,6 +23,9 @@ const UploadDocumentsScreen = () => {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const existingDocuments: string[] = Array.isArray(user?.document_photos)
+    ? (user?.document_photos ?? [])
+    : [];
 
   const handlePickImage = (index: number) => {
     launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, (response: ImagePickerResponse) => {
@@ -98,11 +101,11 @@ const UploadDocumentsScreen = () => {
           </Text>
         </Card>
       )}
-      {Array.isArray(user?.document_photos) && user.document_photos.length > 0 && (
+      {existingDocuments.length > 0 && (
         <Card style={styles.card}>
           <Text style={styles.cardTitle}>{t('uploadDocuments.existingDocuments')}</Text>
           <View style={styles.existingDocsRow}>
-            {user.document_photos.map((photoPath, index) => {
+            {existingDocuments.map((photoPath, index) => {
               const uri = getMediaUrl(photoPath) || photoPath;
               return uri ? (
                 <Image key={`${photoPath}-${index}`} source={{ uri }} style={styles.existingDocThumb} />

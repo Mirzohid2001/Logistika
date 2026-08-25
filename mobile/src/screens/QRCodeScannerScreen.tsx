@@ -77,7 +77,8 @@ const QRCodeScannerScreen = () => {
                 navigation.goBack();
                 // Order detail'ga o'tish
                 setTimeout(() => {
-                  const stackName = order.driver?.id === (route.params as any)?.userId
+                  const driverId = typeof order.driver === 'number' ? order.driver : order.driver?.id;
+                  const stackName = driverId === (route.params as any)?.userId
                     ? 'DriverStack'
                     : 'ClientStack';
                   (navigation as any).navigate(stackName, {

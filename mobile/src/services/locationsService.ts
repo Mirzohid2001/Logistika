@@ -2,9 +2,9 @@ import { apiService } from './api';
 import { Country, City, PaginatedResponse } from '../types';
 
 function normalizeList<T>(data: T[] | PaginatedResponse<T> | null | undefined): T[] {
-  if (!data) return [];
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data.results)) return data.results;
+  if (!data) {return [];}
+  if (Array.isArray(data)) {return data;}
+  if (Array.isArray(data.results)) {return data.results;}
   return [];
 }
 
@@ -38,8 +38,8 @@ export const locationsService = {
     country_id?: number;
   }> {
     const params: Record<string, string | number> = { lat, lng };
-    if (opts?.countryId) params.country_id = opts.countryId;
-    if (opts?.maxKm) params.max_km = opts.maxKm;
+    if (opts?.countryId) {params.country_id = opts.countryId;}
+    if (opts?.maxKm) {params.max_km = opts.maxKm;}
     return apiService.get('/locations/nearest-city/', params);
   },
 };

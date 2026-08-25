@@ -2,6 +2,8 @@ const uzJson = require('../i18n/locales/uz.json');
 const ruJson = require('../i18n/locales/ru.json');
 const enJson = require('../i18n/locales/en.json');
 
+export {};
+
 describe('order document i18n', () => {
   it.each([
     ['uz', uzJson],

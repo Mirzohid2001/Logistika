@@ -59,11 +59,13 @@ class SavedSearchAlertsTest(TestCase):
 
     @patch('apps.advertisements.signals.notify_saved_search_matches')
     def test_signal_called_on_ad_create(self, mock_notify):
-        self._create_ad()
+        with self.captureOnCommitCallbacks(execute=True):
+            self._create_ad()
         mock_notify.assert_called_once()
 
     def test_notify_creates_notification_on_ad_create(self):
-        ad = self._create_ad()
+        with self.captureOnCommitCallbacks(execute=True):
+            ad = self._create_ad()
         self.assertTrue(
             Notification.objects.filter(
                 user=self.driver_user,

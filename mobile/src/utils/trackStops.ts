@@ -15,7 +15,7 @@ export interface TrackStopSegment {
 function parseTrackPoint(track: OrderLocationTrack): { lat: number; lng: number; ts: string } | null {
   const lat = typeof track.lat === 'number' ? track.lat : parseFloat(String(track.lat));
   const lng = typeof track.lng === 'number' ? track.lng : parseFloat(String(track.lng));
-  if (!Number.isFinite(lat) || !Number.isFinite(lng) || !track.timestamp) return null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || !track.timestamp) {return null;}
   return { lat, lng, ts: track.timestamp };
 }
 
@@ -26,7 +26,7 @@ export function deriveStopSegmentsFromTracks(tracks: OrderLocationTrack[]): Trac
     .filter((p): p is NonNullable<typeof p> => p != null)
     .sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
 
-  if (ordered.length < 2) return [];
+  if (ordered.length < 2) {return [];}
 
   const stops: TrackStopSegment[] = [];
   let segmentStart: (typeof ordered)[0] | null = null;
@@ -41,7 +41,7 @@ export function deriveStopSegmentsFromTracks(tracks: OrderLocationTrack[]): Trac
     const isStop = dist < STOP_DISTANCE_METERS;
 
     if (isStop) {
-      if (!segmentStart) segmentStart = prev;
+      if (!segmentStart) {segmentStart = prev;}
     } else if (segmentStart) {
       const durationMinutes = Math.max(
         Math.floor((new Date(prev.ts).getTime() - new Date(segmentStart.ts).getTime()) / 60000),
@@ -80,9 +80,9 @@ export function deriveStopSegmentsFromTracks(tracks: OrderLocationTrack[]): Trac
   return stops.reverse();
 }
 
-export function formatDurationMinutes(minutes: number, t: (key: string, opts?: object) => string): string {
-  if (minutes < 1) return t('tracking.lessThanMinute');
-  if (minutes < 60) return t('tracking.minutesShort', { count: minutes });
+export function formatDurationMinutes(minutes: number, t: (key: string, opts?: any) => any): string {
+  if (minutes < 1) {return t('tracking.lessThanMinute');}
+  if (minutes < 60) {return t('tracking.minutesShort', { count: minutes });}
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
   return mins > 0

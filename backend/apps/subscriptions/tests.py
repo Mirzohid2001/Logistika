@@ -33,6 +33,7 @@ def auth_client(client: APIClient, user) -> APIClient:
     SUBSCRIPTIONS_ENFORCED=True,
     PAYMENTS_ALLOW_MOCK=True,
     SMS_VERIFICATION_REQUIRED=False,
+    TELEGRAM_ONLY_REGISTRATION=False,
     SUBSCRIPTION_REQUIRE_DEVICE_ID_ON_REGISTER=True,
 )
 class SubscriptionAccessTest(TestCase):
@@ -220,6 +221,7 @@ class SubscriptionAccessTest(TestCase):
     SUBSCRIPTIONS_ENFORCED=True,
     SUBSCRIPTION_FREE_TRIAL_USES=3,
     SMS_VERIFICATION_REQUIRED=False,
+    TELEGRAM_ONLY_REGISTRATION=False,
     SUBSCRIPTION_REQUIRE_DEVICE_ID_ON_REGISTER=True,
     REST_FRAMEWORK={
         **settings.REST_FRAMEWORK,
@@ -335,6 +337,7 @@ class TrialSystemTest(TestCase):
 @override_settings(
     SUBSCRIPTIONS_ENFORCED=False,
     SMS_VERIFICATION_REQUIRED=False,
+    TELEGRAM_ONLY_REGISTRATION=False,
     SUBSCRIPTION_REQUIRE_DEVICE_ID_ON_REGISTER=True,
 )
 class SubscriptionDisabledTest(TestCase):

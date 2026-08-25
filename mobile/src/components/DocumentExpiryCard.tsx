@@ -7,7 +7,7 @@ import { DriverDocument } from '../types';
 import { useTranslation } from '../hooks/useTranslation';
 import { Card } from './Card';
 import { navigateRoot } from '../utils/navigationHelpers';
-import { spacing, borderRadius, fontSize, fontWeight } from '../theme';
+import { spacing, fontSize, fontWeight } from '../theme';
 import type { AppColors } from '../theme/colors';
 import { useThemedStyles } from '../theme/useThemedStyles';
 import { useAppTheme } from '../theme/useAppTheme';

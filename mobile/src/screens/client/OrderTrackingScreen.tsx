@@ -436,9 +436,9 @@ const ClientOrderTrackingScreen = () => {
         ) : null}
 
         <View style={styles.legendRow}>
-          <LegendDot color={colors.success} label={t('tracking.mapLegendDeparture')} />
-          <LegendDot color={colors.logisticsAccent} label={t('tracking.mapLegendDestination')} />
-          <LegendDot color={colors.primary} label={t('tracking.mapLegendDriver')} />
+          <LegendDot styles={styles} color={colors.success} label={t('tracking.mapLegendDeparture')} />
+          <LegendDot styles={styles} color={colors.logisticsAccent} label={t('tracking.mapLegendDestination')} />
+          <LegendDot styles={styles} color={colors.primary} label={t('tracking.mapLegendDriver')} />
         </View>
 
         <TrackingBottomSheet
@@ -521,7 +521,15 @@ function haversineEnough(a: LatLng, b: LatLng): boolean {
   return dLat + dLng > 0.00001;
 }
 
-const LegendDot = ({ color, label }: { color: string; label: string }) => (
+const LegendDot = ({
+  color,
+  label,
+  styles,
+}: {
+  color: string;
+  label: string;
+  styles: ReturnType<typeof createStyles>;
+}) => (
   <View style={styles.legendItem}>
     <View style={[styles.legendDot, { backgroundColor: color }]} />
     <Text style={styles.legendLabel}>{label}</Text>

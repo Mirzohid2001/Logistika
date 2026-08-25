@@ -6,7 +6,6 @@ import { UserReputationBadge } from './UserReputationBadge';
 import { spacing, borderRadius, fontSize, fontWeight, shadows } from '../theme';
 import type { AppColors } from '../theme/colors';
 import { useThemedStyles } from '../theme/useThemedStyles';
-import { useAppTheme } from '../theme/useAppTheme';
 
 interface PostOrderFeedbackModalProps {
   visible: boolean;
@@ -24,7 +23,6 @@ export const PostOrderFeedbackModal: React.FC<PostOrderFeedbackModalProps> = ({
   onDismiss,
 }) => {
   const styles = useThemedStyles(createStyles);
-  const { colors } = useAppTheme();
   const { t } = useTranslation();
 
   return (

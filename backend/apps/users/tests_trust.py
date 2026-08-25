@@ -9,7 +9,7 @@ from apps.advertisements.models import Advertisement
 from apps.locations.models import City, Country
 from apps.orders.models import Order, OrderStatus
 from apps.users.serializers import UserReputationSerializer
-from apps.users.trust import compute_user_trust, get_user_trust
+from apps.users.trust import compute_user_trust, get_user_trust, prepare_client_reputations
 
 User = get_user_model()
 
@@ -82,3 +82,13 @@ class TrustScoringTest(TestCase):
         trust = compute_user_trust(self.user)
         self.assertEqual(trust['trust_breakdown']['completed_orders'], 2)
         self.assertEqual(trust['trust_breakdown']['on_time_rate'], 1.0)
+
+    def test_bulk_client_trust_matches_individual_calculation(self):
+        self._create_completed_order(with_deadline=False)
+        self._create_completed_order(with_deadline=True)
+
+        reputation_cache, trust_cache = prepare_client_reputations([self.client_user])
+        individual = compute_user_trust(self.client_user)
+
+        self.assertEqual(trust_cache[self.client_user.id], individual)
+        self.assertEqual(reputation_cache[self.client_user.id]['total_ratings'], 0)

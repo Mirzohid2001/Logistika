@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.common.exceptions import NotFoundError, PermissionDeniedError, ValidationError
+from apps.common.openapi import EmptySerializer
 from apps.notifications.services import create_notification
 from apps.payments.models import Payment, PaymentHistory
 from apps.payments.gateway_init import initiate_gateway_payment
@@ -45,6 +46,7 @@ class SubscriptionPlanListView(APIView):
 
 
 class MySubscriptionView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated]
 
     def get(self, request):

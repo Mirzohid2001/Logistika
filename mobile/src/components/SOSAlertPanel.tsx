@@ -63,7 +63,7 @@ export const SOSAlertPanel: React.FC<SOSAlertPanelProps> = ({
       ios: `maps:0,0?q=${alert.lat},${alert.lng}`,
       android: `geo:${alert.lat},${alert.lng}?q=${alert.lat},${alert.lng}`,
     });
-    if (url) Linking.openURL(url).catch(() => undefined);
+    if (url) {Linking.openURL(url).catch(() => undefined);}
   };
 
   const isActive = alert.status === 'active';

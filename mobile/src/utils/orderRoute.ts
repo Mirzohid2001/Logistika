@@ -50,18 +50,18 @@ function normalizeCityKey(name: string): string {
 
 export function cityFallbackCoordinate(cityName: string): LatLng | null {
   const key = normalizeCityKey(cityName);
-  if (CITY_COORDS[key]) return CITY_COORDS[key];
+  if (CITY_COORDS[key]) {return CITY_COORDS[key];}
   const partial = Object.entries(CITY_COORDS).find(([name]) => key.includes(name) || name.includes(key));
   return partial ? partial[1] : null;
 }
 
 function getCityName(city: Advertisement['departure_city']): string {
-  if (!city || typeof city === 'number') return '';
+  if (!city || typeof city === 'number') {return '';}
   return city.name || '';
 }
 
 function parseCoord(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) {return value;}
   if (typeof value === 'string' && value.trim()) {
     const parsed = parseFloat(value);
     return Number.isFinite(parsed) ? parsed : null;
@@ -70,10 +70,10 @@ function parseCoord(value: unknown): number | null {
 }
 
 function toLatLng(point?: { lat?: unknown; lng?: unknown; latitude?: unknown; longitude?: unknown } | null): LatLng | null {
-  if (!point) return null;
+  if (!point) {return null;}
   const lat = parseCoord(point.lat ?? point.latitude);
   const lng = parseCoord(point.lng ?? point.longitude);
-  if (lat == null || lng == null) return null;
+  if (lat == null || lng == null) {return null;}
   return { latitude: lat, longitude: lng };
 }
 
@@ -82,7 +82,7 @@ export function resolveFallbackRouteEndpoints(advertisement: Advertisement): Ord
   const destinationCity = getCityName(advertisement.destination_city);
   const departure = cityFallbackCoordinate(departureCity);
   const destination = cityFallbackCoordinate(destinationCity);
-  if (!departure || !destination) return null;
+  if (!departure || !destination) {return null;}
   return { departure, destination };
 }
 
@@ -91,20 +91,20 @@ export function getEffectiveRouteEndpoints(
   cached: OrderRouteEndpoints | null,
   order?: Order | null,
 ): OrderRouteEndpoints | null {
-  if (cached) return cached;
+  if (cached) {return cached;}
   const fromPlan = routePointsToEndpoints(order?.planned_route_points);
-  if (fromPlan) return fromPlan;
-  if (advertisement) return resolveFallbackRouteEndpoints(advertisement);
+  if (fromPlan) {return fromPlan;}
+  if (advertisement) {return resolveFallbackRouteEndpoints(advertisement);}
   return null;
 }
 
 export function routePointsToEndpoints(
   points?: Array<{ lat: number; lng: number }> | null,
 ): OrderRouteEndpoints | null {
-  if (!points || points.length < 2) return null;
+  if (!points || points.length < 2) {return null;}
   const departure = toLatLng(points[0]);
   const destination = toLatLng(points[points.length - 1]);
-  if (!departure || !destination) return null;
+  if (!departure || !destination) {return null;}
   return { departure, destination };
 }
 
@@ -112,7 +112,7 @@ export async function geocodeAddress(cityName: string, address: string): Promise
   const query = [address, cityName, 'Uzbekistan'].filter(Boolean).join(', ');
   const cacheKey = normalizeCityKey(query);
   const cached = geocodeCache.get(cacheKey);
-  if (cached) return cached;
+  if (cached) {return cached;}
 
   try {
     const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`;
@@ -122,9 +122,9 @@ export async function geocodeAddress(cityName: string, address: string): Promise
         'User-Agent': 'LogistikaMobile/1.0',
       },
     });
-    if (!response.ok) return cityFallbackCoordinate(cityName);
+    if (!response.ok) {return cityFallbackCoordinate(cityName);}
     const data = (await response.json()) as Array<{ lat: string; lon: string }>;
-    if (!data.length) return cityFallbackCoordinate(cityName);
+    if (!data.length) {return cityFallbackCoordinate(cityName);}
     const result: LatLng = {
       latitude: parseFloat(data[0].lat),
       longitude: parseFloat(data[0].lon),
@@ -144,10 +144,10 @@ export async function reverseGeocodeAddress(
   longitude: number,
   cityName?: string,
 ): Promise<string | null> {
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {return null;}
   const cacheKey = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
   const cached = reverseGeocodeCache.get(cacheKey);
-  if (cached) return cached;
+  if (cached) {return cached;}
 
   try {
     const params = new URLSearchParams({
@@ -164,10 +164,10 @@ export async function reverseGeocodeAddress(
         'User-Agent': 'LogistikaMobile/1.0',
       },
     });
-    if (!response.ok) return null;
+    if (!response.ok) {return null;}
     const data = (await response.json()) as { display_name?: string };
     const displayName = data.display_name?.trim();
-    if (!displayName) return null;
+    if (!displayName) {return null;}
     const normalized = cityName && !displayName.toLowerCase().includes(cityName.toLowerCase())
       ? `${cityName}, ${displayName}`
       : displayName;
@@ -187,7 +187,7 @@ export async function resolveAdvertisementRouteEndpoints(
     geocodeAddress(departureCity, advertisement.departure_address),
     geocodeAddress(destinationCity, advertisement.destination_address),
   ]);
-  if (!departure || !destination) return null;
+  if (!departure || !destination) {return null;}
   return { departure, destination };
 }
 
@@ -197,12 +197,12 @@ export async function ensureOrderRoutePlan(
   advertisement: Advertisement | null,
 ): Promise<OrderRouteEndpoints | null> {
   const fromPlan = routePointsToEndpoints(order.planned_route_points);
-  if (fromPlan) return fromPlan;
-  if (!advertisement) return null;
+  if (fromPlan) {return fromPlan;}
+  if (!advertisement) {return null;}
 
   const fallback = resolveFallbackRouteEndpoints(advertisement);
   const endpoints = (await resolveAdvertisementRouteEndpoints(advertisement)) ?? fallback;
-  if (!endpoints) return null;
+  if (!endpoints) {return null;}
 
   try {
     await ordersService.setRoutePlan(orderId, [
@@ -239,11 +239,11 @@ export function getActiveNavigationTarget(
 ): LatLng | null {
   const activeStop = getActiveRouteStop(order?.route_stops);
   const activeStopPoint = activeStop ? stopToLatLng(activeStop) : null;
-  if (activeStopPoint) return activeStopPoint;
+  if (activeStopPoint) {return activeStopPoint;}
 
-  if (!endpoints) return null;
-  if (phase === 'to_pickup') return endpoints.departure;
-  if (phase === 'to_destination') return endpoints.destination;
+  if (!endpoints) {return null;}
+  if (phase === 'to_pickup') {return endpoints.departure;}
+  if (phase === 'to_destination') {return endpoints.destination;}
   return null;
 }
 

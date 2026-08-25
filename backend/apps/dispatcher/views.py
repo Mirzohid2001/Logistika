@@ -22,6 +22,7 @@ from .serializers import (
 )
 from apps.orders.services import order_allows_driver_assignment
 from apps.orders.serializers import OrderSerializer
+from apps.common.openapi import EmptySerializer, NoteRequestSerializer, DispatcherBulkRequestSerializer
 from apps.vehicles.serializers import VehicleSerializer
 from apps.notifications.services import create_notification
 from apps.users.document_expiry import expired_documents_error_payload
@@ -273,6 +274,7 @@ class DispatcherReassignView(APIView):
 
 
 class DispatcherCancelOrderView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsDispatcher]
 
     @extend_schema(responses={200: OrderSerializer})
@@ -309,7 +311,7 @@ class DispatcherAddNoteView(APIView):
     permission_classes = [IsAuthenticated, IsDispatcher]
 
     @extend_schema(
-        request={'type': 'object', 'properties': {'note': {'type': 'string'}}},
+        request=NoteRequestSerializer,
         responses={201: DispatcherNoteSerializer}
     )
     def post(self, request, pk):
@@ -534,15 +536,7 @@ class DispatcherBulkOperationsView(APIView):
     permission_classes = [IsAuthenticated, IsDispatcher]
 
     @extend_schema(
-        request={
-            'type': 'object',
-            'properties': {
-                'order_ids': {'type': 'array', 'items': {'type': 'integer'}},
-                'action': {'type': 'string', 'enum': ['assign', 'cancel', 'reassign']},
-                'driver_id': {'type': 'integer'},
-                'notes': {'type': 'string'}
-            }
-        },
+        request=DispatcherBulkRequestSerializer,
         responses={200: {'type': 'object'}}
     )
     def post(self, request):

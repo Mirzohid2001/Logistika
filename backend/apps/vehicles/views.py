@@ -6,6 +6,7 @@ from drf_spectacular.utils import extend_schema
 from apps.users.permissions import IsDriver
 from .models import Vehicle
 from .serializers import VehicleSerializer, VehicleCreateSerializer
+from apps.common.openapi import EmptySerializer
 
 
 class VehicleListView(APIView):
@@ -42,6 +43,7 @@ class VehicleListView(APIView):
 
 
 class VehicleDetailView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsDriver]
 
     @extend_schema(responses={200: VehicleSerializer})

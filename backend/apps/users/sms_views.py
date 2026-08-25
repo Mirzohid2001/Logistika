@@ -6,6 +6,7 @@ from rest_framework.throttling import AnonRateThrottle
 from drf_spectacular.utils import extend_schema
 from apps.common.services import generate_sms_code, send_sms_code, save_sms_code, verify_sms_code
 from apps.users.phone import is_valid_uz_phone, normalize_phone
+from apps.common.openapi import EmptySerializer
 
 
 class SMSThrottle(AnonRateThrottle):
@@ -16,6 +17,7 @@ class SMSThrottle(AnonRateThrottle):
 class SendSMSCodeView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [SMSThrottle]
+    serializer_class = EmptySerializer
 
     @extend_schema(responses={200: {'type': 'object', 'properties': {'message': {'type': 'string'}}}})
     def post(self, request):
@@ -41,6 +43,7 @@ class SendSMSCodeView(APIView):
 class VerifySMSView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [SMSThrottle]
+    serializer_class = EmptySerializer
 
     @extend_schema(responses={200: {'type': 'object', 'properties': {'message': {'type': 'string'}}}})
     def post(self, request):
@@ -56,4 +59,3 @@ class VerifySMSView(APIView):
             return Response({'message': 'Code verified successfully'}, status=status.HTTP_200_OK)
 
         return Response({'error': 'Invalid code'}, status=status.HTTP_400_BAD_REQUEST)
-

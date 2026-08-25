@@ -166,8 +166,8 @@ export const ordersService = {
     }>
   ): Promise<OrderRouteStop> {
     const body = { ...payload };
-    if (body.lat != null) body.lat = this.normalizeCoordinate(body.lat);
-    if (body.lng != null) body.lng = this.normalizeCoordinate(body.lng);
+    if (body.lat != null) {body.lat = this.normalizeCoordinate(body.lat);}
+    if (body.lng != null) {body.lng = this.normalizeCoordinate(body.lng);}
     return apiService.patch(`/orders/${orderId}/route-stops/${stopId}/`, body);
   },
 
@@ -271,16 +271,16 @@ export const ordersService = {
   // Получить статистику для водителя
   async getDriverStatistics(dateFrom?: string, dateTo?: string): Promise<any> {
     const params: any = {};
-    if (dateFrom) params.date_from = dateFrom;
-    if (dateTo) params.date_to = dateTo;
+    if (dateFrom) {params.date_from = dateFrom;}
+    if (dateTo) {params.date_to = dateTo;}
     return apiService.get('/orders/statistics/driver/', params);
   },
 
   // Получить статистику для клиента
   async getClientStatistics(dateFrom?: string, dateTo?: string): Promise<any> {
     const params: any = {};
-    if (dateFrom) params.date_from = dateFrom;
-    if (dateTo) params.date_to = dateTo;
+    if (dateFrom) {params.date_from = dateFrom;}
+    if (dateTo) {params.date_to = dateTo;}
     return apiService.get('/orders/statistics/client/', params);
   },
 
@@ -361,12 +361,17 @@ export const ordersService = {
   },
 
   async generateOrderDocuments(orderId: number): Promise<import('../types').OrderDocument[]> {
-    const result = await apiService.post(`/orders/${orderId}/documents/generate/`, {});
+    const result = await apiService.post<{ documents: import('../types').OrderDocument[] }>(
+      `/orders/${orderId}/documents/generate/`,
+      {},
+    );
     return result?.documents || [];
   },
 
   async getOrderDocuments(orderId: number): Promise<import('../types').OrderDocument[]> {
-    const result = await apiService.get(`/orders/${orderId}/documents/`);
+    const result = await apiService.get<{ documents: import('../types').OrderDocument[] }>(
+      `/orders/${orderId}/documents/`,
+    );
     return result?.documents || [];
   },
 };

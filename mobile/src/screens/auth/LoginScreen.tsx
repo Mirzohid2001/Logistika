@@ -1,11 +1,12 @@
 import React, {useState} from 'react';
-import {StyleSheet, TouchableOpacity, Text} from 'react-native';
+import {Linking, StyleSheet, Text, View} from 'react-native';
 import {useAuth} from '../../context/AuthContext';
 import {useNavigation} from '@react-navigation/native';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
 import { AuthLayout, AuthFooter } from '../../components/auth/AuthLayout';
+import { authService } from '../../services/authService';
 import { errorService } from '../../services/errorService';
 import { toastService } from '../../services/toastService';
 import { spacing } from '../../theme';
@@ -17,12 +18,27 @@ const LoginScreen = () => {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [telegramLoading, setTelegramLoading] = useState(false);
   const {login} = useAuth();
   const navigation = useNavigation();
   const {t} = useTranslation();
   const { colors } = useAppTheme();
 
-  const handleLogin = async () => {
+  const handleTelegramLogin = async () => {
+    setTelegramLoading(true);
+    try {
+      const response = await authService.startTelegramAuth({ mode: 'login' });
+      await Linking.openURL(response.authorization_url);
+    } catch (error: any) {
+      const appError = errorService.parseError(error);
+      errorService.logError(appError, { screen: 'LoginScreen', provider: 'telegram' });
+      toastService.error(errorService.getUserFriendlyMessage(appError));
+    } finally {
+      setTelegramLoading(false);
+    }
+  };
+
+  const handleLegacyLogin = async () => {
     if (!phone || !password) {
       toastService.error(t('auth.fillAllFields'));
       return;
@@ -37,16 +53,36 @@ const LoginScreen = () => {
       await login(phone, password);
     } catch (error: any) {
       const appError = errorService.parseError(error);
-      const errorMessage = errorService.getUserFriendlyMessage(appError);
-      errorService.logError(appError, { screen: 'LoginScreen' });
-      toastService.error(errorMessage);
+      errorService.logError(appError, { screen: 'LoginScreen', provider: 'legacy' });
+      toastService.error(errorService.getUserFriendlyMessage(appError));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <AuthLayout title={t('auth.login')} subtitle={t('auth.loginSubtitle')}>
+    <AuthLayout title={t('auth.login')} subtitle={t('auth.telegramLoginSubtitle')}>
+      <Button
+        title={t('auth.telegramLogin')}
+        onPress={handleTelegramLogin}
+        loading={telegramLoading}
+        disabled={loading}
+        variant="primary"
+        style={styles.telegramButton}
+      />
+
+      <Text style={[styles.telegramHint, { color: colors.textSecondary }]}>
+        {t('auth.telegramShareHint')}
+      </Text>
+
+      <View style={styles.dividerRow}>
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        <Text style={[styles.legacyTitle, { color: colors.textSecondary }]}>
+          {t('auth.legacyLogin')}
+        </Text>
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+      </View>
+
       <Input
         label={t('auth.phone')}
         value={phone}
@@ -66,20 +102,13 @@ const LoginScreen = () => {
       />
 
       <Button
-        title={t('auth.login')}
-        onPress={handleLogin}
+        title={t('auth.legacyLoginAction')}
+        onPress={handleLegacyLogin}
         loading={loading}
-        variant="primary"
+        disabled={telegramLoading}
+        variant="outline"
         style={styles.submitButton}
       />
-
-      <TouchableOpacity
-        style={styles.forgotPassword}
-        onPress={() => (navigation as any).navigate('ForgotPassword')}>
-        <Text style={[styles.forgotPasswordText, { color: colors.primary }]}>
-          {t('auth.forgotPassword')}
-        </Text>
-      </TouchableOpacity>
 
       <AuthFooter
         text={t('auth.noAccount')}
@@ -87,36 +116,27 @@ const LoginScreen = () => {
         onPress={() => (navigation as any).navigate('Register')}
       />
 
-      <TouchableOpacity
-        style={styles.trackingLink}
+      <Text
+        style={[styles.trackingLinkText, { color: colors.primary }]}
         onPress={() => navigateRoot(navigation, 'OpenTrackingLink')}>
-        <Text style={[styles.trackingLinkText, { color: colors.primary }]}>
-          {t('tracking.publicShare.openLinkTitle')}
-        </Text>
-      </TouchableOpacity>
+        {t('tracking.publicShare.openLinkTitle')}
+      </Text>
     </AuthLayout>
   );
 };
 
 const styles = StyleSheet.create({
-  submitButton: {
-    marginTop: spacing.md,
-  },
-  forgotPassword: {
-    marginTop: spacing.sm,
-    alignItems: 'center',
-  },
-  forgotPasswordText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  trackingLink: {
-    marginTop: spacing.lg,
-    alignItems: 'center',
-  },
+  telegramButton: { marginTop: spacing.xs },
+  telegramHint: { marginTop: spacing.sm, textAlign: 'center', lineHeight: 20 },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: spacing.xl },
+  divider: { flex: 1, height: StyleSheet.hairlineWidth },
+  legacyTitle: { marginHorizontal: spacing.sm, fontSize: 12, textAlign: 'center' },
+  submitButton: { marginTop: spacing.md },
   trackingLinkText: {
+    marginTop: spacing.lg,
     fontSize: 14,
     fontWeight: '600',
+    textAlign: 'center',
   },
 });
 

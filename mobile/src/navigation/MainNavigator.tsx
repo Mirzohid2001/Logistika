@@ -26,14 +26,14 @@ const MainNavigator = () => {
   const insets = useSafeAreaInsets();
 
   const getPrimaryRole = () => {
-    if (!user) return null;
-    if (user.is_dispatcher) return 'dispatcher';
-    if (user.is_updater) return 'updater';
-    if (activeMarketplaceRole) return activeMarketplaceRole;
-    if (user.account?.role) return user.account.role;
-    if (user.marketplace_role) return user.marketplace_role;
-    if (user.is_driver) return 'driver';
-    if (user.is_client) return 'client';
+    if (!user) {return null;}
+    if (user.is_dispatcher) {return 'dispatcher';}
+    if (user.is_updater) {return 'updater';}
+    if (activeMarketplaceRole) {return activeMarketplaceRole;}
+    if (user.account?.role) {return user.account.role;}
+    if (user.marketplace_role) {return user.marketplace_role;}
+    if (user.is_driver) {return 'driver';}
+    if (user.is_client) {return 'client';}
     return null;
   };
 

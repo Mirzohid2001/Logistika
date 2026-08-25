@@ -34,6 +34,7 @@ class UserModelTest(TestCase):
 
 @override_settings(
     SMS_VERIFICATION_REQUIRED=False,
+    TELEGRAM_ONLY_REGISTRATION=False,
     SUBSCRIPTION_REQUIRE_DEVICE_ID_ON_REGISTER=True,
     REST_FRAMEWORK={
         **settings.REST_FRAMEWORK,
@@ -226,10 +227,7 @@ class AdminDriverEarningsStatisticsTest(TestCase):
         from apps.locations.models import Country, City
         
         self.country = Country.objects.create(
-            name_ru='Узбекистан',
-            name_en='Uzbekistan',
-            name_uz='O\'zbekiston',
-            code='UZ'
+            name_ru='Узбекистан', name_en='Uzbekistan', name_uz='O\'zbekiston', code='U1',
         )
         self.city = City.objects.create(
             country=self.country,
@@ -245,17 +243,14 @@ class AdminDriverEarningsStatisticsTest(TestCase):
             description_ru='Тестовое описание',
             description_en='Test description',
             description_uz='Test tavsif',
-            height=10.5,
-            width=5.5,
-            length=2.5,
+            volume_m3=10.5,
             weight=100.0,
             departure_address='Test departure',
-            departure_country=self.country,
             departure_city=self.city,
             destination_address='Test destination',
-            destination_country=self.country,
             destination_city=self.city,
-            client_phone='998901234568'
+            contact_phone='998901234568',
+            proposed_cost=100000,
         )
         from apps.orders.models import Order, OrderStatus
         from apps.payments.models import Payment

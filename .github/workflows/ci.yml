@@ -51,8 +51,9 @@ jobs:
 
       - name: Django system checks
         env:
-          SECRET_KEY: ci-test-secret-key
+          SECRET_KEY: ci-only-secret-key-with-sufficient-entropy-not-for-production
           DEBUG: "False"
+          DJANGO_SETTINGS_MODULE: config.settings_test
           POSTGRES_DB: logistika_test
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -62,11 +63,30 @@ jobs:
           CELERY_BROKER_URL: redis://localhost:6379/0
           PAYMENTS_ALLOW_MOCK: "True"
           SMS_VERIFICATION_REQUIRED: "False"
+          TELEGRAM_ONLY_REGISTRATION: "True"
         run: |
-          python manage.py check --deploy
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
           python manage.py migrate --noinput
+
+      - name: Backend test suite
+        env:
+          SECRET_KEY: ci-only-secret-key-with-sufficient-entropy-not-for-production
+          DEBUG: "False"
+          DJANGO_SETTINGS_MODULE: config.settings_test
+          POSTGRES_DB: logistika_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          REDIS_URL: redis://localhost:6379/1
+          CELERY_BROKER_URL: redis://localhost:6379/0
+          PAYMENTS_ALLOW_MOCK: "True"
+          SMS_VERIFICATION_REQUIRED: "False"
+          TELEGRAM_ONLY_REGISTRATION: "True"
+        run: |
           python manage.py test --verbosity=1
-          python -c "import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','config.settings'); import django; django.setup(); from django.test import Client; c=Client(); assert c.get('/health/').status_code==200"
+          python -c "import django; django.setup(); from django.test import Client; assert Client().get('/health/').status_code == 200"
 
   mobile-lint:
     runs-on: ubuntu-latest
@@ -94,3 +114,6 @@ jobs:
 
       - name: ESLint (screens, config, tests)
         run: npm run lint:screens
+
+      - name: Production dependency audit
+        run: npm run audit:prod

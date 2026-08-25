@@ -210,8 +210,8 @@ const BidsScreen = () => {
         {item.proposed_amounts && item.proposed_amounts.length > 0 && (
           <View style={styles.history}>
             <Text style={styles.historyTitle}>{t('bids.historyTitle')}</Text>
-            {item.proposed_amounts.map((proposal, index) => (
-              <View key={index} style={styles.historyItem}>
+            {item.proposed_amounts.map((proposal, proposalIndex) => (
+              <View key={proposalIndex} style={styles.historyItem}>
                 <Text style={styles.historyAmount}>
                   {formatPrice(proposal.amount)} ({proposal.by === 'driver' ? t('orders.driver') : t('orders.client')})
                 </Text>

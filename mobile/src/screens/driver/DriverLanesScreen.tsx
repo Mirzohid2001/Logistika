@@ -23,7 +23,7 @@ const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 const formatHour = (hour: number | null | undefined) => {
-  if (hour == null) return null;
+  if (hour == null) {return null;}
   return `${String(hour).padStart(2, '0')}:00`;
 };
 
@@ -107,7 +107,7 @@ const DriverLanesScreen = () => {
   };
 
   const detectCityFromGps = async () => {
-    if (locating) return;
+    if (locating) {return;}
     try {
       setLocating(true);
       const granted = await ensureForegroundLocationPermission(t);
@@ -134,7 +134,8 @@ const DriverLanesScreen = () => {
             name_uz: nearest.name,
             name_ru: nearest.name,
             name_en: nearest.name,
-          } as City,
+            country: nearest.country_id || uzCountryId,
+          } as unknown as City,
           ...prev,
         ]);
       }
@@ -183,7 +184,7 @@ const DriverLanesScreen = () => {
 
   const cityOptions = (() => {
     const filtered = cities.filter((city) => {
-      if (!cityQuery) return true;
+      if (!cityQuery) {return true;}
       return cityLabel(city).toLowerCase().includes(cityQuery.toLowerCase());
     });
     const selected = currentCity

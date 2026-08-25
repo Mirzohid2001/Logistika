@@ -20,6 +20,7 @@ export const TrackingStatsPanel: React.FC<TrackingStatsPanelProps> = ({ order, c
   const { colors } = useAppTheme();
   const { t } = useTranslation();
   const summary = order.tracking_summary;
+  const liveStopMinutes = useLiveStopDuration(summary?.current_stop_started_at, summary?.status);
   const distance = order.distance_summary ?? {
     planned_distance_km: summary?.planned_distance_km,
     tracked_distance_km: summary?.tracked_distance_km,
@@ -31,9 +32,8 @@ export const TrackingStatsPanel: React.FC<TrackingStatsPanelProps> = ({ order, c
   const hasDistance =
     (distance.tracked_distance_km != null && distance.tracked_distance_km > 0) ||
     (distance.planned_distance_km != null && distance.planned_distance_km > 0);
-  if (!summary && !hasDistance) return null;
+  if (!summary && !hasDistance) {return null;}
 
-  const liveStopMinutes = useLiveStopDuration(summary?.current_stop_started_at, summary?.status);
   const currentStopDisplay =
     summary?.status === 'stopped' && liveStopMinutes != null
       ? liveStopMinutes

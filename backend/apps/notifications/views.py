@@ -7,6 +7,7 @@ from django.db.models import Q
 from .models import Notification
 from .serializers import NotificationSerializer, NotificationPreferencesSerializer
 from .preferences import get_user_preferences, update_user_preferences
+from apps.common.openapi import EmptySerializer, MessageResponseSerializer, NotificationIdsRequestSerializer
 
 
 class NotificationListView(APIView):
@@ -45,8 +46,8 @@ class NotificationMarkReadView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        request={'type': 'object', 'properties': {'notification_ids': {'type': 'array', 'items': {'type': 'integer'}}}},
-        responses={200: {'message': 'Notifications marked as read'}}
+        request=NotificationIdsRequestSerializer,
+        responses={200: MessageResponseSerializer}
     )
     def post(self, request):
         notification_ids = request.data.get('notification_ids', [])
@@ -65,9 +66,10 @@ class NotificationMarkReadView(APIView):
 
 
 class NotificationMarkAllReadView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(responses={200: {'message': 'All notifications marked as read'}})
+    @extend_schema(responses={200: MessageResponseSerializer})
     def post(self, request):
         updated = Notification.objects.filter(
             user=request.user,
@@ -112,7 +114,7 @@ class NotificationPreferencesView(APIView):
 class NotificationDeleteView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(responses={200: {'message': 'Notification deleted'}})
+    @extend_schema(responses={200: MessageResponseSerializer})
     def delete(self, request, pk):
         try:
             notification = Notification.objects.get(pk=pk, user=request.user)

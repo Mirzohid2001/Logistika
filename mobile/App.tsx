@@ -49,7 +49,7 @@ const shouldIgnore = (message: string): boolean => {
 const isHandledClientError = (args: any[], message: string): boolean => {
   const lowerMessage = message.toLowerCase();
   const hasRateLimitedInArgs = args.some((arg) => {
-    if (!arg) return false;
+    if (!arg) {return false;}
     if (typeof arg === 'string') {
       const text = arg.toLowerCase();
       return text.includes('rate_limited') || text.includes('statuscode') && text.includes('429');
@@ -64,8 +64,8 @@ const isHandledClientError = (args: any[], message: string): boolean => {
         (arg as any).code ??
         (arg as any).response?.data?.code ??
         (arg as any).originalError?.response?.data?.code;
-      if (status === 429) return true;
-      if (typeof code === 'string' && code.toLowerCase() === 'rate_limited') return true;
+      if (status === 429) {return true;}
+      if (typeof code === 'string' && code.toLowerCase() === 'rate_limited') {return true;}
     }
     return false;
   });
@@ -75,7 +75,7 @@ const isHandledClientError = (args: any[], message: string): boolean => {
     lowerMessage.includes("to'liq to'lov") ||
     lowerMessage.includes("to'lov qilinmagan");
   const hasSubscriptionRequiredInArgs = args.some((arg) => {
-    if (!arg || typeof arg !== 'object') return false;
+    if (!arg || typeof arg !== 'object') {return false;}
     const code =
       (arg as any).code ??
       (arg as any).response?.data?.code ??

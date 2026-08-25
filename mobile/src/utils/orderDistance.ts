@@ -12,7 +12,7 @@ export type OrderDistanceInfo = {
 };
 
 export function getOrderDistanceInfo(order?: Order | null): OrderDistanceInfo | null {
-  if (!order) return null;
+  if (!order) {return null;}
   const summary = order.distance_summary;
   const tracking = order.tracking_summary;
   const merged: OrderDistanceInfo = {

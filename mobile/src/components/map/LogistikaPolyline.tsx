@@ -72,43 +72,46 @@ export const LogistikaPolyline: React.FC<LogistikaPolylineProps> = ({
 
   const dash = lineDashPattern ? { lineDasharray: lineDashPattern } : {};
   const showGlow = shouldRenderRouteGlow() && (kind === 'remaining' || kind === 'track');
+  const glowStyle = {
+    lineColor: resolvedStrokeColor,
+    lineWidth: zoomLineWidth(width, 8) as unknown as number,
+    lineCap: 'round' as const,
+    lineJoin: 'round' as const,
+    lineOpacity: 0.22,
+    lineBlur: 1.1,
+  };
+  const casingStyle = {
+    lineColor: casingColor,
+    lineWidth: zoomLineWidth(width, 4.5) as unknown as number,
+    lineCap: 'round' as const,
+    lineJoin: 'round' as const,
+    lineOpacity: kind === 'planned' ? 0.28 : 0.95,
+    ...dash,
+  };
+  const lineStyle = {
+    lineColor: resolvedStrokeColor,
+    lineWidth: zoomLineWidth(width) as unknown as number,
+    lineCap: 'round' as const,
+    lineJoin: 'round' as const,
+    lineOpacity: kind === 'traveled' ? 0.62 : 1,
+    ...dash,
+  };
 
   return (
     <ShapeSource id={id} shape={shape}>
       {showGlow ? (
         <LineLayer
           id={`${id}-glow`}
-          style={{
-            lineColor: resolvedStrokeColor,
-            lineWidth: zoomLineWidth(width, 8) as unknown as number,
-            lineCap: 'round',
-            lineJoin: 'round',
-            lineOpacity: 0.22,
-            lineBlur: 1.1,
-          }}
+          style={glowStyle}
         />
       ) : null}
       <LineLayer
         id={`${id}-casing`}
-        style={{
-          lineColor: casingColor,
-          lineWidth: zoomLineWidth(width, 4.5) as unknown as number,
-          lineCap: 'round',
-          lineJoin: 'round',
-          lineOpacity: kind === 'planned' ? 0.28 : 0.95,
-          ...dash,
-        }}
+        style={casingStyle}
       />
       <LineLayer
         id={`${id}-line`}
-        style={{
-          lineColor: resolvedStrokeColor,
-          lineWidth: zoomLineWidth(width) as unknown as number,
-          lineCap: 'round',
-          lineJoin: 'round',
-          lineOpacity: kind === 'traveled' ? 0.62 : 1,
-          ...dash,
-        }}
+        style={lineStyle}
       />
     </ShapeSource>
   );

@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { spacing, borderRadius, fontSize, fontWeight } from '../../theme';
+import { spacing, fontSize, fontWeight } from '../../theme';
 import { useAppTheme } from '../../theme/useAppTheme';
 import { useTranslation } from '../../hooks/useTranslation';
 import { ScreenBackground } from '../ScreenBackground';

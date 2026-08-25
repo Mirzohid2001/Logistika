@@ -5,8 +5,11 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
+from django.conf import settings
 from drf_spectacular.utils import extend_schema
 from django.db import transaction
+import logging
+import uuid
 from apps.common.exceptions import (
     ValidationError,
     AuthenticationError,
@@ -14,6 +17,7 @@ from apps.common.exceptions import (
     NotFoundError,
     ExternalServiceError,
 )
+from apps.common.openapi import EmptySerializer
 from .models import User, DriverDocument
 from .serializers import (
     UserSerializer,
@@ -21,9 +25,14 @@ from .serializers import (
     UserProfileUpdateSerializer,
     FCMTokenSerializer,
     DriverDocumentSerializer,
+    LoginRequestSerializer,
+    RefreshTokenRequestSerializer,
+    UserDocumentUploadSerializer,
 )
 from .phone import normalize_phone, phone_lookup_variants
 from .permissions import IsDriver, IsDispatcherOrUpdater
+
+logger = logging.getLogger(__name__)
 
 
 class RegisterThrottle(AnonRateThrottle):
@@ -42,6 +51,14 @@ class RegisterView(APIView):
 
     @extend_schema(request=UserRegisterSerializer, responses={201: UserSerializer})
     def post(self, request):
+        if getattr(settings, 'TELEGRAM_ONLY_REGISTRATION', True):
+            return Response(
+                {
+                    'error': 'Yangi akkaunt faqat Telegram orqali yaratiladi',
+                    'code': 'telegram_registration_required',
+                },
+                status=status.HTTP_410_GONE,
+            )
         try:
             serializer = UserRegisterSerializer(data=request.data)
             if serializer.is_valid():
@@ -63,8 +80,9 @@ class RegisterView(APIView):
 class LoginView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [LoginThrottle]
+    serializer_class = LoginRequestSerializer
 
-    @extend_schema(responses={200: UserSerializer})
+    @extend_schema(request=LoginRequestSerializer, responses={200: UserSerializer})
     def post(self, request):
         try:
             phone_raw = request.data.get('phone')
@@ -106,7 +124,7 @@ class RefreshTokenView(APIView):
     permission_classes = [AllowAny]
 
     @extend_schema(
-        request={'type': 'object', 'properties': {'refresh': {'type': 'string'}}},
+        request=RefreshTokenRequestSerializer,
         responses={200: {'type': 'object', 'properties': {'access': {'type': 'string'}}}, 400: {'type': 'object', 'properties': {'error': {'type': 'string'}}}, 401: {'type': 'object', 'properties': {'error': {'type': 'string'}}}},
         summary="Refresh access token",
         description="Get new access token using refresh token"
@@ -175,15 +193,20 @@ class UserUploadDocumentsView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        request={'type': 'object', 'properties': {'document_photos': {'type': 'array', 'items': {'type': 'string', 'format': 'binary'}}}},
+        request=UserDocumentUploadSerializer,
         responses={200: UserSerializer},
         summary="Upload user documents",
         description="Upload document photos for user verification"
     )
     def post(self, request):
         from django.core.files.storage import default_storage
-        from django.conf import settings
-        import os
+        from apps.common.file_validation import validate_verification_image
+
+        if not request.user.is_driver:
+            return Response(
+                {'error': 'Hujjatlarni faqat haydovchi akkaunti yuklashi mumkin'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         
         content_type = request.content_type or request.META.get('CONTENT_TYPE', '')
         
@@ -209,18 +232,40 @@ class UserUploadDocumentsView(APIView):
                 'error': 'No document_photos field found in request',
                 'available_file_keys': available_files,
                 'hint': f'Found files with keys: {available_files}. Use key name "document_photos" exactly.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(document_photos) > 5:
+            return Response(
+                {'error': 'Bir so\'rovda 5 tadan ortiq hujjat yuborib bo\'lmaydi'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        current_documents = request.user.document_photos if isinstance(request.user.document_photos, list) else []
+        if len(current_documents) + len(document_photos) > 10:
+            return Response(
+                {'error': 'Akkaunt uchun eng ko\'pi 10 ta hujjat saqlash mumkin'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        validated_photos = []
+        try:
+            for photo in document_photos:
+                validated_photos.append((photo, validate_verification_image(photo)))
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         
         uploaded_files = []
-        for photo in document_photos:
-            try:
-                file_path = f'documents/{request.user.id}/{photo.name}'
+        try:
+            for photo, extension in validated_photos:
+                file_path = f'documents/{request.user.id}/{uuid.uuid4().hex}.{extension}'
                 saved_path = default_storage.save(file_path, photo)
                 uploaded_files.append(saved_path)
-            except Exception as e:
-                return Response({'error': f'Error uploading file {photo.name}: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            for saved_path in uploaded_files:
+                default_storage.delete(saved_path)
+            logger.exception('Verification document upload failed', extra={'event': 'document_upload_failed'})
+            return Response({'error': 'Hujjatni saqlab bo\'lmadi'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-        current_documents = request.user.document_photos if isinstance(request.user.document_photos, list) else []
         request.user.document_photos = current_documents + uploaded_files
         if request.user.is_driver:
             from .verification import mark_driver_verification_pending
@@ -263,6 +308,7 @@ class UpdateFCMTokenView(APIView):
 
 
 class DriverDocumentListCreateView(APIView):
+    serializer_class = DriverDocumentSerializer
     permission_classes = [IsAuthenticated, IsDriver]
 
     @extend_schema(

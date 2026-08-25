@@ -52,7 +52,7 @@ class ErrorService {
           originalError: error,
         };
       }
-      
+
       if (error.code === 'ETIMEDOUT' || error.message?.includes('timeout')) {
         return {
           code: ErrorCode.TIMEOUT_ERROR,
@@ -60,7 +60,7 @@ class ErrorService {
           originalError: error,
         };
       }
-      
+
       if (error.message?.includes('Network Error') || error.isNetworkError) {
         return {
           code: ErrorCode.NETWORK_ERROR,
@@ -68,7 +68,7 @@ class ErrorService {
           originalError: error,
         };
       }
-      
+
       return {
         code: ErrorCode.NETWORK_ERROR,
         message: error.message || 'Network xatolik yuz berdi.',
@@ -82,10 +82,10 @@ class ErrorService {
 
     // Extract error message
     let message = 'Xatolik yuz berdi.';
-    
+
     if (errorData.error) {
-      message = typeof errorData.error === 'string' 
-        ? errorData.error 
+      message = typeof errorData.error === 'string'
+        ? errorData.error
         : JSON.stringify(errorData.error);
     } else if (errorData.detail) {
       message = errorData.detail;
@@ -116,8 +116,8 @@ class ErrorService {
     // Extract non-field errors
     const nonFieldErrors: string[] = [];
     if (errorData.non_field_errors) {
-      nonFieldErrors.push(...(Array.isArray(errorData.non_field_errors) 
-        ? errorData.non_field_errors 
+      nonFieldErrors.push(...(Array.isArray(errorData.non_field_errors)
+        ? errorData.non_field_errors
         : [errorData.non_field_errors]));
     }
 
@@ -131,7 +131,7 @@ class ErrorService {
       code = ErrorCode.DOCUMENT_EXPIRED;
     } else if (errorData.code === 'phone_already_registered') {
       code = ErrorCode.VALIDATION_ERROR;
-    } else switch (statusCode) {
+    } else {switch (statusCode) {
       case 400:
         code = ErrorCode.VALIDATION_ERROR;
         break;
@@ -171,7 +171,7 @@ class ErrorService {
           };
           code = codeMap[errorData.code] || ErrorCode.UNKNOWN_ERROR;
         }
-    }
+    }}
 
     if (code === ErrorCode.RATE_LIMITED) {
       message = 'Juda ko\'p so\'rov yuborildi. Biroz kutib qayta urinib ko\'ring.';
@@ -269,19 +269,19 @@ export const errorService = new ErrorService();
 
 /** AppError (api interceptor) yoki Axios javobidan foydalanuvchiga xabar. */
 export function getApiErrorMessage(error: unknown, fallback = 'Xatolik yuz berdi.'): string {
-  if (!error) return fallback;
-  if (typeof error === 'string') return error;
-  if (typeof error !== 'object') return fallback;
+  if (!error) {return fallback;}
+  if (typeof error === 'string') {return error;}
+  if (typeof error !== 'object') {return fallback;}
 
   const e = error as AppError & {
     response?: { data?: { error?: string; message?: string; detail?: string; code?: string } };
   };
 
-  if (e.code === ErrorCode.PAYMENT_REQUIRED && e.message) return e.message;
-  if (e.message && e.message !== 'Network Error') return e.message;
-  if (typeof e.response?.data?.error === 'string') return e.response.data.error;
-  if (typeof e.response?.data?.message === 'string') return e.response.data.message;
-  if (typeof e.response?.data?.detail === 'string') return e.response.data.detail;
+  if (e.code === ErrorCode.PAYMENT_REQUIRED && e.message) {return e.message;}
+  if (e.message && e.message !== 'Network Error') {return e.message;}
+  if (typeof e.response?.data?.error === 'string') {return e.response.data.error;}
+  if (typeof e.response?.data?.message === 'string') {return e.response.data.message;}
+  if (typeof e.response?.data?.detail === 'string') {return e.response.data.detail;}
 
   return fallback;
 }

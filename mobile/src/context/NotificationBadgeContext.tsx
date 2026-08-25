@@ -5,7 +5,7 @@ import {
   EMPTY_NOTIFICATION_BADGE,
   NotificationBadgeContext,
   type NotificationBadgeContextType,
-} from './notificationBadgeContext';
+} from './notificationBadgeContextDefinition';
 
 export type { NotificationBadgeContextType };
 

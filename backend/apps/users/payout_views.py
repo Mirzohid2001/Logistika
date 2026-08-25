@@ -9,6 +9,7 @@ from drf_spectacular.utils import extend_schema
 from apps.orders.financial import driver_available_payout_balance, driver_earnings_payload
 from apps.users.models import DriverPayoutRequest
 from apps.users.permissions import IsDriver
+from apps.common.openapi import PayoutRequestSerializer
 
 
 class DriverPayoutRequestListCreateView(APIView):
@@ -36,14 +37,7 @@ class DriverPayoutRequestListCreateView(APIView):
         })
 
     @extend_schema(
-        request={
-            'type': 'object',
-            'properties': {
-                'amount': {'type': 'number'},
-                'bank_details': {'type': 'string'},
-            },
-            'required': ['amount'],
-        },
+        request=PayoutRequestSerializer,
         responses={201: {'type': 'object'}},
     )
     def post(self, request):

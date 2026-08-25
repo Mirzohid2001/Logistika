@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from drf_spectacular.utils import extend_schema
 from apps.users.permissions import IsClient, IsDriver
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from django.db.models import Case, When, Value, IntegerField
 from django.db import transaction
 import logging
@@ -13,6 +13,8 @@ from apps.orders.models import Order
 from apps.orders.services import order_pricing_kwargs
 from .serializers import AdvertisementListSerializer, AdvertisementDetailSerializer, AdvertisementCreateSerializer, FavoriteAdvertisementSerializer, SavedSearchSerializer, SavedSearchCreateSerializer
 from apps.notifications.services import create_notification
+from apps.common.pagination import StandardResultsSetPagination
+from apps.common.openapi import EmptySerializer
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +24,22 @@ class AdvertisementListView(APIView):
 
     @extend_schema(responses={200: AdvertisementListSerializer(many=True)})
     def get(self, request):
-        queryset = Advertisement.objects.filter(is_closed=False)
+        queryset = Advertisement.objects.filter(is_closed=False).select_related(
+            'client',
+            'departure_city',
+            'departure_city__country',
+            'destination_city',
+            'destination_city__country',
+        )
+        if request.user.is_authenticated:
+            queryset = queryset.annotate(
+                _is_favorite=Exists(
+                    FavoriteAdvertisement.objects.filter(
+                        user=request.user,
+                        advertisement_id=OuterRef('pk'),
+                    )
+                )
+            )
         
         search_query = request.query_params.get('search', '')
         country_from = request.query_params.get('country_from')
@@ -131,18 +148,38 @@ class AdvertisementListView(APIView):
                     )
                 ).order_by(*nearby_order)
         
-        if trust_order in ('high', 'low'):
-            from apps.users.trust import sort_entities_by_user_trust
+        from apps.users.trust import prepare_client_reputations, sort_entities_by_user_trust
 
-            sorted_items = sort_entities_by_user_trust(
-                list(queryset.select_related('client')),
+        paginator = StandardResultsSetPagination()
+        reputation_cache = {}
+        trust_cache = {}
+        if trust_order in ('high', 'low'):
+            items = list(queryset)
+            reputation_cache, trust_cache = prepare_client_reputations(
+                item.client for item in items
+            )
+            items = sort_entities_by_user_trust(
+                items,
                 'client',
                 reverse=(trust_order == 'high'),
+                cache=trust_cache,
             )
-            serializer = AdvertisementListSerializer(sorted_items, many=True, context={'request': request})
+            page_items = paginator.paginate_queryset(items, request)
         else:
-            serializer = AdvertisementListSerializer(queryset, many=True, context={'request': request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
+            page_items = paginator.paginate_queryset(queryset, request)
+            reputation_cache, trust_cache = prepare_client_reputations(
+                item.client for item in page_items
+            )
+        serializer = AdvertisementListSerializer(
+            page_items,
+            many=True,
+            context={
+                'request': request,
+                'reputation_cache': reputation_cache,
+                'trust_cache': trust_cache,
+            },
+        )
+        return paginator.get_paginated_response(serializer.data)
 
     @extend_schema(request=AdvertisementCreateSerializer, responses={201: AdvertisementDetailSerializer})
     def post(self, request):
@@ -170,6 +207,7 @@ class AdvertisementListView(APIView):
 
 
 class AdvertisementDetailView(APIView):
+    serializer_class = AdvertisementDetailSerializer
     permission_classes = [AllowAny]
 
     @extend_schema(responses={200: AdvertisementDetailSerializer})
@@ -233,6 +271,7 @@ class MyAdvertisementsView(APIView):
 
 
 class AdvertisementAcceptView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsDriver]
 
     @extend_schema(
@@ -410,6 +449,7 @@ class FavoriteAdvertisementListView(APIView):
 
 
 class FavoriteAdvertisementCreateView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated]
 
     @extend_schema(responses={201: FavoriteAdvertisementSerializer})
@@ -435,6 +475,7 @@ class FavoriteAdvertisementCreateView(APIView):
 
 
 class FavoriteAdvertisementDeleteView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, pk):
@@ -469,6 +510,7 @@ class SavedSearchCreateView(APIView):
 
 
 class SavedSearchDetailView(APIView):
+    serializer_class = SavedSearchSerializer
     permission_classes = [IsAuthenticated]
 
     @extend_schema(responses={200: SavedSearchSerializer})
@@ -522,6 +564,7 @@ class SavedSearchApplyView(APIView):
 
 
 class PriceInsightView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -549,6 +592,7 @@ class PriceInsightView(APIView):
 
 
 class BackhaulMatchesView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsDriver]
 
     def get(self, request):
@@ -564,6 +608,7 @@ class BackhaulMatchesView(APIView):
 
 
 class AdvertisementTripEstimateView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -592,6 +637,7 @@ class AdvertisementTripEstimateView(APIView):
 
 
 class AdvertisementLoadFitView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsDriver]
 
     def get(self, request, pk):
@@ -613,6 +659,7 @@ class AdvertisementLoadFitView(APIView):
 
 
 class AdvertisementReorderFromOrderView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsClient]
 
     def post(self, request, order_id):
@@ -640,6 +687,7 @@ class AdvertisementReorderFromOrderView(APIView):
 
 
 class RouteHealthView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -664,6 +712,7 @@ class RouteHealthView(APIView):
 
 
 class DuplicateRiskView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsClient]
 
     def get(self, request):
@@ -701,6 +750,7 @@ class DuplicateRiskView(APIView):
 
 
 class DriverMatchesView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsDriver]
 
     def get(self, request):
@@ -721,6 +771,7 @@ class DriverMatchesView(APIView):
 
 
 class DriverAvailabilityView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsDriver]
 
     def get(self, request):
@@ -760,6 +811,7 @@ class DriverAvailabilityView(APIView):
 
 
 class DriverLaneListCreateView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsDriver]
 
     def get(self, request):
@@ -807,6 +859,7 @@ class DriverLaneListCreateView(APIView):
 
 
 class DriverLaneDetailView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsDriver]
 
     def patch(self, request, pk):

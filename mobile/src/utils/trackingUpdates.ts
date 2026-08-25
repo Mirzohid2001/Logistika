@@ -1,4 +1,4 @@
-import { Order, OrderLocationTrack } from '../types';
+import { Order, OrderLocationTrack, OrderRouteStop } from '../types';
 
 export interface LocationUpdatePayload {
   type?: string;
@@ -48,7 +48,7 @@ function applyRouteStopPayload(order: Order, payload: LocationUpdatePayload): Or
   if (!payload.stop_id || !order.route_stops?.length) {
     return order;
   }
-  const route_stops = order.route_stops.map((stop) => {
+  const route_stops = order.route_stops.map((stop): OrderRouteStop => {
     if (stop.id !== payload.stop_id) {
       return stop;
     }
@@ -72,7 +72,7 @@ function applyRouteStopPayload(order: Order, payload: LocationUpdatePayload): Or
 }
 
 export function applyOrderRealtimePayload(order: Order | null, payload: LocationUpdatePayload): Order | null {
-  if (!order) return order;
+  if (!order) {return order;}
 
   if (payload.type === 'route_stop_completed' || payload.type === 'route_stop_arrived') {
     return applyRouteStopPayload(order, payload);

@@ -25,10 +25,10 @@ const DEFAULT_CENTER = regionFromCenter(41.2995, 69.2401, 0.08);
 const ACTIVE_STATUS_CODES = new Set(['in_progress', 'in_transit', 'approved_by_client', 'pending']);
 
 function statusTone(code?: string): 'active' | 'done' | 'neutral' {
-  if (!code) return 'neutral';
-  if (code === 'completed') return 'done';
-  if (ACTIVE_STATUS_CODES.has(code)) return 'active';
-  if (code === 'cancelled' || code === 'rejected') return 'done';
+  if (!code) {return 'neutral';}
+  if (code === 'completed') {return 'done';}
+  if (ACTIVE_STATUS_CODES.has(code)) {return 'active';}
+  if (code === 'cancelled' || code === 'rejected') {return 'done';}
   return 'neutral';
 }
 

@@ -2,15 +2,15 @@ import { deriveStopSegmentsFromTracks, formatDurationMinutes } from '../utils/tr
 import { OrderLocationTrack } from '../types';
 
 const t = (key: string, opts?: Record<string, unknown>) => {
-  if (key === 'tracking.minutesShort') return `${opts?.count} min`;
-  if (key === 'tracking.hoursShort') return `${opts?.count} h`;
-  if (key === 'tracking.hoursMinutesShort') return `${opts?.hours}h ${opts?.minutes}m`;
-  if (key === 'tracking.lessThanMinute') return '<1m';
+  if (key === 'tracking.minutesShort') {return `${opts?.count} min`;}
+  if (key === 'tracking.hoursShort') {return `${opts?.count} h`;}
+  if (key === 'tracking.hoursMinutesShort') {return `${opts?.hours}h ${opts?.minutes}m`;}
+  if (key === 'tracking.lessThanMinute') {return '<1m';}
   return key;
 };
 
 function track(lat: number, lng: number, timestamp: string): OrderLocationTrack {
-  return { id: timestamp, lat, lng, timestamp };
+  return { id: Date.parse(timestamp), lat, lng, timestamp };
 }
 
 describe('trackStops', () => {

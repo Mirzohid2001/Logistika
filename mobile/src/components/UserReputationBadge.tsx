@@ -23,7 +23,7 @@ export const UserReputationBadge: React.FC<UserReputationBadgeProps> = ({
   const { colors } = useAppTheme();
   const styles = useThemedStyles(createStyles);
   const [detailVisible, setDetailVisible] = useState(false);
-  if (!user) return null;
+  if (!user) {return null;}
 
   const hasRating = (user.average_rating ?? 0) > 0;
   const complaints = user.complaints_received_count ?? 0;

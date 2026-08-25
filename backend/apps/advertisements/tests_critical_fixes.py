@@ -52,7 +52,7 @@ class AdvertisementListFilterTests(TestCase):
     def test_volume_min_filter_uses_volume_m3(self):
         response = self.api.get('/api/advertisements/', {'volume_min': '10'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        returned_ids = {item['id'] for item in response.data}
+        returned_ids = {item['id'] for item in response.data['results']}
         self.assertIn(self.ad_mid.id, returned_ids)
         self.assertIn(self.ad_large.id, returned_ids)
         self.assertNotIn(self.ad_small.id, returned_ids)
@@ -60,7 +60,7 @@ class AdvertisementListFilterTests(TestCase):
     def test_volume_max_filter_uses_volume_m3(self):
         response = self.api.get('/api/advertisements/', {'volume_max': '20'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        returned_ids = {item['id'] for item in response.data}
+        returned_ids = {item['id'] for item in response.data['results']}
         self.assertIn(self.ad_small.id, returned_ids)
         self.assertIn(self.ad_mid.id, returned_ids)
         self.assertNotIn(self.ad_large.id, returned_ids)
@@ -68,7 +68,7 @@ class AdvertisementListFilterTests(TestCase):
     def test_is_fragile_true_maps_to_cargo_category(self):
         response = self.api.get('/api/advertisements/', {'is_fragile': 'true'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        returned_ids = {item['id'] for item in response.data}
+        returned_ids = {item['id'] for item in response.data['results']}
         self.assertIn(self.ad_mid.id, returned_ids)
         self.assertNotIn(self.ad_small.id, returned_ids)
         self.assertNotIn(self.ad_large.id, returned_ids)
@@ -76,7 +76,7 @@ class AdvertisementListFilterTests(TestCase):
     def test_is_fragile_false_excludes_fragile_category(self):
         response = self.api.get('/api/advertisements/', {'is_fragile': 'false'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        returned_ids = {item['id'] for item in response.data}
+        returned_ids = {item['id'] for item in response.data['results']}
         self.assertIn(self.ad_small.id, returned_ids)
         self.assertIn(self.ad_large.id, returned_ids)
         self.assertNotIn(self.ad_mid.id, returned_ids)

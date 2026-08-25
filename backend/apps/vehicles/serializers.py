@@ -1,5 +1,8 @@
 from rest_framework import serializers
+from django.core.files.storage import default_storage
+
 from .models import Vehicle
+from apps.common.file_validation import validate_verification_image
 
 
 class VehicleSerializer(serializers.ModelSerializer):
@@ -31,30 +34,43 @@ class VehicleCreateSerializer(serializers.ModelSerializer):
         if attrs.get('body_type') == 'reefer':
             attrs['is_reefer'] = True
         return attrs
+
+    def validate_document_photos(self, value):
+        if len(value) > 5:
+            raise serializers.ValidationError('Eng ko\'pi 5 ta hujjat rasmi yuborish mumkin')
+        for photo in value:
+            try:
+                validate_verification_image(photo)
+            except ValueError as exc:
+                raise serializers.ValidationError(str(exc)) from exc
+        return value
+
+    @staticmethod
+    def _save_document_photos(vehicle, document_photos):
+        import uuid
+
+        saved_paths = []
+        try:
+            for photo in document_photos:
+                extension = validate_verification_image(photo)
+                file_name = f'vehicles/documents/{vehicle.id}/{uuid.uuid4().hex}.{extension}'
+                saved_paths.append(default_storage.save(file_name, photo))
+        except Exception:
+            for saved_path in saved_paths:
+                default_storage.delete(saved_path)
+            raise
+        return saved_paths
     
     def create(self, validated_data):
         document_photos = validated_data.pop('document_photos', [])
         vehicle = Vehicle.objects.create(**validated_data)
         
         if document_photos:
-            from django.core.files.storage import default_storage
-            from django.core.files.base import ContentFile
-            import os
-            from datetime import datetime
-            
-            photo_urls = []
-            for idx, photo in enumerate(document_photos):
-                if hasattr(photo, 'read'):
-                    file_name = f'vehicles/documents/{vehicle.id}_{datetime.now().timestamp()}_{idx}_{photo.name}'
-                    file_path = default_storage.save(file_name, ContentFile(photo.read()))
-                    photo_urls.append(default_storage.url(file_path))
-                elif hasattr(photo, 'url'):
-                    photo_urls.append(photo.url)
-                elif isinstance(photo, str):
-                    photo_urls.append(photo)
-                else:
-                    photo_urls.append(str(photo))
-            vehicle.document_photos = photo_urls
+            try:
+                vehicle.document_photos = self._save_document_photos(vehicle, document_photos)
+            except Exception:
+                vehicle.delete()
+                raise
 
         extra_fields = ['document_photos'] if document_photos else []
         from apps.users.verification import mark_vehicle_verification_pending
@@ -68,22 +84,18 @@ class VehicleCreateSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         
         if document_photos is not None:
-            photo_urls = []
-            for photo in document_photos:
-                if hasattr(photo, 'url'):
-                    photo_urls.append(photo.url)
-                elif isinstance(photo, str):
-                    photo_urls.append(photo)
-                else:
-                    photo_urls.append(str(photo))
-            instance.document_photos = photo_urls
-            if photo_urls:
+            old_paths = list(instance.document_photos or [])
+            new_paths = self._save_document_photos(instance, document_photos)
+            instance.document_photos = new_paths
+            if new_paths:
                 instance.verification_status = 'pending'
                 instance.is_verified = False
 
         instance.save()
+        for old_path in old_paths if document_photos is not None else []:
+            if isinstance(old_path, str) and old_path.startswith(f'vehicles/documents/{instance.id}/'):
+                default_storage.delete(old_path)
         if document_photos is not None and instance.document_photos:
             from apps.users.verification import mark_vehicle_verification_pending
             mark_vehicle_verification_pending(instance)
         return instance
-

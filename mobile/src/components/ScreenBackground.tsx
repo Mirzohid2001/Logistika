@@ -1,10 +1,10 @@
 import React, { useMemo } from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
+import { View, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { useAppTheme } from '../theme/useAppTheme';
 
 interface ScreenBackgroundProps {
   children: React.ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   withOrbs?: boolean;
 }
 

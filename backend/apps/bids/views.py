@@ -11,6 +11,7 @@ from .serializers import BidSerializer, BidCreateSerializer, BidCounterOfferSeri
 from apps.notifications.services import create_notification
 from apps.orders.realtime import broadcast_order_status_changed
 from apps.users.permissions import can_access_bid
+from apps.common.openapi import EmptySerializer
 
 
 class BidCreateView(APIView):
@@ -97,6 +98,7 @@ class BidCreateView(APIView):
 
 
 class BidAcceptPriceView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsClient]
 
     @extend_schema(responses={200: BidSerializer})
@@ -232,6 +234,7 @@ class BidAcceptPriceView(APIView):
 
 
 class BidRejectView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated]
 
     @extend_schema(responses={200: BidSerializer})
@@ -324,6 +327,7 @@ class BidCounterOfferView(APIView):
 
 
 class BidAgreeCounterView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsDriver]
 
     @extend_schema(responses={200: BidSerializer})

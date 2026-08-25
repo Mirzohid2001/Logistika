@@ -33,7 +33,7 @@ export const TrackingStopHistory: React.FC<TrackingStopHistoryProps> = ({ tracks
       ios: `yandexmaps://maps.yandex.ru/?pt=${lng},${lat}&z=16`,
       android: `yandexmaps://maps.yandex.ru/?pt=${lng},${lat}&z=16`,
     });
-    if (!url) return;
+    if (!url) {return;}
     Linking.canOpenURL(url).then((ok) => {
       Linking.openURL(ok ? url : `https://yandex.ru/maps/?pt=${lng},${lat}&z=16`);
     });

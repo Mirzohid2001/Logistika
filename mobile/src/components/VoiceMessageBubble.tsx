@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { getMediaUrl } from '../services/api';
 import {
@@ -8,7 +8,7 @@ import {
   stopVoicePlayback,
 } from '../services/voiceRecorderService';
 import { useTranslation } from '../hooks/useTranslation';
-import { spacing, borderRadius, fontSize, fontWeight } from '../theme';
+import { spacing, borderRadius } from '../theme';
 import type { AppColors } from '../theme/colors';
 import { useThemedStyles } from '../theme/useThemedStyles';
 import { useAppTheme } from '../theme/useAppTheme';

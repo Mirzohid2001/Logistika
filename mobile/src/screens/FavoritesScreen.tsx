@@ -1,12 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  RefreshControl,
-} from 'react-native';
+import { StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { advertisementsService } from '../services/advertisementsService';
 import { FavoriteAdvertisement, Advertisement } from '../types';
@@ -19,7 +12,6 @@ import { useTranslation } from '../hooks/useTranslation';
 import { spacing, borderRadius, fontSize, fontWeight } from '../theme';
 import type { AppColors } from '../theme/colors';
 import { useThemedStyles } from '../theme/useThemedStyles';
-import { a11yButton } from '../utils/accessibility';
 import { AdvertisementBrowseCard } from '../components/AdvertisementBrowseCard';
 
 const FavoritesScreen = () => {

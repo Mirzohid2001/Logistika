@@ -12,6 +12,13 @@ import logging
 from .models import Chat, Message
 from apps.orders.models import Order
 from apps.common.pagination import StandardResultsSetPagination
+from apps.common.openapi import (
+    ChatCreateRequestSerializer,
+    EmptySerializer,
+    MessageResponseSerializer,
+    MessageReactionRequestSerializer,
+    MessageTextRequestSerializer,
+)
 from apps.common.cache_utils import build_user_cache_key, bump_cache_version, get_cache_version
 from apps.common.exceptions import (
     ValidationError,
@@ -138,7 +145,7 @@ class ChatCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        request={'order_id': 'integer'},
+        request=ChatCreateRequestSerializer,
         responses={201: ChatSerializer}
     )
     def post(self, request):
@@ -167,6 +174,7 @@ class ChatCreateView(APIView):
 
 
 class WebSocketTicketView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -291,9 +299,10 @@ class MessageCreateView(APIView):
 
 
 class MessageMarkReadView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(responses={200: {'message': 'Messages marked as read'}})
+    @extend_schema(responses={200: MessageResponseSerializer})
     def post(self, request, chat_id):
         chat = Chat.objects.select_related('order').filter(pk=chat_id).first()
         
@@ -313,7 +322,7 @@ class MessageUpdateView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        request={'text': 'string'},
+        request=MessageTextRequestSerializer,
         responses={200: MessageSerializer}
     )
     def patch(self, request, message_id):
@@ -340,7 +349,7 @@ class MessageUpdateView(APIView):
 class MessageDeleteView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(responses={200: {'message': 'Message deleted'}})
+    @extend_schema(responses={200: MessageResponseSerializer})
     def delete(self, request, message_id):
         try:
             message = Message.objects.get(pk=message_id, sender=request.user)
@@ -359,7 +368,7 @@ class MessageReactionView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        request={'reaction': 'string'},
+        request=MessageReactionRequestSerializer,
         responses={200: MessageSerializer}
     )
     def post(self, request, message_id):

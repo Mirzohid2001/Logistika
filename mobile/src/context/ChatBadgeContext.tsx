@@ -1,7 +1,11 @@
 import React, { useCallback, useContext, useEffect, useState, ReactNode } from 'react';
 import { chatService } from '../services/chatService';
 import { useAuth } from './AuthContext';
-import { ChatBadgeContext, EMPTY_CHAT_BADGE, type ChatBadgeContextType } from './chatBadgeContext';
+import {
+  ChatBadgeContext,
+  EMPTY_CHAT_BADGE,
+  type ChatBadgeContextType,
+} from './chatBadgeContextDefinition';
 
 export type { ChatBadgeContextType };
 

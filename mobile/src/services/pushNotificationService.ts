@@ -9,6 +9,7 @@ import { User } from '../types';
 import { authService } from './authService';
 import { deviceService } from './deviceService';
 import { handleStopAlertEvent, isHighPriorityNotificationType } from '../utils/trackingAlerts';
+import { userCanAccessPlatform } from '../utils/account';
 
 // Dynamic imports to handle missing packages
 let messaging: any = null;
@@ -185,7 +186,7 @@ class PushNotificationService {
 
     try {
       // Foreground message handler
-      messaging().onMessage(async (remoteMessage) => {
+      messaging().onMessage(async (remoteMessage: any) => {
         console.log('Foreground message:', remoteMessage);
 
         const { notification, data } = remoteMessage;
@@ -222,12 +223,12 @@ class PushNotificationService {
       }
 
       // Background message handler
-      messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+      messaging().setBackgroundMessageHandler(async (remoteMessage: any) => {
         console.log('Background message:', remoteMessage);
       });
 
       // Notification opened handler
-      messaging().onNotificationOpenedApp((remoteMessage) => {
+      messaging().onNotificationOpenedApp((remoteMessage: any) => {
         console.log('Notification opened app:', remoteMessage);
         this.handleNotificationPress(remoteMessage.data);
       });
@@ -235,7 +236,7 @@ class PushNotificationService {
       // Check if app was opened from notification
       messaging()
         .getInitialNotification()
-        .then((remoteMessage) => {
+        .then((remoteMessage: any) => {
           if (remoteMessage) {
             console.log('App opened from notification:', remoteMessage);
             this.handleNotificationPress(remoteMessage.data);

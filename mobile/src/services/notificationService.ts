@@ -47,7 +47,9 @@ export const notificationService = {
   },
 
   async updatePreferences(
-    payload: Partial<NotificationPreferences> & {
+    payload: {
+      push_enabled?: boolean;
+      in_app_enabled?: boolean;
       types?: Record<string, Partial<{ push_enabled: boolean; in_app_enabled: boolean }>>;
     }
   ): Promise<NotificationPreferences> {

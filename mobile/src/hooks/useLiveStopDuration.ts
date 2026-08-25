@@ -8,13 +8,13 @@ export function useLiveStopDuration(
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
-    if (!currentStopStartedAt || status !== 'stopped') return undefined;
+    if (!currentStopStartedAt || status !== 'stopped') {return undefined;}
     const interval = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(interval);
   }, [currentStopStartedAt, status]);
 
-  if (!currentStopStartedAt || status !== 'stopped') return null;
+  if (!currentStopStartedAt || status !== 'stopped') {return null;}
   const started = new Date(currentStopStartedAt).getTime();
-  if (Number.isNaN(started)) return null;
+  if (Number.isNaN(started)) {return null;}
   return Math.max(0, Math.floor((now - started) / 60000));
 }

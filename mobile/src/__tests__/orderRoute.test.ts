@@ -87,12 +87,12 @@ describe('orderRoute', () => {
     expect(canDepartToDestination('in_progress')).toBe(true);
     expect(
       canDepartToDestination('in_progress', [
-        { stop_type: 'pickup', status: 'pending', lat: 41, lng: 69, sequence: 1 },
+        { id: 1, label: 'Pickup', address: 'A', stop_type: 'pickup', status: 'pending', lat: 41, lng: 69, sequence: 1 },
       ]),
     ).toBe(false);
     expect(
       canDepartToDestination('in_progress', [
-        { stop_type: 'pickup', status: 'arrived', lat: 41, lng: 69, sequence: 1 },
+        { id: 1, label: 'Pickup', address: 'A', stop_type: 'pickup', status: 'arrived', lat: 41, lng: 69, sequence: 1 },
       ]),
     ).toBe(true);
     expect(canFinishTrip('in_transit')).toBe(true);
@@ -109,9 +109,9 @@ describe('orderRoute', () => {
       departure_address: 'addr a',
       destination_address: 'addr b',
     } as Advertisement;
-    const endpoints = resolveFallbackRouteEndpoints(ad);
-    expect(endpoints?.departure.latitude).toBeCloseTo(39.7681, 3);
-    expect(endpoints?.destination.latitude).toBeCloseTo(41.2995, 3);
+    const resolvedEndpoints = resolveFallbackRouteEndpoints(ad);
+    expect(resolvedEndpoints?.departure.latitude).toBeCloseTo(39.7681, 3);
+    expect(resolvedEndpoints?.destination.latitude).toBeCloseTo(41.2995, 3);
   });
 
   it('getEffectiveRouteEndpoints prefers cached values', () => {

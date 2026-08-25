@@ -6,6 +6,26 @@ import { normalizePhone } from '../utils/phone';
 import { secureTokenStorage } from './secureTokenStorage';
 
 export const authService = {
+  async startTelegramAuth(data: {
+    mode: 'login' | 'register';
+    is_driver?: boolean;
+    company_inn?: string;
+  }): Promise<{ authorization_url: string; expires_in: number }> {
+    const device_id = await deviceService.getDeviceId();
+    return apiService.post('/auth/telegram/start/', { ...data, device_id }, undefined, false);
+  },
+
+  async completeTelegramAuth(ticket: string): Promise<AuthResponse> {
+    const response = await apiService.post<AuthResponse>(
+      '/auth/telegram/complete/',
+      { ticket },
+      undefined,
+      false,
+    );
+    await this.saveTokens(response);
+    return response;
+  },
+
   async sendSMSCode(phone: string): Promise<{ message: string }> {
     return apiService.post('/auth/send-sms-code/', { phone: normalizePhone(phone) });
   },
@@ -177,5 +197,4 @@ export const authService = {
     return apiService.post('/auth/payout-requests/', data);
   },
 };
-
 

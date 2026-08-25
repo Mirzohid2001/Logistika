@@ -38,11 +38,6 @@ export function useSmoothDriverLocation(
   const targetRef = useRef<DriverMotionTarget | null>(target ? toMotionTarget(target) : null);
   const routeRef = useRef<LatLng[] | null>(routePolyline);
 
-  const heading = (target as DriverMotionTarget | null)?.heading;
-  const speedMps = (target as DriverMotionTarget | null)?.speedMps;
-  const updatedAtMs = (target as DriverMotionTarget | null)?.updatedAtMs;
-  const routeProgressM = (target as DriverMotionTarget | null)?.routeProgressM;
-
   useEffect(() => {
     routeRef.current = routePolyline;
   }, [routePolyline]);
@@ -61,7 +56,7 @@ export function useSmoothDriverLocation(
       displayRef.current = snap;
       setDisplay(snap);
     }
-  }, [target?.latitude, target?.longitude, heading, speedMps, updatedAtMs, routeProgressM, enabled]);
+  }, [target, enabled]);
 
   useEffect(() => {
     if (!enabled) {
@@ -79,7 +74,7 @@ export function useSmoothDriverLocation(
     const interval = setInterval(() => {
       const fix = targetRef.current;
       const cur = displayRef.current;
-      if (!fix) return;
+      if (!fix) {return;}
       const predicted = computeDeadReckonedTarget(fix, Date.now(), {
         routePolyline: routeRef.current,
       });
@@ -89,7 +84,7 @@ export function useSmoothDriverLocation(
         return;
       }
       const next = computeNextSmoothLocation(cur, predicted);
-      if (!next) return;
+      if (!next) {return;}
       if (shouldSkipMarkerUpdate(cur, next)) {
         return;
       }

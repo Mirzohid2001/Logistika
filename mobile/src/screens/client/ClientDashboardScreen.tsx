@@ -101,12 +101,12 @@ const ClientDashboardScreen = () => {
         activeOrders: activeOrdersRaw
           ? Array.isArray(activeOrdersRaw)
             ? activeOrdersRaw
-            : activeOrdersRaw.results || []
+            : (activeOrdersRaw as any).results || []
           : prev?.activeOrders || [],
         myAdvertisements: myAdvertisementsRaw
           ? Array.isArray(myAdvertisementsRaw)
             ? myAdvertisementsRaw
-            : myAdvertisementsRaw.results || []
+            : (myAdvertisementsRaw as any).results || []
           : prev?.myAdvertisements || [],
       }));
       setLastUpdatedAt(new Date().toISOString());

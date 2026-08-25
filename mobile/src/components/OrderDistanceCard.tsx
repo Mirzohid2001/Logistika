@@ -19,7 +19,7 @@ export const OrderDistanceCard: React.FC<OrderDistanceCardProps> = ({ order, com
   const { colors } = useAppTheme();
   const { t } = useTranslation();
   const distance = getOrderDistanceInfo(order);
-  if (!distance) return null;
+  if (!distance) {return null;}
 
   const rows = [
     distance.planned_distance_km != null && distance.planned_distance_km > 0
@@ -59,7 +59,7 @@ export const OrderDistanceCard: React.FC<OrderDistanceCardProps> = ({ order, com
       : null,
   ].filter(Boolean) as Array<{ icon: string; label: string; value: string }>;
 
-  if (!rows.length) return null;
+  if (!rows.length) {return null;}
 
   return (
     <View style={styles.container}>

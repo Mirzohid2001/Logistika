@@ -84,7 +84,7 @@ export function useSmoothFleetLocations(
       return;
     }
     setDisplayById(nextDisplay);
-  }, [signature, enabled]);
+  }, [signature, enabled, targets]);
 
   useEffect(() => {
     if (!enabled) {

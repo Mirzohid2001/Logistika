@@ -3,13 +3,22 @@ import uuid
 import hashlib
 import hmac
 import json
+import logging
 from django.conf import settings
+from apps.common.services import external_http_timeout
+
+
+logger = logging.getLogger(__name__)
 
 
 class PaymentSecurityService:
     @staticmethod
     def get_client_ip(request):
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        x_forwarded_for = (
+            request.META.get('HTTP_X_FORWARDED_FOR')
+            if settings.TRUST_X_FORWARDED_FOR
+            else None
+        )
         if x_forwarded_for:
             ip = x_forwarded_for.split(',')[0]
         else:
@@ -36,9 +45,10 @@ class ClickPaymentService:
                 'merchant_trans_id': merchant_trans_id,
                 'transaction_param': str(order_id or payment_id or uuid.uuid4()),
             }
-            response = requests.post(url, json=data)
+            response = requests.post(url, json=data, timeout=external_http_timeout())
             return response.json() if response.status_code == 200 else None
         except Exception:
+            logger.exception('Click payment creation failed', extra={'event': 'click_create_failed'})
             return None
 
     @staticmethod
@@ -62,12 +72,13 @@ class ClickPaymentService:
                 'transaction_id': transaction_id,
                 'amount': float(amount),
             }
-            response = requests.post(url, json=data)
+            response = requests.post(url, json=data, timeout=external_http_timeout())
             if response.status_code == 200:
                 return {'success': True, 'data': response.json()}
             return {'success': False, 'error': 'Refund failed'}
-        except Exception as e:
-            return {'success': False, 'error': str(e)}
+        except Exception:
+            logger.exception('Click refund failed', extra={'event': 'click_refund_failed'})
+            return {'success': False, 'error': 'Payment provider unavailable'}
 
 
 class PaymePaymentService:
@@ -87,9 +98,10 @@ class PaymePaymentService:
             headers = {
                 'X-Auth': settings.PAYME_KEY,
             }
-            response = requests.post(url, json=data, headers=headers)
+            response = requests.post(url, json=data, headers=headers, timeout=external_http_timeout())
             return response.json() if response.status_code == 200 else None
         except Exception:
+            logger.exception('Payme payment creation failed', extra={'event': 'payme_create_failed'})
             return None
 
     @staticmethod
@@ -128,12 +140,13 @@ class PaymePaymentService:
             headers = {
                 'X-Auth': settings.PAYME_KEY,
             }
-            response = requests.post(url, json=data, headers=headers)
+            response = requests.post(url, json=data, headers=headers, timeout=external_http_timeout())
             if response.status_code == 200:
                 return {'success': True, 'data': response.json()}
             return {'success': False, 'error': 'Refund failed'}
-        except Exception as e:
-            return {'success': False, 'error': str(e)}
+        except Exception:
+            logger.exception('Payme refund failed', extra={'event': 'payme_refund_failed'})
+            return {'success': False, 'error': 'Payment provider unavailable'}
 
 
 class UzumPaymentService:
@@ -149,9 +162,10 @@ class UzumPaymentService:
             headers = {
                 'Authorization': f'Bearer {settings.UZUM_SECRET_KEY}',
             }
-            response = requests.post(url, json=data, headers=headers)
+            response = requests.post(url, json=data, headers=headers, timeout=external_http_timeout())
             return response.json() if response.status_code == 200 else None
         except Exception:
+            logger.exception('Uzum payment creation failed', extra={'event': 'uzum_create_failed'})
             return None
 
     @staticmethod
@@ -159,11 +173,12 @@ class UzumPaymentService:
         if not settings.UZUM_SECRET_KEY:
             return settings.DEBUG
         
-        signature = data.pop('signature', '')
+        signed_data = data.copy()
+        signature = signed_data.pop('signature', '')
         if not signature:
             return False
         
-        sorted_data = sorted(data.items())
+        sorted_data = sorted(signed_data.items())
         message = '&'.join([f"{key}={value}" for key, value in sorted_data])
         expected_signature = hmac.new(
             settings.UZUM_SECRET_KEY.encode('utf-8'),
@@ -185,9 +200,10 @@ class UzumPaymentService:
             headers = {
                 'Authorization': f'Bearer {settings.UZUM_SECRET_KEY}',
             }
-            response = requests.post(url, json=data, headers=headers)
+            response = requests.post(url, json=data, headers=headers, timeout=external_http_timeout())
             if response.status_code == 200:
                 return {'success': True, 'data': response.json()}
             return {'success': False, 'error': 'Refund failed'}
-        except Exception as e:
-            return {'success': False, 'error': str(e)}
+        except Exception:
+            logger.exception('Uzum refund failed', extra={'event': 'uzum_refund_failed'})
+            return {'success': False, 'error': 'Payment provider unavailable'}

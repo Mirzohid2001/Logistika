@@ -62,18 +62,18 @@ export const chatService = {
   async uploadFile(chatId: number, fileUri: string, fileName: string, fileType: string): Promise<Message> {
     const formData = new FormData();
     formData.append('chat_id', chatId.toString());
-    
+
     // File object ni to'g'ri formatda yaratish
     const fileObject: any = {
       uri: fileUri,
       type: fileType,
       name: fileName,
     };
-    
+
     formData.append('file', fileObject);
 
     console.log('Uploading file:', { chatId, fileName, fileType, uri: fileUri });
-    
+
     return apiService.post('/chats/messages/upload-file/', formData);
   },
 

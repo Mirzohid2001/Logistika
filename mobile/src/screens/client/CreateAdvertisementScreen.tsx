@@ -40,10 +40,10 @@ const COORDS_IN_ADDRESS_RE = /\((-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\)\s*$/;
 
 function parseCoordsFromAddress(address: string): { latitude: number; longitude: number } | null {
   const match = COORDS_IN_ADDRESS_RE.exec(address || '');
-  if (!match) return null;
+  if (!match) {return null;}
   const latitude = parseFloat(match[1]);
   const longitude = parseFloat(match[2]);
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {return null;}
   return { latitude, longitude };
 }
 

@@ -41,7 +41,7 @@ function getAvailableStacks(nav: NavigationLike): string[] {
   if (!routes) {
     return [];
   }
-  return routes.map((route) => route.name);
+  return routes.map((route: any) => route.name);
 }
 
 type RoleStack = 'ClientStack' | 'DriverStack' | 'DispatcherStack' | 'UpdaterStack';
@@ -298,10 +298,10 @@ export function getPrimaryRole(user: {
   is_dispatcher?: boolean;
   is_updater?: boolean;
 } | null): UserRole {
-  if (!user) return null;
-  if (user.is_dispatcher) return 'dispatcher';
-  if (user.is_updater) return 'updater';
-  if (user.is_driver) return 'driver';
-  if (user.is_client) return 'client';
+  if (!user) {return null;}
+  if (user.is_dispatcher) {return 'dispatcher';}
+  if (user.is_updater) {return 'updater';}
+  if (user.is_driver) {return 'driver';}
+  if (user.is_client) {return 'client';}
   return null;
 }

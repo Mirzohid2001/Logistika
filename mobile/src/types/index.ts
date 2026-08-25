@@ -33,6 +33,9 @@ export interface UserAccountStatus {
 export interface User {
   id: number;
   phone: string;
+  telegram_id?: number | null;
+  telegram_username?: string;
+  telegram_photo_url?: string;
   first_name: string;
   last_name: string;
   email?: string;
@@ -1080,4 +1083,3 @@ export interface DuplicateRiskInsight {
     is_closed: boolean;
   }>;
 }
-

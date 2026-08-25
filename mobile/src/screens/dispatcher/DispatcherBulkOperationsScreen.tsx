@@ -77,7 +77,7 @@ const DispatcherBulkOperationsScreen = () => {
       const result = await dispatcherService.bulkOperations({
         order_ids: selectedOrders,
         action,
-        driver_id: driverId ? parseInt(driverId) : undefined,
+        driver_id: driverId ? parseInt(driverId, 10) : undefined,
         notes: notes || undefined,
       });
 

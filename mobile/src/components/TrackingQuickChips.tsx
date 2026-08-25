@@ -21,7 +21,7 @@ export const TrackingQuickChips: React.FC<TrackingQuickChipsProps> = ({
   const styles = useThemedStyles(createStyles);
   const { colors } = useAppTheme();
   const { t } = useTranslation();
-  if (!trackingSummary) return null;
+  if (!trackingSummary) {return null;}
 
   const statusColor =
     trackingSummary.status === 'stopped'

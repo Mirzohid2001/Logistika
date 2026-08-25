@@ -1,0 +1,22 @@
+diff --git a/node_modules/image-size/dist/types/icns.js b/node_modules/image-size/dist/types/icns.js
+index f2bfafe..8a17039 100644
+--- a/node_modules/image-size/dist/types/icns.js
++++ b/node_modules/image-size/dist/types/icns.js
+@@ -81,6 +81,8 @@ exports.ICNS = {
+         const fileLength = (0, utils_1.readUInt32BE)(input, FILE_LENGTH_OFFSET);
+         let imageOffset = SIZE_HEADER;
+         let imageHeader = readImageHeader(input, imageOffset);
++        if (imageHeader[1] < SIZE_HEADER)
++            throw new TypeError('Invalid ICNS entry length');
+         let imageSize = getImageSize(imageHeader[0]);
+         imageOffset += imageHeader[1];
+         if (imageOffset === fileLength)
+@@ -92,6 +94,8 @@ exports.ICNS = {
+         };
+         while (imageOffset < fileLength && imageOffset < inputLength) {
+             imageHeader = readImageHeader(input, imageOffset);
++            if (imageHeader[1] < SIZE_HEADER)
++                throw new TypeError('Invalid ICNS entry length');
+             imageSize = getImageSize(imageHeader[0]);
+             imageOffset += imageHeader[1];
+             result.images.push(imageSize);

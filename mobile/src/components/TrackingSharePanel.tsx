@@ -7,10 +7,9 @@ import { Card } from './Card';
 import { ordersService } from '../services/ordersService';
 import { useTranslation } from '../hooks/useTranslation';
 import { buildTrackingShareMessage, parseTrackingShareToken } from '../utils/shareTrackingLink';
-import { spacing, borderRadius, fontSize, fontWeight } from '../theme';
+import { spacing, fontSize, fontWeight } from '../theme';
 import type { AppColors } from '../theme/colors';
 import { useThemedStyles } from '../theme/useThemedStyles';
-import { useAppTheme } from '../theme/useAppTheme';
 
 type TrackingSharePanelProps = {
   orderId: number;
@@ -24,7 +23,6 @@ export const TrackingSharePanel: React.FC<TrackingSharePanelProps> = ({
   title,
 }) => {
   const styles = useThemedStyles(createStyles);
-  const { colors } = useAppTheme();
   const { t } = useTranslation();
   const navigation = useNavigation();
   const [shareLoading, setShareLoading] = useState(false);

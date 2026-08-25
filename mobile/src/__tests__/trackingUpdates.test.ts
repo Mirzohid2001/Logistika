@@ -7,6 +7,10 @@ import { Order } from '../types';
 
 const baseOrder: Order = {
   id: 1,
+  advertisement: 1,
+  driver: 2,
+  client: 3,
+  created_at: '2026-01-01T09:00:00Z',
   status: { id: 1, code: 'in_progress', name: 'In progress' },
   current_location_lat: 39.1,
   current_location_lng: 64.4,

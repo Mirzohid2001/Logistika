@@ -31,9 +31,10 @@ export function useSmoothNavCamera(
   const cameraRef = useRef<SmoothNavCamera | null>(null);
   const targetRef = useRef({ coordinate, heading, speedMps, enabled });
   targetRef.current = { coordinate, heading, speedMps, enabled };
+  const hasCoordinate = coordinate !== null;
 
   useEffect(() => {
-    if (!enabled || !coordinate) {
+    if (!enabled || !targetRef.current.coordinate) {
       return;
     }
 
@@ -73,7 +74,7 @@ export function useSmoothNavCamera(
     }, LIVE_CAMERA_TICK_MS);
 
     return () => clearInterval(interval);
-  }, [enabled, Boolean(coordinate)]);
+  }, [enabled, hasCoordinate]);
 
   if (!enabled) {
     return null;

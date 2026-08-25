@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import Geolocation from 'react-native-geolocation-service';
 import { ordersService } from '../services/ordersService';
 import { useTranslation } from '../hooks/useTranslation';
@@ -22,7 +22,7 @@ export const SOSButton: React.FC<SOSButtonProps> = ({ orderId, disabled }) => {
   const [sent, setSent] = useState(false);
 
   const handlePress = () => {
-    if (loading || disabled) return;
+    if (loading || disabled) {return;}
     setLoading(true);
     Geolocation.getCurrentPosition(
       async (position) => {

@@ -12,7 +12,7 @@ export function handleStopAlertEvent(
   payload: StopAlertPayload,
   options?: { fallbackMessage?: string; vibrate?: boolean },
 ): void {
-  if (payload.type && payload.type !== 'stop_alert') return;
+  if (payload.type && payload.type !== 'stop_alert') {return;}
 
   const orderId = payload.order_id != null ? Number(payload.order_id) : null;
   const level = payload.level === 'critical' ? 'critical' : 'warning';

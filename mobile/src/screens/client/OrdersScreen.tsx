@@ -11,7 +11,6 @@ import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/nativ
 import { ordersService } from '../../services/ordersService';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Order } from '../../types';
-import { Card } from '../../components/Card';
 import { EmptyState } from '../../components/EmptyState';
 import { AppHeader } from '../../components/AppHeader';
 import { SkeletonCard } from '../../components/Skeleton';

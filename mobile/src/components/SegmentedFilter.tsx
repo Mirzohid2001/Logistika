@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { borderRadius, fontSize, fontWeight, shadows, spacing } from '../theme';
 import { useAppTheme } from '../theme/useAppTheme';
 

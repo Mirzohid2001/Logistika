@@ -28,9 +28,7 @@ services:
   web:
     build:
       context: ./backend
-    command: daphne -b 0.0.0.0 -p 8000 config.asgi:application
-    env_file:
-      - ./backend/.env
+    command: sh -c "python manage.py migrate --noinput && daphne -b 0.0.0.0 -p 8000 config.asgi:application"
     environment:
       POSTGRES_HOST: db
       POSTGRES_DB: logistika
@@ -40,7 +38,13 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       DEBUG: "False"
-      SERVE_LOCAL_MEDIA: "True"
+      SECRET_KEY: ${SECRET_KEY:-compose-development-only-secret-change-before-production}
+      SECURE_SSL_REDIRECT: "False"
+      SERVE_LOCAL_MEDIA: "False"
+      TELEGRAM_AUTH_CLIENT_ID: ${TELEGRAM_AUTH_CLIENT_ID:-}
+      TELEGRAM_AUTH_CLIENT_SECRET: ${TELEGRAM_AUTH_CLIENT_SECRET:-}
+      TELEGRAM_AUTH_REDIRECT_URI: ${TELEGRAM_AUTH_REDIRECT_URI:-}
+      TELEGRAM_AUTH_MOBILE_REDIRECT_URI: ${TELEGRAM_AUTH_MOBILE_REDIRECT_URI:-logistika://auth/telegram}
     volumes:
       - ./backend/media:/app/media
     ports:
@@ -61,15 +65,16 @@ services:
     build:
       context: ./backend
     command: celery -A config worker -l info
-    env_file:
-      - ./backend/.env
     environment:
       POSTGRES_HOST: db
       POSTGRES_DB: logistika
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      REDIS_URL: redis://redis:6379/1
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+      DEBUG: "False"
+      SECRET_KEY: ${SECRET_KEY:-compose-development-only-secret-change-before-production}
     depends_on:
       - db
       - redis
@@ -79,11 +84,16 @@ services:
     build:
       context: ./backend
     command: celery -A config beat -l info
-    env_file:
-      - ./backend/.env
     environment:
+      POSTGRES_HOST: db
+      POSTGRES_DB: logistika
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      REDIS_URL: redis://redis:6379/1
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+      DEBUG: "False"
+      SECRET_KEY: ${SECRET_KEY:-compose-development-only-secret-change-before-production}
     depends_on:
       - redis
       - celery

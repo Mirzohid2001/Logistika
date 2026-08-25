@@ -14,6 +14,7 @@ from apps.orders.documents import (
     serialize_order_document,
 )
 from apps.users.permissions import can_access_order
+from apps.common.openapi import EmptySerializer
 
 
 def _order_for_docs(pk: int) -> Order:
@@ -85,6 +86,7 @@ class OrderDocumentListView(APIView):
 
 
 class OrderDocumentGenerateView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated]
 
     @extend_schema(responses={200: {'type': 'object'}})

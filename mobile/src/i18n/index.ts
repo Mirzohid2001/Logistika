@@ -16,7 +16,7 @@ const LANGUAGE_DETECTOR = {
         callback(savedLanguage);
         return;
       }
-      
+
       callback('uz');
     } catch (error) {
       callback('uz');

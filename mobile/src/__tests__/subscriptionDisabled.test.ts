@@ -12,13 +12,15 @@ const marketplaceUser: User = {
   last_name: 'User',
   is_driver: true,
   is_client: false,
+  is_verified: true,
+  created_at: '2026-01-01T00:00:00Z',
   account: {
     role: 'driver',
     is_staff: false,
     subscription_required: true,
     subscription_active: false,
     can_access_platform: false,
-    trial: { remaining: 0, granted: 3, consumed: 3, disabled: false },
+    trial: { enabled: true, remaining: 0, granted: 3, consumed: 3, disabled: false },
     driver_verification_required: false,
     company_inn_required: false,
     subscription: {

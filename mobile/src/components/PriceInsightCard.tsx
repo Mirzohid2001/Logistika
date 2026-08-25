@@ -46,11 +46,11 @@ export const PriceInsightCard: React.FC<PriceInsightCardProps> = ({
           to_city: toCityId,
           weight: weight ? Number(weight) : undefined,
         });
-        if (!cancelled) setInsight(data);
+        if (!cancelled) {setInsight(data);}
       } catch {
-        if (!cancelled) setInsight(null);
+        if (!cancelled) {setInsight(null);}
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {setLoading(false);}
       }
     };
     load();

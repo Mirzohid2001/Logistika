@@ -15,6 +15,7 @@ from .password_views import ResetPasswordView
 from .company_views import CompanyMembersView, CompanyBootstrapView, CompanyProfileView
 from .payout_views import DriverPayoutRequestListCreateView
 from .analytics_views import AdvancedAnalyticsView
+from .telegram_views import TelegramAuthCallbackView, TelegramAuthCompleteView, TelegramAuthStartView
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
@@ -29,9 +30,11 @@ urlpatterns = [
     path('driver-documents/monitoring/', DriverDocumentMonitoringView.as_view(), name='driver-documents-monitoring'),
     path('analytics/', AdvancedAnalyticsView.as_view(), name='analytics'),
     path('reset-password/', ResetPasswordView.as_view(), name='reset-password'),
+    path('telegram/start/', TelegramAuthStartView.as_view(), name='telegram-start'),
+    path('telegram/callback/', TelegramAuthCallbackView.as_view(), name='telegram-callback'),
+    path('telegram/complete/', TelegramAuthCompleteView.as_view(), name='telegram-complete'),
     path('company/', CompanyProfileView.as_view(), name='company-profile'),
     path('company/members/', CompanyMembersView.as_view(), name='company-members'),
     path('company/bootstrap/', CompanyBootstrapView.as_view(), name='company-bootstrap'),
     path('payout-requests/', DriverPayoutRequestListCreateView.as_view(), name='payout-requests'),
 ]
-

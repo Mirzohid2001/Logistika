@@ -9,6 +9,7 @@ export const appLinkingConfig = {
         screens: {
           Login: 'login',
           Register: 'register',
+          TelegramAuth: 'telegram',
           ForgotPassword: 'forgot-password',
         },
       },

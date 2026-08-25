@@ -15,12 +15,15 @@ import {
   setStoredActiveMarketplaceRole,
   type MarketplaceRole,
 } from '../utils/marketplaceRole';
-import { AuthContext, type AuthContextType, type RegisterData } from './authContext';
+import { AuthContext, type AuthContextType } from './authContextDefinition';
 
-export type { AuthContextType, RegisterData };
+export type { AuthContextType };
 
 const isRateLimitedError = (error: any): boolean =>
   error?.code === ErrorCode.RATE_LIMITED || error?.statusCode === 429;
+
+const isAuthError = (error: any): boolean =>
+  error?.code === ErrorCode.AUTHENTICATION_ERROR || error?.statusCode === 401;
 
 const USER_REFRESH_MIN_INTERVAL_MS = 45_000;
 
@@ -32,10 +35,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const isLoadingRef = React.useRef<boolean>(true);
   const lastUserRefreshAtRef = React.useRef(0);
   const userRefreshInFlightRef = React.useRef<Promise<void> | null>(null);
-
-  const isAuthError = (error: any): boolean =>
-    error?.code === ErrorCode.AUTHENTICATION_ERROR ||
-    error?.statusCode === 401;
 
   const syncActiveMarketplaceRole = React.useCallback(async (nextUser: User | null) => {
     if (resolveStaffRole(nextUser)) {
@@ -107,11 +106,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return unsubscribe;
   }, []);
 
-  useEffect(() => {
-    loadUser();
-  }, []);
-
-  const loadUser = async () => {
+  const loadUser = React.useCallback(async () => {
     try {
       const token = await authService.isAuthenticated();
       if (token) {
@@ -157,7 +152,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [syncActiveMarketplaceRole]);
+
+  useEffect(() => {
+    void loadUser();
+  }, [loadUser]);
 
   const login = async (phone: string, password: string) => {
     const response = await authService.login(phone, password);
@@ -170,8 +169,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const register = async (data: RegisterData) => {
-    const response = await authService.register(data);
+  const completeTelegramAuth = async (ticket: string) => {
+    const response = await authService.completeTelegramAuth(ticket);
     setUser(response.user);
     await authService.saveUser(response.user);
     await syncActiveMarketplaceRole(response.user);
@@ -255,7 +254,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     canSwitchMarketplaceRole: canSwitchMarketplaceRole(user),
     setActiveMarketplaceRole,
     login,
-    register,
+    completeTelegramAuth,
     logout,
     updateUser,
     refreshUser,

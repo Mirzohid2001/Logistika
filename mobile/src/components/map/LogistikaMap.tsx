@@ -1,5 +1,5 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { StyleProp, ViewStyle } from 'react-native';
+import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import {
   MapView,
   Camera,
@@ -269,16 +269,18 @@ export const LogistikaMap = forwardRef<LogistikaMapRef, LogistikaMapProps>(
     };
 
     return (
-      <MapView
-        ref={mapViewRef}
+      <View
         style={style}
-        mapStyle={mapStyle}
-        preferredFramesPerSecond={LIVE_MAP_FPS}
-        regionDidChangeDebounceTime={LIVE_REGION_DEBOUNCE_MS}
         onTouchStart={() => {
           setManualCameraActive(true);
           onTouchStart?.();
-        }}
+        }}>
+      <MapView
+        ref={mapViewRef}
+        style={mapStyles.map}
+        mapStyle={mapStyle}
+        preferredFramesPerSecond={LIVE_MAP_FPS}
+        regionDidChangeDebounceTime={LIVE_REGION_DEBOUNCE_MS}
         scrollEnabled={scrollEnabled}
         zoomEnabled={zoomEnabled}
         rotateEnabled={rotateEnabled}
@@ -301,8 +303,13 @@ export const LogistikaMap = forwardRef<LogistikaMapRef, LogistikaMapProps>(
         )}
         {children}
       </MapView>
+      </View>
     );
   },
 );
+
+const mapStyles = StyleSheet.create({
+  map: { flex: 1 },
+});
 
 LogistikaMap.displayName = 'LogistikaMap';

@@ -1,7 +1,10 @@
+from io import BytesIO
+import tempfile
 from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
+from PIL import Image
 from rest_framework.test import APIClient
 
 from apps.notifications.models import Notification
@@ -9,8 +12,20 @@ from apps.users.models import User
 from apps.vehicles.models import Vehicle
 
 
-@override_settings(MEDIA_ROOT='/tmp/logistika_test_media')
 class DriverVerificationOnboardingTests(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.media_directory = tempfile.TemporaryDirectory(prefix='logistika-test-media-')
+        cls.media_override = override_settings(MEDIA_ROOT=cls.media_directory.name)
+        cls.media_override.enable()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.media_override.disable()
+        cls.media_directory.cleanup()
+        super().tearDownClass()
+
     def setUp(self):
         self.driver = User.objects.create_user(
             phone='998901100099',
@@ -31,7 +46,9 @@ class DriverVerificationOnboardingTests(TestCase):
     @patch('apps.notifications.services.deliver_push_queue_item', return_value=True)
     def test_upload_documents_sets_pending_and_notifies_reviewers(self, _mock_push):
         self.client.force_authenticate(user=self.driver)
-        photo = SimpleUploadedFile('passport.jpg', b'fake-image', content_type='image/jpeg')
+        image_bytes = BytesIO()
+        Image.new('RGB', (8, 8), color='white').save(image_bytes, format='JPEG')
+        photo = SimpleUploadedFile('passport.jpg', image_bytes.getvalue(), content_type='image/jpeg')
         response = self.client.post(
             '/api/auth/upload-documents/',
             {'document_photos': photo},

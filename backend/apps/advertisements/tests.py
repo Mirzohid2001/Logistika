@@ -28,6 +28,7 @@ def create_test_ad(client, city, **extra):
         'departure_city': city,
         'destination_address': 'Test destination',
         'destination_city': city,
+        'proposed_cost': Decimal('100000'),
     }
     data.update(extra)
     return Advertisement.objects.create(**data)
@@ -138,8 +139,8 @@ class AdvertisementAPITest(TestCase):
         create_test_ad(self.client_user, self.city)
         response = self.client.get('/api/advertisements/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertIn('title', response.data[0])
+        self.assertEqual(response.data['count'], 1)
+        self.assertIn('title', response.data['results'][0])
 
     def test_get_my_advertisements(self):
         self.client.force_authenticate(user=self.client_user)

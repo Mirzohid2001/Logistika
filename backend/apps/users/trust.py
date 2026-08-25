@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count, F, Q
 
 from apps.orders.models import Order
 from apps.ratings.models import Complaint, Rating
@@ -125,6 +125,110 @@ def compute_user_trust(user) -> dict:
             'completed_orders': completed_orders,
         },
     }
+
+
+def prepare_client_reputations(users) -> tuple[dict, dict]:
+    """Build reputation and exact client trust caches in a constant query count."""
+    user_ids = {user.pk for user in users if user and user.pk}
+    if not user_ids:
+        return {}, {}
+
+    rating_stats = {
+        row['to_user_id']: row
+        for row in Rating.objects.filter(to_user_id__in=user_ids)
+        .values('to_user_id')
+        .annotate(avg=Avg('rating'), total=Count('id'))
+    }
+    complaint_stats = {
+        row['to_user_id']: row
+        for row in Complaint.objects.filter(to_user_id__in=user_ids)
+        .values('to_user_id')
+        .annotate(
+            total=Count('id'),
+            pending=Count('id', filter=Q(status__in=('pending', 'in_review'))),
+        )
+    }
+    order_stats = {
+        row['client_id']: row
+        for row in Order.objects.filter(client_id__in=user_ids)
+        .values('client_id')
+        .annotate(
+            total=Count('id'),
+            completed=Count('id', filter=Q(status__code='completed')),
+            cancelled=Count('id', filter=Q(status__code='cancelled')),
+            rejected=Count('id', filter=Q(status__code='rejected')),
+            stopped=Count('id', filter=Q(status__code='stopped')),
+            on_time_eligible=Count(
+                'id',
+                filter=Q(status__code='completed', advertisement__delivery_deadline__isnull=False),
+            ),
+            on_time=Count(
+                'id',
+                filter=Q(
+                    status__code='completed',
+                    advertisement__delivery_deadline__isnull=False,
+                    completed_at__lte=F('advertisement__delivery_deadline'),
+                ),
+            ),
+        )
+    }
+
+    reputation_cache = {}
+    trust_cache = {}
+    for user_id in user_ids:
+        ratings = rating_stats.get(user_id, {})
+        complaints = complaint_stats.get(user_id, {})
+        orders = order_stats.get(user_id, {})
+        average_rating = float(ratings.get('avg') or 0)
+        total_ratings = int(ratings.get('total') or 0)
+        total_orders = int(orders.get('total') or 0)
+        completed_orders = int(orders.get('completed') or 0)
+        failed_orders = int(orders.get('rejected') or 0) + int(orders.get('stopped') or 0)
+        cancelled_orders = int(orders.get('cancelled') or 0)
+        on_time_eligible = int(orders.get('on_time_eligible') or 0)
+        on_time_rate = (int(orders.get('on_time') or 0) / on_time_eligible) if on_time_eligible else 0
+        completion_rate = (completed_orders / total_orders) if total_orders else 0
+        pending_complaints = int(complaints.get('pending') or 0)
+
+        rating_component = (average_rating / 5.0) * 35 if total_ratings else 18
+        complaint_penalty = min(pending_complaints * 8, 25)
+        cancellation_penalty = (
+            min(((cancelled_orders + failed_orders) / total_orders) * 15, 15)
+            if total_orders
+            else 0
+        )
+        score = max(
+            0,
+            min(
+                100,
+                round(
+                    rating_component
+                    + completion_rate * 25
+                    + on_time_rate * 20
+                    - complaint_penalty
+                    - cancellation_penalty
+                ),
+            ),
+        )
+        reputation_cache[user_id] = {
+            'average_rating': round(average_rating, 2),
+            'total_ratings': total_ratings,
+            'complaints_received_count': int(complaints.get('total') or 0),
+        }
+        trust_cache[user_id] = {
+            'trust_score': score,
+            'trust_tier': _tier_for_score(score),
+            'trust_breakdown': {
+                'average_rating': round(average_rating, 2),
+                'total_ratings': total_ratings,
+                'completion_rate': round(completion_rate, 2),
+                'on_time_rate': round(on_time_rate, 2),
+                'payment_settlement_rate': 0,
+                'pending_complaints': pending_complaints,
+                'completed_orders': completed_orders,
+            },
+        }
+    return reputation_cache, trust_cache
 
 
 def sort_entities_by_user_trust(items, user_attr: str, *, reverse: bool = True, cache: dict | None = None):

@@ -1,10 +1,10 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, ViewStyle } from 'react-native';
+import { Animated, StyleProp, ViewStyle } from 'react-native';
 
 interface AnimatedListItemProps {
   children: React.ReactNode;
   index: number;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export const AnimatedListItem: React.FC<AnimatedListItemProps> = ({ children, index, style }) => {

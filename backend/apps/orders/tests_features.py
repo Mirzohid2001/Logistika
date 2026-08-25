@@ -252,10 +252,28 @@ class DifferentiatingFeaturesTest(TestCase):
             status='pending',
         )
         baseline = compute_user_trust(self.driver)['trust_score']
+        second_ad = Advertisement.objects.create(
+            client=self.client_user,
+            title_ru='Second complaint lane',
+            title_en='Second complaint lane',
+            title_uz='Second complaint lane',
+            weight=Decimal('1000'),
+            departure_city=self.city_a,
+            departure_address='addr',
+            destination_city=self.city_b,
+            destination_address='addr',
+            proposed_cost=Decimal('500000'),
+        )
+        second_order = Order.objects.create(
+            advertisement=second_ad,
+            driver=self.driver,
+            client=self.client_user,
+            status=self.status_completed,
+        )
         Complaint.objects.create(
             from_user=self.client_user,
             to_user=self.driver,
-            order=order,
+            order=second_order,
             category='cargo_damage',
             description='Minor cargo damage reported',
             status='in_review',

@@ -10,6 +10,13 @@ from django.utils import timezone
 from datetime import datetime, timedelta
 from math import radians, cos, sin, asin, sqrt, degrees, atan2
 import logging
+from apps.common.openapi import (
+    EmptySerializer,
+    PaidRequestSerializer,
+    QRCodeRequestSerializer,
+    ReasonRequestSerializer,
+    ReceivedRequestSerializer,
+)
 from .models import (
     Order,
     OrderStatus,
@@ -254,6 +261,7 @@ class OrderDetailView(APIView):
 
 
 class OrderStartView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsDriver]
 
     @extend_schema(responses={200: OrderSerializer})
@@ -317,6 +325,7 @@ class OrderStartView(APIView):
 
 
 class OrderDepartView(APIView):
+    serializer_class = EmptySerializer
     """Cargo loaded — driver departs to destination (Yandex Taxi-style «Поехали»)."""
     permission_classes = [IsAuthenticated, IsDriver]
 
@@ -346,6 +355,7 @@ class OrderDepartView(APIView):
 
 
 class OrderStopView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsDriver]
 
     @extend_schema(responses={200: OrderSerializer})
@@ -396,6 +406,7 @@ class OrderStopView(APIView):
 
 
 class OrderApproveByClientView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated]
 
     @extend_schema(responses={200: OrderSerializer})
@@ -450,6 +461,7 @@ class OrderApproveByClientView(APIView):
 
 
 class OrderDeclineByClientView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated]
 
     @extend_schema(responses={200: OrderSerializer})
@@ -515,7 +527,7 @@ class OrderMarkDriverPaymentView(APIView):
     permission_classes = [IsAuthenticated, IsDriver]
 
     @extend_schema(
-        request={'type': 'object', 'properties': {'received': {'type': 'boolean'}}},
+        request=ReceivedRequestSerializer,
         responses={200: OrderSerializer},
     )
     def post(self, request, pk):
@@ -553,7 +565,7 @@ class OrderConfirmClientPaymentView(APIView):
     permission_classes = [IsAuthenticated, IsClient]
 
     @extend_schema(
-        request={'type': 'object', 'properties': {'paid': {'type': 'boolean'}}},
+        request=PaidRequestSerializer,
         responses={200: OrderSerializer},
     )
     def post(self, request, pk):
@@ -592,7 +604,7 @@ class OrderConfirmDeliveryView(APIView):
     permission_classes = [IsAuthenticated, IsClient]
 
     @extend_schema(
-        request={'type': 'object', 'properties': {'received': {'type': 'boolean'}}},
+        request=ReceivedRequestSerializer,
         responses={200: OrderSerializer},
     )
     def post(self, request, pk):
@@ -653,6 +665,7 @@ class OrderConfirmDeliveryView(APIView):
 
 
 class OrderCompleteView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsDriver]
 
     @extend_schema(responses={200: OrderSerializer})
@@ -773,6 +786,7 @@ class OrderCompleteView(APIView):
 
 
 class OrderRejectView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsDriver]
 
     @extend_schema(responses={200: OrderSerializer})
@@ -828,7 +842,7 @@ class OrderCancelView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        request={'type': 'object', 'properties': {'reason': {'type': 'string'}}},
+        request=ReasonRequestSerializer,
         responses={200: OrderSerializer},
     )
     def post(self, request, pk):
@@ -1576,7 +1590,7 @@ class OrderVerifyByQRView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        request={'type': 'object', 'properties': {'qr_code': {'type': 'string'}}},
+        request=QRCodeRequestSerializer,
         responses={200: OrderSerializer}
     )
     def post(self, request):
@@ -1613,7 +1627,7 @@ class OrderVerifyAndApproveByQRView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        request={'type': 'object', 'properties': {'qr_code': {'type': 'string'}}},
+        request=QRCodeRequestSerializer,
         responses={200: OrderSerializer}
     )
     def post(self, request):

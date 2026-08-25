@@ -121,8 +121,8 @@ const UpdaterBulkOperationsScreen = () => {
     }
   };
 
-  const getStatusColor = (statusCode: string) => {
-    switch (statusCode) {
+  const getStatusColor = (orderStatusCode: string) => {
+    switch (orderStatusCode) {
       case 'pending':
         return colors.primary;
       case 'in_progress':

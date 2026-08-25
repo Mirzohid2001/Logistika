@@ -3,7 +3,8 @@
   "compilerOptions": {
     "target": "esnext",
     "module": "commonjs",
-    "lib": ["es2017"],
+    "lib": ["es2020", "dom"],
+    "types": ["jest", "node", "react", "react-native"],
     "allowJs": true,
     "jsx": "react-native",
     "noEmit": true,
@@ -38,5 +39,4 @@
     "jest.config.js"
   ]
 }
-
 

@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema
+from apps.common.openapi import UpdaterBulkRequestSerializer
 from django.db.models import Q
 from django.utils import timezone
 from datetime import datetime, timedelta
@@ -585,18 +586,7 @@ class UpdaterBulkOperationsView(APIView):
     permission_classes = [IsAuthenticated, IsUpdater]
 
     @extend_schema(
-        request={
-            'type': 'object',
-            'properties': {
-                'order_ids': {'type': 'array', 'items': {'type': 'integer'}},
-                'action': {'type': 'string', 'enum': ['update_status', 'update_location', 'update_payment']},
-                'status_code': {'type': 'string'},
-                'lat': {'type': 'number'},
-                'lng': {'type': 'number'},
-                'payment_status': {'type': 'string'},
-                'description': {'type': 'string'}
-            }
-        },
+        request=UpdaterBulkRequestSerializer,
         responses={200: {'type': 'object'}}
     )
     def post(self, request):

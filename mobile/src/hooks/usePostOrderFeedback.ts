@@ -15,11 +15,11 @@ export function usePostOrderFeedback(order: Order | null) {
   const checkedRef = useRef<number | null>(null);
 
   const getCounterparty = useCallback((): User | null => {
-    if (!order || !user) return null;
+    if (!order || !user) {return null;}
     const driver = typeof order.driver === 'object' ? order.driver : null;
     const client = typeof order.client === 'object' ? order.client : null;
-    if (user.is_client && driver) return driver;
-    if (user.is_driver && client) return client;
+    if (user.is_client && driver) {return driver;}
+    if (user.is_driver && client) {return client;}
     return null;
   }, [order, user]);
 
@@ -31,13 +31,13 @@ export function usePostOrderFeedback(order: Order | null) {
   }, [order]);
 
   const openRate = useCallback(() => {
-    if (!order) return;
+    if (!order) {return;}
     setVisible(false);
     navigateRoot(navigation, 'Rating', { orderId: order.id });
   }, [navigation, order]);
 
   const openComplaint = useCallback(() => {
-    if (!order) return;
+    if (!order) {return;}
     setVisible(false);
     navigateRoot(navigation, 'Complaint', { orderId: order.id });
   }, [navigation, order]);
@@ -48,11 +48,11 @@ export function usePostOrderFeedback(order: Order | null) {
         setVisible(false);
         return;
       }
-      if (checkedRef.current === order.id) return;
+      if (checkedRef.current === order.id) {return;}
       checkedRef.current = order.id;
 
       const dismissed = await AsyncStorage.getItem(dismissedKey(order.id));
-      if (dismissed) return;
+      if (dismissed) {return;}
 
       try {
         const ratings = await ratingsService.getRatings({ order_id: order.id });

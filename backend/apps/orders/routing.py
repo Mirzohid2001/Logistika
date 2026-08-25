@@ -7,6 +7,7 @@ from urllib.parse import urlencode
 
 import requests
 from django.conf import settings
+from apps.common.services import external_http_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ def _optimize_with_google(stops: list[dict], preference: str) -> dict[str, Any] 
         response = requests.get(
             'https://maps.googleapis.com/maps/api/directions/json',
             params=params,
-            timeout=15,
+            timeout=external_http_timeout(),
         )
         response.raise_for_status()
         payload = response.json()
@@ -112,7 +113,7 @@ def _optimize_with_yandex(stops: list[dict], preference: str) -> dict[str, Any] 
         response = requests.get(
             'https://api.routing.yandex.net/v2/route',
             params=params,
-            timeout=15,
+            timeout=external_http_timeout(),
         )
         response.raise_for_status()
         payload = response.json()

@@ -40,16 +40,16 @@ export function sortOrdersByWorkflowPriority(orders: Order[]): Order[] {
   return [...orders].sort((a, b) => {
     const pa = STATUS_PRIORITY[a.status.code] ?? 500;
     const pb = STATUS_PRIORITY[b.status.code] ?? 500;
-    if (pa !== pb) return pa - pb;
+    if (pa !== pb) {return pa - pb;}
     return new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime();
   });
 }
 
 export function getDriverWorkflowStep(statusCode?: string): DriverWorkflowStep {
-  if (statusCode === 'completed') return 'completed';
-  if (statusCode === 'in_transit') return 'in_transit';
-  if (statusCode === 'in_progress') return 'in_progress';
-  if (statusCode === 'approved_by_client') return 'approved_by_client';
+  if (statusCode === 'completed') {return 'completed';}
+  if (statusCode === 'in_transit') {return 'in_transit';}
+  if (statusCode === 'in_progress') {return 'in_progress';}
+  if (statusCode === 'approved_by_client') {return 'approved_by_client';}
   return 'pending';
 }
 
@@ -226,7 +226,7 @@ export function shouldShowDestinationNavigation(statusCode: string): boolean {
 }
 
 export function formatDisplayAddress(address?: string | null): string {
-  if (!address) return '';
+  if (!address) {return '';}
   const trimmed = address.trim();
   if (/^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(trimmed)) {
     return '';

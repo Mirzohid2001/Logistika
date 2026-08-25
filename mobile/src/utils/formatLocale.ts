@@ -31,7 +31,7 @@ export function formatDateTime(dateString: string, language: string): string {
 }
 
 export function formatTime(isoString: string | null, language: string): string {
-  if (!isoString) return '-';
+  if (!isoString) {return '-';}
   return new Date(isoString).toLocaleTimeString(getLocaleTag(language), {
     hour: '2-digit',
     minute: '2-digit',
@@ -39,7 +39,7 @@ export function formatTime(isoString: string | null, language: string): string {
 }
 
 export function formatTrendCompact(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}k`;
+  if (value >= 1_000_000) {return `${(value / 1_000_000).toFixed(1)}M`;}
+  if (value >= 1_000) {return `${(value / 1_000).toFixed(0)}k`;}
   return String(Math.round(value));
 }

@@ -31,19 +31,19 @@ export function bearingDegrees(from: LatLng, to: LatLng): number {
 }
 
 export function computePresenceAgeSeconds(lastSeenAt: string | null | undefined, nowMs = Date.now()): number | null {
-  if (!lastSeenAt) return null;
+  if (!lastSeenAt) {return null;}
   const ts = new Date(lastSeenAt).getTime();
-  if (Number.isNaN(ts)) return null;
+  if (Number.isNaN(ts)) {return null;}
   return Math.max(0, Math.floor((nowMs - ts) / 1000));
 }
 
 export type PresenceLevel = 'online' | 'warning' | 'stale' | 'offline';
 
 export function presenceLevelFromAge(ageSeconds: number | null): PresenceLevel {
-  if (ageSeconds == null) return 'offline';
-  if (ageSeconds <= 30) return 'online';
-  if (ageSeconds <= 60) return 'warning';
-  if (ageSeconds <= 180) return 'stale';
+  if (ageSeconds == null) {return 'offline';}
+  if (ageSeconds <= 30) {return 'online';}
+  if (ageSeconds <= 60) {return 'warning';}
+  if (ageSeconds <= 180) {return 'stale';}
   return 'offline';
 }
 
@@ -112,7 +112,7 @@ export function projectLocation(
 
 /** Build cumulative distances along a polyline (same length as points). */
 export function buildRouteCumulativeMeters(points: LatLng[]): number[] {
-  if (!points.length) return [];
+  if (!points.length) {return [];}
   const cumulative = [0];
   for (let i = 1; i < points.length; i += 1) {
     cumulative.push(cumulative[i - 1] + haversineMeters(points[i - 1], points[i]));
@@ -199,7 +199,7 @@ export function pointAlongRoute(
   points: LatLng[],
   progressMeters: number
 ): { point: LatLng; heading: number | null } | null {
-  if (points.length < 2) return null;
+  if (points.length < 2) {return null;}
   const cumulative = buildRouteCumulativeMeters(points);
   const total = cumulative[cumulative.length - 1];
   if (total <= 0) {
@@ -209,7 +209,7 @@ export function pointAlongRoute(
   for (let i = 0; i < points.length - 1; i += 1) {
     const start = cumulative[i];
     const end = cumulative[i + 1];
-    if (clamped > end && i < points.length - 2) continue;
+    if (clamped > end && i < points.length - 2) {continue;}
     const segLen = end - start;
     const t = segLen > 0 ? (clamped - start) / segLen : 0;
     const a = points[i];
@@ -295,10 +295,10 @@ export function computeNextSmoothLocation(
   snapMeters = SMOOTH_DRIVER_SNAP_METERS,
   factor = SMOOTH_DRIVER_FACTOR,
 ): LatLng | null {
-  if (!target) return null;
-  if (!current) return target;
+  if (!target) {return null;}
+  if (!current) {return target;}
   const dist = haversineMeters(current, target);
-  if (dist < snapMeters) return target;
+  if (dist < snapMeters) {return target;}
   return smoothCoordinate(current, target, factor);
 }
 
@@ -308,12 +308,12 @@ export function filterTrackCoordinates(
 ): LatLng[] {
   const filtered: LatLng[] = [];
   for (const point of points) {
-    if (!Number.isFinite(point.latitude) || !Number.isFinite(point.longitude)) continue;
+    if (!Number.isFinite(point.latitude) || !Number.isFinite(point.longitude)) {continue;}
     if (!filtered.length) {
       filtered.push(point);
       continue;
     }
-    if (haversineMeters(filtered[filtered.length - 1], point) > maxJumpMeters) continue;
+    if (haversineMeters(filtered[filtered.length - 1], point) > maxJumpMeters) {continue;}
     filtered.push(point);
   }
   return filtered;

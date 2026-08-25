@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.db.models import Q
 from .models import Advertisement, AdvertisementExecution, FavoriteAdvertisement, SavedSearch
 from apps.locations.serializers import CountrySerializer, CitySerializer
 from apps.common.services import get_language_from_request
@@ -35,6 +36,9 @@ class AdvertisementListSerializer(serializers.ModelSerializer):
         return None
     
     def get_is_favorite(self, obj):
+        annotated = getattr(obj, '_is_favorite', None)
+        if annotated is not None:
+            return bool(annotated)
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return FavoriteAdvertisement.objects.filter(user=request.user, advertisement=obj).exists()
@@ -63,6 +67,17 @@ class AdvertisementDetailSerializer(serializers.ModelSerializer):
     description = serializers.SerializerMethodField()
     is_fragile = serializers.SerializerMethodField()
     client_user = UserReputationSerializer(source='client', read_only=True)
+    private_details_visible = serializers.SerializerMethodField()
+
+    PRIVATE_FIELDS = (
+        'contact_name',
+        'contact_phone',
+        'receiver_name',
+        'receiver_phone',
+        'route_stops',
+        'departure_address',
+        'destination_address',
+    )
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -89,6 +104,30 @@ class AdvertisementDetailSerializer(serializers.ModelSerializer):
             return CountrySerializer(obj.destination_city.country, context=self.context).data
         return None
 
+    def get_private_details_visible(self, obj):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not user or not user.is_authenticated:
+            return False
+        if user.pk == obj.client_id or user.is_staff or user.is_superuser:
+            return True
+        if any(
+            getattr(user, flag, False)
+            for flag in ('is_admin', 'is_operator', 'is_dispatcher', 'is_updater')
+        ):
+            return True
+        from apps.orders.models import Order
+        return Order.objects.filter(advertisement_id=obj.pk).filter(
+            Q(client_id=user.pk) | Q(driver_id=user.pk)
+        ).exists()
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if not representation['private_details_visible']:
+            for field_name in self.PRIVATE_FIELDS:
+                representation.pop(field_name, None)
+        return representation
+
     class Meta:
         model = Advertisement
         fields = [
@@ -100,7 +139,7 @@ class AdvertisementDetailSerializer(serializers.ModelSerializer):
             'route_preference', 'route_stops',
             'departure_address', 'departure_country', 'departure_city',
             'destination_address', 'destination_country', 'destination_city',
-            'is_closed', 'client_user', 'created_at', 'updated_at',
+            'is_closed', 'client_user', 'private_details_visible', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'client', 'created_at', 'updated_at']
 
@@ -192,4 +231,3 @@ class SavedSearchCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = SavedSearch
         fields = ['name', 'query', 'departure_city', 'destination_city', 'min_weight', 'max_weight', 'min_cost', 'max_cost', 'filters', 'alerts_enabled']
-

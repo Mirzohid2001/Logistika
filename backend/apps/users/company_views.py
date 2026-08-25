@@ -8,6 +8,7 @@ from apps.users.models import Company, CompanyMember, User
 from apps.users.permissions import IsClient
 from apps.users.serializers import UserSerializer
 from apps.users.inn import validate_company_inn
+from apps.common.openapi import EmptySerializer, PhoneRequestSerializer
 
 
 COMPANY_FIELDS = (
@@ -21,6 +22,7 @@ def serialize_company(company: Company) -> dict:
 
 
 class CompanyProfileView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsClient]
 
     def _company(self, user):
@@ -90,7 +92,7 @@ class CompanyMembersView(APIView):
         })
 
     @extend_schema(
-        request={'type': 'object', 'properties': {'phone': {'type': 'string'}}},
+        request=PhoneRequestSerializer,
         responses={201: {'type': 'object'}},
     )
     def post(self, request):
@@ -129,6 +131,7 @@ class CompanyMembersView(APIView):
 class CompanyBootstrapView(APIView):
     """Mavjud mijoz uchun kompaniya yozuvini yaratadi."""
     permission_classes = [IsAuthenticated, IsClient]
+    serializer_class = EmptySerializer
 
     @extend_schema(responses={200: {'type': 'object'}})
     def post(self, request):

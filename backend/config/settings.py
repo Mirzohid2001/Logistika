@@ -35,10 +35,34 @@ SUBSCRIPTION_REQUIRE_DEVICE_ID_ON_REGISTER = config(
 )
 SMS_VERIFICATION_REQUIRED = config('SMS_VERIFICATION_REQUIRED', default=False, cast=bool)
 
+# Telegram is the only public registration provider. Existing password accounts
+# can still sign in while they are progressively linked to Telegram by the
+# verified phone_number claim returned by Telegram OIDC.
+TELEGRAM_ONLY_REGISTRATION = config('TELEGRAM_ONLY_REGISTRATION', default=True, cast=bool)
+TELEGRAM_AUTH_CLIENT_ID = config('TELEGRAM_AUTH_CLIENT_ID', default='')
+TELEGRAM_AUTH_CLIENT_SECRET = config('TELEGRAM_AUTH_CLIENT_SECRET', default='')
+TELEGRAM_AUTH_REDIRECT_URI = config('TELEGRAM_AUTH_REDIRECT_URI', default='')
+TELEGRAM_AUTH_MOBILE_REDIRECT_URI = config(
+    'TELEGRAM_AUTH_MOBILE_REDIRECT_URI', default='logistika://auth/telegram'
+)
+TELEGRAM_AUTH_ISSUER = 'https://oauth.telegram.org'
+TELEGRAM_AUTH_AUTHORIZE_URL = 'https://oauth.telegram.org/auth'
+TELEGRAM_AUTH_TOKEN_URL = 'https://oauth.telegram.org/token'
+TELEGRAM_AUTH_JWKS_URL = 'https://oauth.telegram.org/.well-known/jwks.json'
+TELEGRAM_AUTH_STATE_TTL_SECONDS = config(
+    'TELEGRAM_AUTH_STATE_TTL_SECONDS', default=600, cast=int
+)
+TELEGRAM_AUTH_TICKET_TTL_SECONDS = config(
+    'TELEGRAM_AUTH_TICKET_TTL_SECONDS', default=120, cast=int
+)
+
 SENTRY_DSN = config('SENTRY_DSN', default='')
 SENTRY_ENVIRONMENT = config('SENTRY_ENVIRONMENT', default='development' if DEBUG else 'production')
 SENTRY_TRACES_SAMPLE_RATE = config('SENTRY_TRACES_SAMPLE_RATE', default=0.1, cast=float)
 STRUCTURED_LOGS = config('STRUCTURED_LOGS', default=not DEBUG, cast=bool)
+EXTERNAL_HTTP_CONNECT_TIMEOUT = config('EXTERNAL_HTTP_CONNECT_TIMEOUT', default=5, cast=float)
+EXTERNAL_HTTP_READ_TIMEOUT = config('EXTERNAL_HTTP_READ_TIMEOUT', default=15, cast=float)
+TRUST_X_FORWARDED_FOR = config('TRUST_X_FORWARDED_FOR', default=False, cast=bool)
 
 if SENTRY_DSN:
     import sentry_sdk
@@ -203,7 +227,8 @@ AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY', default='')
 AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME', default='')
 AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='us-east-1')
 AWS_S3_CUSTOM_DOMAIN = config('AWS_S3_CUSTOM_DOMAIN', default='')
-AWS_S3_OBJECT_PARAMETERS = {'CacheControl': 'max-age=86400'}
+AWS_S3_OBJECT_PARAMETERS = {'CacheControl': 'private, max-age=300'}
+AWS_QUERYSTRING_EXPIRE = config('AWS_QUERYSTRING_EXPIRE', default=300, cast=int)
 # Serve uploaded files from local disk when DEBUG=False (e.g. docker-compose without S3).
 SERVE_LOCAL_MEDIA = config('SERVE_LOCAL_MEDIA', default=DEBUG, cast=bool)
 
@@ -221,7 +246,9 @@ if AWS_STORAGE_BUCKET_NAME:
                 'bucket_name': AWS_STORAGE_BUCKET_NAME,
                 'region_name': AWS_S3_REGION_NAME,
                 'custom_domain': AWS_S3_CUSTOM_DOMAIN or None,
-                'default_acl': 'public-read',
+                'default_acl': None,
+                'querystring_auth': True,
+                'querystring_expire': AWS_QUERYSTRING_EXPIRE,
                 'file_overwrite': False,
             },
         },
@@ -278,6 +305,7 @@ REST_FRAMEWORK = {
         'login': '30/minute' if DEBUG else '5/minute',
         'register': '100/hour' if DEBUG else '3/hour',
         'sms': '30/hour' if DEBUG else '5/hour',
+        'telegram_auth': '60/hour' if DEBUG else '10/hour',
     },
 }
 
@@ -475,4 +503,3 @@ try:
     from .settings_dev import *
 except ImportError:
     pass
-

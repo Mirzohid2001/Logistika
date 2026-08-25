@@ -76,14 +76,14 @@ class ManagedRealtimeChannel implements RealtimeChannelHandle {
   };
 
   private async connect() {
-    if (!this.shouldRun || this.appState !== 'active') return;
+    if (!this.shouldRun || this.appState !== 'active') {return;}
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
     try {
       const hasTokens = await secureTokenStorage.hasTokens();
-      if (!hasTokens) return;
+      if (!hasTokens) {return;}
 
       const wsUrl = await websocketAuthService.getAuthorizedUrl(this.options.wsUrl);
       this.ws = new WebSocket(wsUrl);
@@ -123,9 +123,9 @@ class ManagedRealtimeChannel implements RealtimeChannelHandle {
   }
 
   private scheduleReconnect() {
-    if (!this.shouldRun || this.appState !== 'active') return;
-    if (this.reconnectAttempts >= this.options.maxReconnectAttempts) return;
-    if (this.reconnectTimer) return;
+    if (!this.shouldRun || this.appState !== 'active') {return;}
+    if (this.reconnectAttempts >= this.options.maxReconnectAttempts) {return;}
+    if (this.reconnectTimer) {return;}
 
     this.reconnectAttempts += 1;
     const delayMs = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), REALTIME_RECONNECT_MAX_DELAY_MS);
@@ -138,7 +138,7 @@ class ManagedRealtimeChannel implements RealtimeChannelHandle {
   private startHeartbeat() {
     this.stopHeartbeat();
     this.heartbeatInterval = setInterval(() => {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {return;}
       this.ws.send(JSON.stringify({ type: 'ping' }));
       this.clearHeartbeatTimeout();
       this.heartbeatTimeout = setTimeout(() => {
@@ -163,11 +163,11 @@ class ManagedRealtimeChannel implements RealtimeChannelHandle {
   }
 
   private startPolling() {
-    if (this.pollInterval) return;
+    if (this.pollInterval) {return;}
     this.pollInterval = setInterval(() => {
-      if (!this.shouldRun) return;
-      if (this.appState !== 'active' && !this.options.pollInBackground) return;
-      if (this.isConnected()) return;
+      if (!this.shouldRun) {return;}
+      if (this.appState !== 'active' && !this.options.pollInBackground) {return;}
+      if (this.isConnected()) {return;}
       this.options.onPoll();
     }, this.options.pollIntervalMs);
   }

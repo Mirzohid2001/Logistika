@@ -1,9 +1,12 @@
-import { CommonActions, NavigationProp, ParamListBase } from '@react-navigation/native';
+import { CommonActions } from '@react-navigation/native';
 
-export type NavigationLike = NavigationProp<ParamListBase> & {
-  getParent?: () => NavigationLike | undefined;
-  getState?: () => { routes?: Array<{ name: string; state?: unknown }> };
-  dispatch?: (action: ReturnType<typeof CommonActions.navigate>) => void;
+export type NavigationLike = {
+  navigate: Function;
+  getParent?: Function;
+  getState?: Function;
+  dispatch?: Function;
+  canGoBack?: Function;
+  goBack?: Function;
 };
 
 export function getRootNavigation(navigation: NavigationLike): NavigationLike {
@@ -40,7 +43,7 @@ export function navigateRoot(
     );
     return;
   }
-  root.navigate(screen as never, params as never);
+  root.navigate(screen, params);
 }
 
 export function navigateMainTab(
@@ -78,12 +81,12 @@ export function stackScreenOptions(navigation: { canGoBack?: () => boolean }) {
 }
 
 export function safeGoBack(navigation: NavigationLike): boolean {
-  if (navigation.canGoBack?.()) {
+  if (navigation.canGoBack?.() && navigation.goBack) {
     navigation.goBack();
     return true;
   }
   const root = getRootNavigation(navigation);
-  const routeNames = (root.getState?.()?.routes || []).map((route) => route.name);
+  const routeNames = (root.getState?.()?.routes || []).map((route: any) => route.name);
   if (routeNames.includes('Main')) {
     navigateRoot(navigation, 'Main');
     return true;

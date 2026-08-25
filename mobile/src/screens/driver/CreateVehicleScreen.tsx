@@ -272,6 +272,7 @@ const createStyles = (colors: AppColors) =>
     lineHeight: 18,
   },
   documentItem: { marginBottom: spacing.lg },
+  imageContainer: { width: '100%' },
   documentLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.text, marginBottom: spacing.sm },
   documentImage: {
     width: '100%',

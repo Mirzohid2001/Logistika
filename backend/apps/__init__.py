@@ -1,0 +1,1 @@
+"""Logistika Django applications package."""

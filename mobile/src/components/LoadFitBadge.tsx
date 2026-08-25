@@ -25,13 +25,13 @@ export const LoadFitBadge: React.FC<LoadFitBadgeProps> = ({ advertisementId, com
     advertisementsService
       .getLoadFit(advertisementId)
       .then((data) => {
-        if (!cancelled) setResult(data);
+        if (!cancelled) {setResult(data);}
       })
       .catch(() => {
-        if (!cancelled) setResult(null);
+        if (!cancelled) {setResult(null);}
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {setLoading(false);}
       });
     return () => {
       cancelled = true;
@@ -47,7 +47,7 @@ export const LoadFitBadge: React.FC<LoadFitBadgeProps> = ({ advertisementId, com
       />
     );
   }
-  if (!result) return null;
+  if (!result) {return null;}
 
   const fits = result.fits;
   if (compact) {

@@ -13,7 +13,7 @@ export function getEmbeddedAdvertisement(
 export async function resolveOrderAdvertisement(
   order: Order | null | undefined,
 ): Promise<Advertisement | null> {
-  if (!order?.advertisement) return null;
+  if (!order?.advertisement) {return null;}
   if (typeof order.advertisement === 'object') {
     return order.advertisement;
   }

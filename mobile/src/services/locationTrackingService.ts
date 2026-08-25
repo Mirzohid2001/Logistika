@@ -115,7 +115,7 @@ type TranslateFn = (key: string) => string;
 
 export async function readLocationQueue(): Promise<QueuedLocation[]> {
   const raw = await AsyncStorage.getItem(QUEUE_KEY);
-  if (!raw) return [];
+  if (!raw) {return [];}
   try {
     return JSON.parse(raw) as QueuedLocation[];
   } catch {
@@ -258,7 +258,7 @@ export async function enqueueLocationUpdate(item: QueuedLocation): Promise<void>
 
 export async function flushLocationQueue(): Promise<void> {
   const queue = await readLocationQueue();
-  if (!queue.length) return;
+  if (!queue.length) {return;}
 
   const latestItems = getLatestLocationsPerOrder(queue);
   const flushedOrderIds: number[] = [];

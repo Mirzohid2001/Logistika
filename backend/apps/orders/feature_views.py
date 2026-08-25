@@ -8,6 +8,7 @@ from drf_spectacular.utils import extend_schema
 
 from apps.users.permissions import IsDriver, IsDispatcherOrUpdater, can_access_order
 from apps.users.models import User
+from apps.common.openapi import EmptySerializer
 
 from .models import Order, OrderCustodyEvent, OrderSOSAlert
 from .safety import acknowledge_sos_alert, log_custody_event, resolve_sos_alert, trigger_driver_sos
@@ -91,6 +92,7 @@ class OrderSOSTriggerView(APIView):
 
 
 class OrderSOSAcknowledgeView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsDispatcherOrUpdater]
 
     def post(self, request, pk):
@@ -112,6 +114,7 @@ class OrderSOSAcknowledgeView(APIView):
 
 
 class OrderSOSResolveView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsDispatcherOrUpdater]
 
     def post(self, request, pk):
@@ -136,6 +139,7 @@ class OrderSOSResolveView(APIView):
 
 
 class ActiveSOSAlertsView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsDispatcherOrUpdater]
 
     def get(self, request):

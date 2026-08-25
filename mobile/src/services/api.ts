@@ -8,9 +8,9 @@ import { isTokenExpiringSoon } from '../utils/jwt';
 import { secureTokenStorage } from './secureTokenStorage';
 
 export const getMediaUrl = (path?: string | null): string | null => {
-  if (!path) return null;
+  if (!path) {return null;}
   const trimmed = path.trim();
-  if (!trimmed) return null;
+  if (!trimmed) {return null;}
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
     return trimmed;
   }
@@ -190,17 +190,17 @@ class ApiService {
       return await requestFn();
     } catch (error) {
       const appError = errorService.parseError(error);
-      
+
       // Check if error is retryable
       if (retriesLeft > 0 && errorService.isRetryable(appError)) {
         // Wait before retrying (exponential backoff)
         const delay = this.retryConfig.retryDelay * (this.retryConfig.retries - retriesLeft + 1);
         await new Promise((resolve) => setTimeout(resolve, delay));
-        
+
         // Retry request
         return this.retryRequest(requestFn, retriesLeft - 1);
       }
-      
+
       // No more retries or error is not retryable
       throw appError;
     }
@@ -208,11 +208,11 @@ class ApiService {
 
   async get<T>(url: string, params?: any, retry: boolean = true): Promise<T> {
     const requestFn = () => this.client.get<T>(url, { params }).then((res) => res.data);
-    
+
     if (retry) {
       return this.retryRequest(requestFn);
     }
-    
+
     return requestFn();
   }
 
@@ -227,11 +227,11 @@ class ApiService {
           }
         : config?.headers,
     }).then((res) => res.data);
-    
+
     if (retry) {
       return this.retryRequest(requestFn);
     }
-    
+
     return requestFn();
   }
 
@@ -244,11 +244,11 @@ class ApiService {
           }
         : undefined,
     }).then((res) => res.data);
-    
+
     if (retry) {
       return this.retryRequest(requestFn);
     }
-    
+
     return requestFn();
   }
 
@@ -264,11 +264,11 @@ class ApiService {
 
   async delete<T>(url: string, retry: boolean = true): Promise<T> {
     const requestFn = () => this.client.delete<T>(url).then((res) => res.data);
-    
+
     if (retry) {
       return this.retryRequest(requestFn);
     }
-    
+
     return requestFn();
   }
 

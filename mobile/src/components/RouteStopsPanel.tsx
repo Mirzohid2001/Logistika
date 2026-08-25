@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import type { Order, OrderRouteStop } from '../types';
@@ -69,7 +69,7 @@ export const RouteStopsPanel: React.FC<RouteStopsPanelProps> = ({
   const styles = useThemedStyles(createStyles);
   const { colors } = useAppTheme();
   const sorted = getSortedRouteStops(stops);
-  if (!sorted.length || !order) return null;
+  if (!sorted.length || !order) {return null;}
 
   const activeStop = getActiveRouteStop(sorted);
   const metrics = formatRouteMetrics(order);
@@ -77,14 +77,11 @@ export const RouteStopsPanel: React.FC<RouteStopsPanelProps> = ({
   const completedCount = sorted.filter((stop) => stop.status === 'completed').length;
   const progressRatio = sorted.length > 0 ? completedCount / sorted.length : 0;
 
-  const showActionBar = useMemo(
-    () =>
-      showDriverActions &&
-      !!activeStop &&
-      activeStop.status !== 'completed' &&
-      activeStop.status !== 'skipped',
-    [showDriverActions, activeStop],
-  );
+  const showActionBar =
+    showDriverActions &&
+    !!activeStop &&
+    activeStop.status !== 'completed' &&
+    activeStop.status !== 'skipped';
 
   return (
     <View style={[styles.container, embedded && styles.containerEmbedded]}>

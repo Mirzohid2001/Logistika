@@ -48,7 +48,7 @@ export const MapPointPicker = forwardRef<MapPointPickerRef, MapPointPickerProps>
       externalRegionRef.current = region;
       setCameraRegion(region);
       setPickedRegion(region);
-    }, [region.latitude, region.longitude, region.latitudeDelta]);
+    }, [region]);
 
     const beginGesture = () => {
       if (!gestureActiveRef.current) {

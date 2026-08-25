@@ -12,6 +12,7 @@ from decimal import Decimal
 from .models import Payment, PaymentHistory
 from apps.orders.models import Order
 from apps.common.pagination import StandardResultsSetPagination
+from apps.common.openapi import EmptySerializer
 from apps.common.cache_utils import build_user_cache_key, bump_cache_version, get_cache_version
 from apps.common.exceptions import (
     ValidationError,
@@ -147,6 +148,7 @@ class PaymentStatusView(APIView):
 
 
 class PaymentCallbackView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = []
 
     def _verify_click_callback(self, request, payment, callback_data):

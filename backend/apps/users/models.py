@@ -27,6 +27,10 @@ class UserManager(BaseUserManager):
 class User(AbstractUser):
     username = None
     phone = models.CharField(max_length=20, unique=True)
+    telegram_id = models.PositiveBigIntegerField(null=True, blank=True, unique=True, db_index=True)
+    telegram_username = models.CharField(max_length=64, blank=True, default='')
+    telegram_photo_url = models.URLField(max_length=1000, blank=True, default='')
+    telegram_linked_at = models.DateTimeField(null=True, blank=True)
     company_inn = models.CharField(
         max_length=9,
         null=True,

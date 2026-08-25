@@ -179,7 +179,7 @@ export const RouteStopManageSheet: React.FC<RouteStopManageSheetProps> = ({
             </Text>
             {stop.lat != null && stop.lng != null ? (
               <Text style={styles.coords}>
-                {stop.lat.toFixed(5)}, {stop.lng.toFixed(5)}
+                {Number(stop.lat).toFixed(5)}, {Number(stop.lng).toFixed(5)}
               </Text>
             ) : (
               <Text style={styles.coordsMuted}>{t('tracking.routeStopManage.noCoordinates')}</Text>

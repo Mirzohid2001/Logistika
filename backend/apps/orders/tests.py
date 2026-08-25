@@ -189,6 +189,9 @@ class OrderAPITest(TestCase):
         self.assertEqual(order.status.code, 'in_progress')
 
     def test_start_order_requires_coordinates(self):
+        self.city.latitude = None
+        self.city.longitude = None
+        self.city.save(update_fields=['latitude', 'longitude'])
         approved_status = OrderStatus.objects.filter(code='approved_by_client').first()
         if not approved_status:
             approved_status = OrderStatus.objects.create(

@@ -7,10 +7,7 @@ from .models import Country, City
 class LocationModelTest(TestCase):
     def setUp(self):
         self.country = Country.objects.create(
-            name_ru='Узбекистан',
-            name_en='Uzbekistan',
-            name_uz='O\'zbekiston',
-            code='UZ'
+            name_ru='Узбекистан', name_en='Uzbekistan', name_uz='O\'zbekiston', code='L1',
         )
         self.city = City.objects.create(
             country=self.country,
@@ -21,7 +18,7 @@ class LocationModelTest(TestCase):
 
     def test_country_creation(self):
         self.assertEqual(self.country.name_ru, 'Узбекистан')
-        self.assertEqual(self.country.code, 'UZ')
+        self.assertEqual(self.country.code, 'L1')
 
     def test_city_creation(self):
         self.assertEqual(self.city.name_ru, 'Ташкент')
@@ -32,10 +29,7 @@ class LocationAPITest(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.country = Country.objects.create(
-            name_ru='Узбекистан',
-            name_en='Uzbekistan',
-            name_uz='O\'zbekiston',
-            code='UZ'
+            name_ru='Узбекистан', name_en='Uzbekistan', name_uz='O\'zbekiston', code='L2',
         )
         self.city = City.objects.create(
             country=self.country,
@@ -45,14 +39,14 @@ class LocationAPITest(TestCase):
         )
 
     def test_get_countries(self):
-        url = '/api/locations/countries/'
+        url = '/api/locations/countries/?q=L2'
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertIn('name', response.data[0])
 
     def test_get_cities(self):
-        url = '/api/locations/cities/'
+        url = f'/api/locations/cities/?country_id={self.country.id}'
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
@@ -65,37 +59,37 @@ class LocationAPITest(TestCase):
         self.assertEqual(len(response.data), 1)
 
     def test_country_language_support_ru(self):
-        url = '/api/locations/countries/?lang=ru'
+        url = '/api/locations/countries/?lang=ru&q=L2'
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data[0]['name'], 'Узбекистан')
 
     def test_country_language_support_en(self):
-        url = '/api/locations/countries/?lang=en'
+        url = '/api/locations/countries/?lang=en&q=L2'
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data[0]['name'], 'Uzbekistan')
 
     def test_country_language_support_uz(self):
-        url = '/api/locations/countries/?lang=uz'
+        url = '/api/locations/countries/?lang=uz&q=L2'
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data[0]['name'], 'O\'zbekiston')
 
     def test_city_language_support_ru(self):
-        url = '/api/locations/cities/?lang=ru'
+        url = f'/api/locations/cities/?lang=ru&country_id={self.country.id}'
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data[0]['name'], 'Ташкент')
 
     def test_city_language_support_en(self):
-        url = '/api/locations/cities/?lang=en'
+        url = f'/api/locations/cities/?lang=en&country_id={self.country.id}'
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data[0]['name'], 'Tashkent')
 
     def test_city_language_support_uz(self):
-        url = '/api/locations/cities/?lang=uz'
+        url = f'/api/locations/cities/?lang=uz&country_id={self.country.id}'
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data[0]['name'], 'Toshkent')

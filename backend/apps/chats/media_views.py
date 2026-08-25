@@ -10,6 +10,11 @@ from asgiref.sync import async_to_sync
 import logging
 from apps.common.cache_utils import bump_cache_version
 from apps.users.permissions import can_access_chat
+from apps.common.openapi import (
+    MessageFileUploadRequestSerializer,
+    MessageImageUploadRequestSerializer,
+    MessageVoiceUploadRequestSerializer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +45,7 @@ class MessageImageUploadView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        request={'image': 'file', 'chat_id': 'integer'},
+        request=MessageImageUploadRequestSerializer,
         responses={201: MessageSerializer}
     )
     def post(self, request):
@@ -117,7 +122,7 @@ class MessageFileUploadView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        request={'file': 'file', 'chat_id': 'integer'},
+        request=MessageFileUploadRequestSerializer,
         responses={201: MessageSerializer}
     )
     def post(self, request):
@@ -179,7 +184,7 @@ class MessageVoiceUploadView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        request={'voice': 'file', 'chat_id': 'integer'},
+        request=MessageVoiceUploadRequestSerializer,
         responses={201: MessageSerializer}
     )
     def post(self, request):

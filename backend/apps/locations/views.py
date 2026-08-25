@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny
 from drf_spectacular.utils import extend_schema
 from apps.common.services import get_language_from_request
+from apps.common.openapi import EmptySerializer
 from .geo import DEFAULT_MAX_DISTANCE_KM, find_nearest_city, serialize_nearest_city
 from .models import Country, City
 from .serializers import CountrySerializer, CitySerializer
@@ -64,6 +65,7 @@ class CityListView(APIView):
 
 
 class NearestCityView(APIView):
+    serializer_class = EmptySerializer
     """Phone GPS → nearest catalog city (same UX idea as ride-hailing city snap)."""
 
     permission_classes = [AllowAny]

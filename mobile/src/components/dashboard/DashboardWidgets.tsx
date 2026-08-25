@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleProp, StyleSheet, ViewStyle } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Card } from '../Card';
 import { EmptyState } from '../EmptyState';
@@ -87,7 +87,7 @@ export const DashboardWelcomeCard: React.FC<{
   title: string;
   subtitle: string;
   accentColor: string;
-  style?: object;
+  style?: StyleProp<ViewStyle>;
 }> = ({ title, subtitle, accentColor, style }) => {
   const styles = useThemedStyles(createDashboardStyles);
   return (

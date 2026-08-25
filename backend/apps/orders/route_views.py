@@ -22,6 +22,7 @@ from apps.orders.routing import optimize_route
 from apps.orders.services import order_allows_route_mutations, order_allows_stop_completion
 from apps.orders.views import _invalidate_order_list_cache
 from apps.users.permissions import can_access_order
+from apps.common.openapi import EmptySerializer
 
 
 def _ensure_route_mutable(order: Order) -> Response | None:
@@ -73,6 +74,7 @@ class OrderRouteStopListView(APIView):
 
 
 class OrderRouteStopDetailView(APIView):
+    serializer_class = OrderRouteStopSerializer
     permission_classes = [IsAuthenticated]
 
     @extend_schema(request=OrderRouteStopCreateSerializer, responses={200: OrderRouteStopSerializer})
@@ -121,6 +123,7 @@ class OrderRouteStopDetailView(APIView):
 
 
 class OrderRouteStopCompleteView(APIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated, IsDriver]
 
     @extend_schema(responses={200: OrderSerializer})

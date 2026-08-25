@@ -1,5 +1,5 @@
 import React, { useMemo, useRef } from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle, TextStyle, Animated } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, StyleProp, ViewStyle, TextStyle, Animated } from 'react-native';
 import { borderRadius, spacing, shadows, fontSize, fontWeight } from '../theme';
 import { useAppTheme } from '../theme/useAppTheme';
 import { a11yButton } from '../utils/accessibility';
@@ -10,7 +10,7 @@ interface ButtonProps {
   variant?: 'primary' | 'secondary' | 'danger' | 'outline' | 'success' | 'warning';
   loading?: boolean;
   disabled?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   textStyle?: TextStyle;
   size?: 'sm' | 'md' | 'lg';
   accessibilityLabel?: string;
@@ -58,7 +58,7 @@ export const Button: React.FC<ButtonProps> = ({
   ];
 
   const getIndicatorColor = () => {
-    if (variant === 'outline') return colors.primary;
+    if (variant === 'outline') {return colors.primary;}
     return colors.textLight;
   };
 

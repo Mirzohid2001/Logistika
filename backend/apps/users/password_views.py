@@ -7,7 +7,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema
 
-from apps.common.services import verify_sms_code, is_phone_sms_verified
+from apps.common.services import verify_sms_code
+from apps.common.openapi import PasswordResetRequestSerializer
 from apps.users.phone import is_valid_uz_phone, normalize_phone, phone_lookup_variants
 
 User = get_user_model()
@@ -20,19 +21,19 @@ class ResetPasswordView(APIView):
     permission_classes = [AllowAny]
 
     @extend_schema(
-        request={
-            'type': 'object',
-            'properties': {
-                'phone': {'type': 'string'},
-                'new_password': {'type': 'string'},
-                'new_password_confirm': {'type': 'string'},
-                'sms_code': {'type': 'string'},
-            },
-            'required': ['phone', 'new_password', 'new_password_confirm'],
-        },
+        request=PasswordResetRequestSerializer,
         responses={200: {'type': 'object'}},
     )
     def post(self, request):
+        if getattr(settings, 'TELEGRAM_ONLY_REGISTRATION', True):
+            return Response(
+                {
+                    'error': 'Parolni tiklash o\'rniga Telegram orqali kiring',
+                    'code': 'telegram_auth_required',
+                },
+                status=status.HTTP_410_GONE,
+            )
+
         phone = normalize_phone(request.data.get('phone'))
         new_password = request.data.get('new_password') or ''
         new_password_confirm = request.data.get('new_password_confirm') or ''
@@ -59,12 +60,13 @@ class ResetPasswordView(APIView):
             )
         cache.set(rate_key, attempts + 1, RESET_RATE_LIMIT_SECONDS)
 
-        sms_required = getattr(settings, 'SMS_VERIFICATION_REQUIRED', False)
-        if sms_required:
-            if not sms_code:
-                return Response({'error': 'SMS kod talab qilinadi'}, status=status.HTTP_400_BAD_REQUEST)
-            if not verify_sms_code(phone, sms_code) and not is_phone_sms_verified(phone):
-                return Response({'error': 'Noto\'g\'ri yoki muddati o\'tgan SMS kod'}, status=status.HTTP_400_BAD_REQUEST)
+        # Password recovery must always fail closed. Registration may be
+        # feature-flagged in legacy deployments, but reset cannot skip proof of
+        # phone ownership under any configuration.
+        if not sms_code:
+            return Response({'error': 'SMS kod talab qilinadi'}, status=status.HTTP_400_BAD_REQUEST)
+        if not verify_sms_code(phone, sms_code):
+            return Response({'error': 'Noto\'g\'ri yoki muddati o\'tgan SMS kod'}, status=status.HTTP_400_BAD_REQUEST)
 
         user = (
             User.objects.filter(phone__in=phone_lookup_variants(phone), is_active=True)

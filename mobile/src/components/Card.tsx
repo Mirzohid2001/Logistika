@@ -1,11 +1,11 @@
 import React, { useMemo } from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
+import { View, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { borderRadius, spacing, shadows } from '../theme';
 import { useAppTheme } from '../theme/useAppTheme';
 
 interface CardProps {
   children: React.ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   variant?: 'default' | 'elevated' | 'outlined' | 'soft';
   padding?: 'md' | 'lg' | 'xl';
 }

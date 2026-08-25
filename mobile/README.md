@@ -1,80 +1,64 @@
-# Logistika Mobile App
+# Logistika Mobile
 
-React Native mobile application for the Logistika cargo transportation aggregator.
+React Native 0.73 + TypeScript приложение для клиентов, водителей, диспетчеров и операторов.
 
-## Features
+## Требования и запуск
 
-- Authentication (Login, Register, SMS Verification)
-- Client features:
-  - View advertisements
-  - Create advertisements
-  - Manage bids
-  - Track orders
-- Driver features:
-  - View available advertisements
-  - Create bids
-  - Manage orders
-  - Track location
-  - View earnings
+- Node.js 18+
+- Android Studio/JDK для Android
+- Xcode и CocoaPods для iOS
 
-## Setup
-
-1. Install dependencies:
 ```bash
-npm install
-# or
-yarn install
-```
-
-2. For iOS:
-```bash
-cd ios && pod install && cd ..
-```
-
-3. Run the app:
-```bash
-npm run ios
-# or
+npm ci
+npm start
 npm run android
+# или
+npm run ios:pod
+npm run ios
 ```
 
-## Project Structure
+API URL задаётся конфигурацией в `src/config/appConfig.ts`. Для Android Emulator локальный backend обычно доступен как `http://10.0.2.2:8000`, для iOS Simulator — `http://127.0.0.1:8000`.
 
-```
-mobile/
-├── src/
-│   ├── screens/          # Screen components
-│   │   ├── auth/         # Authentication screens
-│   │   ├── client/       # Client screens
-│   │   └── driver/       # Driver screens
-│   ├── navigation/       # Navigation configuration
-│   ├── services/         # API services
-│   ├── components/      # Reusable components
-│   ├── context/         # Context providers
-│   ├── utils/           # Utility functions
-│   └── types/           # TypeScript types
-├── App.tsx              # Main app component
-└── package.json
+## Telegram-вход
+
+Регистрация начинается на экране выбора роли и продолжается в Telegram. Backend открывает официальный OIDC экран в браузере, после успешного входа callback возвращает приложение по deep link:
+
+```text
+logistika://auth/telegram?ticket=...
 ```
 
-## API Configuration
+Android intent filter и iOS URL scheme уже настроены. OIDC `Client Secret` должен находиться только на backend; в mobile его добавлять нельзя.
 
-Update the API base URL in `src/services/api.ts`:
+Если меняется scheme или callback path, синхронно обновите:
 
-```typescript
-const API_BASE_URL = __DEV__
-  ? 'http://localhost:8000/api'
-  : 'https://your-production-api.com/api';
+- `src/navigation/linking.ts`
+- `android/app/src/main/AndroidManifest.xml`
+- iOS URL Types
+- `TELEGRAM_AUTH_MOBILE_REDIRECT_URI` на backend
+
+## Основные проверки
+
+```bash
+npm run lint
+npx tsc --noEmit
+npm test -- --runInBand
+npm run audit:prod
+npx react-native config
 ```
 
-For Android emulator, use `http://10.0.2.2:8000/api` instead of `localhost`.
+`audit:prod` запускает production npm audit. Временное исключение касается только двух опубликованных DoS advisory пакета `image-size`, для которых upstream пока не выпустил исправленную версию; скрипт дополнительно проверяет локальные guards и имеет ограниченный срок действия.
 
-## Environment
+## Структура
 
-- React Native 0.72.6
-- TypeScript
-- React Navigation 6
-- Axios for API calls
-- AsyncStorage for local storage
+```text
+src/
+├── components/       переиспользуемые UI-компоненты
+├── context/          auth и badge contexts
+├── navigation/       навигация и deep links
+├── screens/          auth/client/driver/dispatcher/updater экраны
+├── services/         API, secure storage, push и session services
+├── types/            TypeScript модели API
+└── utils/            маршруты, tracking и вспомогательная логика
+```
 
-
+Access/refresh tokens сохраняются через secure storage; профиль и несекретные настройки — через AsyncStorage.

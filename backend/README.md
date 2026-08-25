@@ -1,134 +1,96 @@
-# MyGruz Backend
+# Logistika Backend
 
-Django REST Framework asosida qurilgan yuk tashish agregatori backend tizimi.
+Django REST API логистической платформы. Использует PostgreSQL, Redis, Celery, Channels/WebSocket, JWT и Telegram OpenID Connect.
 
-## Talablar
+## Локальная установка
 
-- Python 3.11+
-- Django 4.2.7
-- Django REST Framework 3.14.0
+Требования: Python 3.11+, PostgreSQL 15+ и Redis 7+.
 
-## O'rnatish
-
-1. Virtual environment yaratish:
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-2. Dependencylarni o'rnatish:
-```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-3. Database migrations:
-```bash
-python manage.py makemigrations
+cp .env.example .env
 python manage.py migrate
-```
-
-4. Superuser yaratish:
-```bash
-python manage.py createsuperuser
-```
-
-5. Serverni ishga tushirish:
-```bash
 python manage.py runserver
 ```
 
-## API Endpoints
+Настройки читаются из переменных окружения. Для локальной базы укажите `POSTGRES_*`, для фоновых задач и WebSocket — `REDIS_URL`, `CELERY_BROKER_URL` и `CELERY_RESULT_BACKEND`.
 
-### Authentication
-- `POST /api/auth/register/` - Ro'yxatdan o'tish
-- `POST /api/auth/login/` - Kirish
-- `POST /api/auth/refresh/` - Token yangilash
-- `GET /api/auth/me/` - Joriy foydalanuvchi ma'lumotlari
-- `PUT /api/auth/me/` - Profilni yangilash
-- `POST /api/auth/send-sms-code/` - SMS kod yuborish
-- `POST /api/auth/verify-sms/` - SMS kodni tasdiqlash
+## Telegram-only регистрация
 
-### Users
-- `GET /api/users/vehicles/` - Transport vositalarini ko'rish
-- `POST /api/users/vehicles/` - Transport vositasini qo'shish
+Проект использует официальный Telegram OIDC, поэтому нужен собственный бот:
 
-### Locations
-- `GET /api/locations/countries/` - Mamlakatlar ro'yxati
-- `GET /api/locations/cities/` - Shaharlar ro'yxati
+1. Создайте бота командой `/newbot` в `@BotFather`.
+2. В настройках бота откройте **Bot Settings → Web Login**, зарегистрируйте origin/redirect URL публичного HTTPS API и получите OIDC `Client ID` и `Client Secret`.
+3. Callback должен в точности совпадать с `TELEGRAM_AUTH_REDIRECT_URI`, например `https://api.example.com/api/auth/telegram/callback/`.
+4. Заполните `.env`:
 
-### Advertisements
-- `GET /api/advertisements/` - E'lonlar ro'yxati
-- `POST /api/advertisements/` - Yangi e'lon yaratish
-- `GET /api/advertisements/{id}/` - E'lon tafsilotlari
-- `PUT /api/advertisements/{id}/` - E'loni yangilash
-- `DELETE /api/advertisements/{id}/` - E'loni o'chirish
-- `GET /api/advertisements/my/` - Mening e'lonlarim
-
-### Bids
-- `POST /api/bids/` - Taklif yuborish
-- `POST /api/bids/{id}/accept-price/` - Narxni qabul qilish
-- `POST /api/bids/{id}/reject/` - Taklifni rad etish
-- `POST /api/bids/{id}/counter-offer/` - Qarama-qarshi taklif
-- `GET /api/bids/my/` - Mening takliflarim
-
-### Orders
-- `GET /api/orders/` - Buyurtmalar ro'yxati
-- `GET /api/orders/{id}/` - Buyurtma tafsilotlari
-- `POST /api/orders/{id}/start/` - Buyurtmani boshlash
-- `POST /api/orders/{id}/stop/` - Buyurtmani to'xtatish
-- `POST /api/orders/{id}/complete/` - Buyurtmani yakunlash
-- `POST /api/orders/{id}/reject/` - Buyurtmani rad etish
-- `GET /api/orders/{id}/track/` - Buyurtmani kuzatish
-
-### News
-- `GET /api/news/` - Yangiliklar ro'yxati
-- `GET /api/news/{id}/` - Yangilik tafsilotlari
-
-### Content
-- `GET /api/content/public-offer/` - Publik oferta
-- `GET /api/content/disclaimer/` - Mas'uliyatdan voz kechish
-- `GET /api/content/guide-clients/` - Klientlar uchun qo'llanma
-- `GET /api/content/guide-drivers/` - Haydovchilar uchun qo'llanma
-
-### Payments
-- `POST /api/payments/create/` - To'lov yaratish
-- `GET /api/payments/{id}/status/` - To'lov holatini tekshirish
-- `POST /api/payments/{id}/callback/` - Payment gateway callback
-- `GET /api/payments/my/` - Mening to'lovlarim
-- `GET /api/payments/order/{order_id}/` - Buyurtma bo'yicha to'lovlar
-
-### Users
-- `GET /api/users/vehicles/` - Transport vositalarini ko'rish
-- `GET /api/users/earnings/` - Daromad statistikasi (Driver uchun)
-
-## Swagger Documentation
-
-API dokumentatsiyasi:
-- Swagger UI: `http://localhost:8000/api/docs/`
-- ReDoc: `http://localhost:8000/api/redoc/`
-- Schema JSON: `http://localhost:8000/api/schema/`
-
-## Environment Variables
-
-`.env` faylida quyidagi o'zgaruvchilarni sozlang:
-
-```
-SECRET_KEY=your-secret-key
-DEBUG=True
-ALLOWED_HOSTS=localhost,127.0.0.1
-CORS_ALLOWED_ORIGINS=http://localhost:3000
-
-CLICK_MERCHANT_ID=
-CLICK_SERVICE_ID=
-CLICK_SECRET_KEY=
-
-PAYME_MERCHANT_ID=
-PAYME_KEY=
-
-UZUM_MERCHANT_ID=
-UZUM_SECRET_KEY=
-
-ESKIZ_EMAIL=
-ESKIZ_PASSWORD=
+```dotenv
+TELEGRAM_ONLY_REGISTRATION=True
+TELEGRAM_AUTH_CLIENT_ID=123456789
+TELEGRAM_AUTH_CLIENT_SECRET=replace-with-web-login-secret
+TELEGRAM_AUTH_REDIRECT_URI=https://api.example.com/api/auth/telegram/callback/
+TELEGRAM_AUTH_MOBILE_REDIRECT_URI=logistika://auth/telegram
 ```
 
+`Client Secret` хранится только на сервере и не включается в мобильное приложение. Обычный bot token для самой авторизации не используется; он понадобится отдельно, только если бот будет отправлять сообщения.
+
+Endpoints:
+
+- `POST /api/auth/telegram/start/` — создаёт state, nonce, PKCE и возвращает authorization URL.
+- `GET /api/auth/telegram/callback/` — серверный OIDC callback от Telegram.
+- `POST /api/auth/telegram/complete/` — однократно обменивает mobile ticket на JWT и профиль.
+- `POST /api/auth/login/` — legacy-вход существующего пользователя по телефону/паролю.
+- `POST /api/auth/refresh/`, `GET|PUT /api/auth/me/` — JWT session и профиль.
+
+Для нового аккаунта Telegram должен вернуть подтверждённый узбекский номер `+998`. Existing account связывается по Telegram ID либо подтверждённому номеру. Повторное использование state/ticket и подмена nonce блокируются.
+
+## Безопасность и media
+
+- Документы водителя и транспорта принимаются только как JPEG/PNG/WebP, проверяются по сигнатуре, декодированию, размеру и числу пикселей.
+- Имена файлов случайные; private media в S3 выдаются подписанными URL. В production держите `SERVE_LOCAL_MEDIA=False`.
+- Точные контакты и маршрут объявления скрыты от анонимных и посторонних пользователей.
+- Внешние HTTP-интеграции имеют connect/read timeout. Доверие к `X-Forwarded-For` включается только за прокси, который перезаписывает заголовок.
+- `SECRET_KEY`, Telegram secret, payment keys и S3 credentials нельзя коммитить или передавать клиенту.
+
+## API и документация
+
+- Swagger UI: `/api/docs/`
+- ReDoc: `/api/redoc/`
+- OpenAPI schema: `/api/schema/`
+- Liveness: `/health/`
+- Readiness (DB + cache): `/ready/`
+
+Публичный список объявлений пагинирован (`page`, `page_size`, максимум 100). Ответ имеет поля `count`, `next`, `previous`, `results`.
+
+## Тесты и проверки
+
+Команды выполняются из каталога `backend/`:
+
+```bash
+python manage.py check
+python manage.py makemigrations --check --dry-run
+python manage.py migrate
+python manage.py test
+python manage.py spectacular --file /tmp/logistika-schema.yml --validate
+pip-audit -r requirements.txt
+```
+
+Для тестов без production security redirect:
+
+```bash
+DJANGO_SETTINGS_MODULE=config.settings_test python manage.py test
+```
+
+## Docker
+
+Из корня репозитория:
+
+```bash
+cp backend/.env.example backend/.env
+docker compose --env-file backend/.env config --quiet
+docker compose --env-file backend/.env up --build
+```
+
+В production обязательно замените compose development secret, настройте HTTPS/reverse proxy, private object storage, реальные allowed hosts/origins и секреты интеграций.

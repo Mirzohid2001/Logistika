@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from '../hooks/useTranslation';
@@ -18,9 +18,9 @@ function resolveVariant(
   verificationStatus?: string,
   requiresVerification?: boolean,
 ): BannerVariant | null {
-  if (verificationStatus === 'pending') return 'pending';
-  if (verificationStatus === 'rejected') return 'rejected';
-  if (requiresVerification) return 'required';
+  if (verificationStatus === 'pending') {return 'pending';}
+  if (verificationStatus === 'rejected') {return 'rejected';}
+  if (requiresVerification) {return 'required';}
   return null;
 }
 

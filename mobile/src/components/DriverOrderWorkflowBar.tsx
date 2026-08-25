@@ -5,7 +5,6 @@ import { DRIVER_WORKFLOW_STEPS, getDriverWorkflowStep, type DriverWorkflowStep }
 import { spacing, borderRadius, fontSize, fontWeight } from '../theme';
 import type { AppColors } from '../theme/colors';
 import { useThemedStyles } from '../theme/useThemedStyles';
-import { useAppTheme } from '../theme/useAppTheme';
 
 const STEP_LABEL_KEYS: Record<DriverWorkflowStep, string> = {
   pending: 'orders.workflow.clientApprove',
@@ -21,7 +20,6 @@ interface Props {
 
 export const DriverOrderWorkflowBar: React.FC<Props> = ({ statusCode }) => {
   const styles = useThemedStyles(createStyles);
-  const { colors } = useAppTheme();
   const { t } = useTranslation();
   const current = getDriverWorkflowStep(statusCode);
   const currentIndex = DRIVER_WORKFLOW_STEPS.indexOf(current);

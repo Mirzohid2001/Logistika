@@ -39,10 +39,7 @@ class DispatcherModelTest(TestCase):
             is_verified=True
         )
         self.country = Country.objects.create(
-            name_ru='Узбекистан',
-            name_en='Uzbekistan',
-            name_uz='O\'zbekiston',
-            code='UZ'
+            name_ru='Узбекистан', name_en='Uzbekistan', name_uz='O\'zbekiston', code='D1',
         )
         self.city = City.objects.create(
             country=self.country,
@@ -148,10 +145,7 @@ class DispatcherAPITest(TestCase):
             is_verified=True
         )
         self.country = Country.objects.create(
-            name_ru='Узбекистан',
-            name_en='Uzbekistan',
-            name_uz='O\'zbekiston',
-            code='UZ'
+            name_ru='Узбекистан', name_en='Uzbekistan', name_uz='O\'zbekiston', code='D2',
         )
         self.city = City.objects.create(
             country=self.country,

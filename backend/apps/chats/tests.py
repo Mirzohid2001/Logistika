@@ -29,10 +29,7 @@ class ChatModelTest(TestCase):
         )
         
         self.country = Country.objects.create(
-            name_ru='Узбекистан',
-            name_en='Uzbekistan',
-            name_uz='O\'zbekiston',
-            code='UZ'
+            name_ru='Узбекистан', name_en='Uzbekistan', name_uz='O\'zbekiston', code='C1',
         )
         self.city = City.objects.create(
             country=self.country,
@@ -229,10 +226,7 @@ class ChatAPITest(TestCase):
         )
         
         self.country = Country.objects.create(
-            name_ru='Узбекистан',
-            name_en='Uzbekistan',
-            name_uz='O\'zbekiston',
-            code='UZ'
+            name_ru='Узбекистан', name_en='Uzbekistan', name_uz='O\'zbekiston', code='C2',
         )
         self.city = City.objects.create(
             country=self.country,

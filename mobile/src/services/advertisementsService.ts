@@ -26,25 +26,25 @@ export const advertisementsService = {
   }): Promise<{ results: Advertisement[]; count: number; next?: string; previous?: string } | Advertisement[]> {
     const queryParams: any = {};
     if (params) {
-      if (params.city_from) queryParams.city_from = params.city_from;
-      if (params.city_to) queryParams.city_to = params.city_to;
-      if (params.country_from) queryParams.country_from = params.country_from;
-      if (params.country_to) queryParams.country_to = params.country_to;
-      if (params.departure_city) queryParams.departure_city = params.departure_city;
-      if (params.destination_city) queryParams.destination_city = params.destination_city;
-      if (params.departure_country) queryParams.departure_country = params.departure_country;
-      if (params.destination_country) queryParams.destination_country = params.destination_country;
-      if (params.weight_min) queryParams.weight_min = params.weight_min;
-      if (params.weight_max) queryParams.weight_max = params.weight_max;
-      if (params.cost_min) queryParams.cost_min = params.cost_min;
-      if (params.cost_max) queryParams.cost_max = params.cost_max;
-      if (params.search) queryParams.search = params.search;
-      if (params.date) queryParams.date = params.date;
-      if (params.price) queryParams.price = params.price;
-      if (params.trust) queryParams.trust = params.trust;
-      if (params.nearby) queryParams.nearby = '1';
-      if (params.is_closed !== undefined) queryParams.is_closed = params.is_closed;
-      if (params.page) queryParams.page = params.page;
+      if (params.city_from) {queryParams.city_from = params.city_from;}
+      if (params.city_to) {queryParams.city_to = params.city_to;}
+      if (params.country_from) {queryParams.country_from = params.country_from;}
+      if (params.country_to) {queryParams.country_to = params.country_to;}
+      if (params.departure_city) {queryParams.departure_city = params.departure_city;}
+      if (params.destination_city) {queryParams.destination_city = params.destination_city;}
+      if (params.departure_country) {queryParams.departure_country = params.departure_country;}
+      if (params.destination_country) {queryParams.destination_country = params.destination_country;}
+      if (params.weight_min) {queryParams.weight_min = params.weight_min;}
+      if (params.weight_max) {queryParams.weight_max = params.weight_max;}
+      if (params.cost_min) {queryParams.cost_min = params.cost_min;}
+      if (params.cost_max) {queryParams.cost_max = params.cost_max;}
+      if (params.search) {queryParams.search = params.search;}
+      if (params.date) {queryParams.date = params.date;}
+      if (params.price) {queryParams.price = params.price;}
+      if (params.trust) {queryParams.trust = params.trust;}
+      if (params.nearby) {queryParams.nearby = '1';}
+      if (params.is_closed !== undefined) {queryParams.is_closed = params.is_closed;}
+      if (params.page) {queryParams.page = params.page;}
     }
     const response = await apiService.get<any>('/advertisements/', queryParams);
     // Если ответ - массив, оборачиваем в формат с results

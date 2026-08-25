@@ -20,6 +20,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { spacing, borderRadius, fontSize, fontWeight } from '../theme';
 import type { AppColors } from '../theme/colors';
 import { useThemedStyles } from '../theme/useThemedStyles';
+import { useAppTheme } from '../theme/useAppTheme';
 
 const ReviewsHistoryScreen = () => {
   const { t } = useTranslation();
@@ -111,7 +112,7 @@ const ReviewsHistoryScreen = () => {
             <View style={styles.reviewOrderInfo}>
               <MaterialIcons name="local-shipping" size={16} color={colors.textSecondary} />
               <Text style={styles.reviewOrderText}>
-                {t('reviews.order')} #{review.order.id}
+                {t('reviews.order')} #{typeof review.order === 'number' ? review.order : review.order.id}
               </Text>
             </View>
           </Card>
@@ -149,7 +150,7 @@ const ReviewsHistoryScreen = () => {
           </View>
           <View style={styles.distributionContainer}>
             <Text style={styles.distributionTitle}>{t('reviews.ratingDistribution')}</Text>
-            {[5, 4, 3, 2, 1].map((star) => (
+            {([5, 4, 3, 2, 1] as const).map((star) => (
               <View key={star} style={styles.distributionRow}>
                 <View style={styles.distributionStars}>
                   {renderStars(star)}
@@ -159,13 +160,13 @@ const ReviewsHistoryScreen = () => {
                     style={[
                       styles.distributionBar,
                       {
-                        width: `${(statistics.received.rating_distribution[star.toString()] / Math.max(statistics.received.total_ratings, 1)) * 100}%`,
+                        width: `${(statistics.received.rating_distribution[String(star) as keyof typeof statistics.received.rating_distribution] / Math.max(statistics.received.total_ratings, 1)) * 100}%`,
                       },
                     ]}
                   />
                 </View>
                 <Text style={styles.distributionCount}>
-                  {statistics.received.rating_distribution[star.toString()]}
+                  {statistics.received.rating_distribution[String(star) as keyof typeof statistics.received.rating_distribution]}
                 </Text>
               </View>
             ))}

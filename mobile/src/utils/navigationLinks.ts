@@ -1,10 +1,10 @@
-import { Linking, Platform } from 'react-native';
+import { Linking } from 'react-native';
 import type { LatLng } from './mapGeo';
 
 async function tryOpenExternalUrl(url: string): Promise<boolean> {
   try {
     const supported = await Linking.canOpenURL(url);
-    if (!supported) return false;
+    if (!supported) {return false;}
     await Linking.openURL(url);
     return true;
   } catch {
@@ -32,7 +32,7 @@ export async function openYandexNavigatorToAddress(city: string, address: string
   ];
 
   for (const url of nativeUrls) {
-    if (await tryOpenExternalUrl(url)) return;
+    if (await tryOpenExternalUrl(url)) {return;}
   }
 
   await Linking.openURL(buildYandexMapsWebUrlForAddress(city, address));
@@ -51,7 +51,7 @@ export async function openYandexNavigatorToPoint(
   ];
 
   for (const url of nativeUrls) {
-    if (await tryOpenExternalUrl(url)) return;
+    if (await tryOpenExternalUrl(url)) {return;}
   }
 
   try {
