@@ -43,7 +43,7 @@ const createStyles = (colors: AppColors) =>
       justifyContent: 'center',
       backgroundColor: colors.backgroundSecondary,
       borderWidth: 1,
-      borderColor: colors.borderLight,
+      borderColor: `${colors.primary}66`,
       zIndex: 4,
     },
   });

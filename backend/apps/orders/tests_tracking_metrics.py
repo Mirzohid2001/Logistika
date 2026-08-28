@@ -2,10 +2,13 @@ from decimal import Decimal
 
 from django.test import TestCase
 from django.utils import timezone
+from rest_framework.request import Request
+from rest_framework.test import APIRequestFactory
 
 from apps.advertisements.models import Advertisement
 from apps.locations.models import City, Country
 from apps.orders.models import Order, OrderLocationTrack, OrderStatus
+from apps.orders.serializers import OrderSerializer
 from apps.orders.tracking_metrics import (
     compute_route_progress,
     estimate_eta_minutes,
@@ -117,6 +120,23 @@ class TrackingMetricsTests(TestCase):
         remaining = remaining_route_distance_m(41.31, 69.28, points)
         self.assertIsNotNone(remaining)
         self.assertGreater(remaining, haversine_helper(41.31, 69.28, 41.36, 69.33))
+
+    def test_tracking_alert_message_uses_request_language(self):
+        expected_messages = {
+            'ru': 'Водитель стоит без движения уже 18 мин.',
+            'uz': 'Haydovchi 18 daqiqadan beri harakatsiz turibdi.',
+            'en': 'The driver has been stationary for 18 min.',
+        }
+
+        for language, expected in expected_messages.items():
+            with self.subTest(language=language):
+                request = Request(APIRequestFactory().get('/', HTTP_ACCEPT_LANGUAGE=language))
+                serializer = OrderSerializer(context={'request': request})
+                self.assertEqual(serializer._tracking_alert_message(18), expected)
+
+    def test_tracking_alert_message_is_empty_for_short_stop(self):
+        serializer = OrderSerializer()
+        self.assertIsNone(serializer._tracking_alert_message(4))
 
 
 class TrackedDistanceTests(TestCase):

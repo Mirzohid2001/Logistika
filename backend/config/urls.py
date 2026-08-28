@@ -1,8 +1,11 @@
+import re
+
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
+from django.views.static import serve as serve_static_file
 from apps.users.sms_views import SendSMSCodeView, VerifySMSView
 from apps.users.admin_views import DriverEarningsStatisticsView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
@@ -44,4 +47,11 @@ if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     urlpatterns += staticfiles_urlpatterns()
 elif getattr(settings, 'SERVE_LOCAL_MEDIA', False) and not getattr(settings, 'AWS_STORAGE_BUCKET_NAME', ''):
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    media_prefix = re.escape(settings.MEDIA_URL.lstrip('/'))
+    urlpatterns += [
+        re_path(
+            rf'^{media_prefix}(?P<path>.*)$',
+            serve_static_file,
+            {'document_root': settings.MEDIA_ROOT},
+        ),
+    ]

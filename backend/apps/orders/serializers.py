@@ -159,6 +159,19 @@ class OrderSerializer(serializers.ModelSerializer):
     def _recent_tracks(self, obj, limit=200):
         return list(obj.location_tracks.all().order_by('-timestamp')[:limit])
 
+    def _tracking_alert_message(self, stop_minutes):
+        if stop_minutes is None or stop_minutes < 5:
+            return None
+
+        request = self.context.get('request')
+        language = get_language_from_request(request) if request is not None else 'ru'
+        templates = {
+            'ru': 'Водитель стоит без движения уже {minutes} мин.',
+            'uz': 'Haydovchi {minutes} daqiqadan beri harakatsiz turibdi.',
+            'en': 'The driver has been stationary for {minutes} min.',
+        }
+        return templates.get(language, templates['ru']).format(minutes=stop_minutes)
+
     def _build_tracking_metrics(self, obj):
         tracks = self._recent_tracks(obj, limit=200)
         latest = tracks[0] if tracks else None
@@ -249,11 +262,7 @@ class OrderSerializer(serializers.ModelSerializer):
                 else 'warning' if (last_stop_minutes is not None and last_stop_minutes >= 5)
                 else None
             ),
-            'alert_message': (
-                f"Haydovchi {last_stop_minutes} daqiqadan beri to'xtab turibdi"
-                if last_stop_minutes is not None and last_stop_minutes >= 5
-                else None
-            ),
+            'alert_message': self._tracking_alert_message(last_stop_minutes),
         }
         from apps.orders.distance_tracking import build_distance_summary
 
@@ -524,4 +533,3 @@ class SOSTriggerSerializer(serializers.Serializer):
     lat = serializers.DecimalField(max_digits=9, decimal_places=6)
     lng = serializers.DecimalField(max_digits=9, decimal_places=6)
     message = serializers.CharField(required=False, allow_blank=True, max_length=500)
-

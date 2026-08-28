@@ -8,7 +8,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -18,7 +18,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -38,9 +38,11 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       DEBUG: "False"
+      PAYMENTS_ALLOW_MOCK: "${PAYMENTS_ALLOW_MOCK:-False}"
+      SUBSCRIPTIONS_ENFORCED: "${SUBSCRIPTIONS_ENFORCED:-False}"
       SECRET_KEY: ${SECRET_KEY:-compose-development-only-secret-change-before-production}
       SECURE_SSL_REDIRECT: "False"
-      SERVE_LOCAL_MEDIA: "False"
+      SERVE_LOCAL_MEDIA: "${SERVE_LOCAL_MEDIA:-False}"
       TELEGRAM_AUTH_CLIENT_ID: ${TELEGRAM_AUTH_CLIENT_ID:-}
       TELEGRAM_AUTH_CLIENT_SECRET: ${TELEGRAM_AUTH_CLIENT_SECRET:-}
       TELEGRAM_AUTH_REDIRECT_URI: ${TELEGRAM_AUTH_REDIRECT_URI:-}
@@ -48,7 +50,7 @@ services:
     volumes:
       - ./backend/media:/app/media
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready/')\""]
       interval: 15s
@@ -83,7 +85,7 @@ services:
   celery-beat:
     build:
       context: ./backend
-    command: celery -A config beat -l info
+    command: celery -A config beat -l info --schedule /tmp/celerybeat-schedule
     environment:
       POSTGRES_HOST: db
       POSTGRES_DB: logistika

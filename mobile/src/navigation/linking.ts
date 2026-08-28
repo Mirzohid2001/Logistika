@@ -1,5 +1,17 @@
+import {Linking, Settings} from 'react-native';
+
 export const appLinkingConfig = {
   prefixes: ['logistika://'],
+  async getInitialURL() {
+    if (__DEV__) {
+      const demoInitialURL = Settings.get('demoInitialURL');
+      if (typeof demoInitialURL === 'string' && demoInitialURL.startsWith('logistika://')) {
+        Settings.set({demoInitialURL: ''});
+        return demoInitialURL;
+      }
+    }
+    return Linking.getInitialURL();
+  },
   config: {
     screens: {
       PublicTrackingShare: 'track/:token',

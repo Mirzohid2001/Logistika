@@ -1,4 +1,5 @@
 from django.test import Client, TestCase, override_settings
+from unittest.mock import patch
 
 
 @override_settings(
@@ -14,9 +15,12 @@ class HealthEndpointTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['status'], 'ok')
 
-    def test_ready_returns_ready_when_dependencies_ok(self):
+    @patch('apps.common.health_views._check_redis', return_value={'ok': True})
+    def test_ready_returns_ready_when_dependencies_ok(self, _redis_check):
         response = self.client.get('/ready/')
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload['status'], 'ready')
         self.assertEqual(payload['checks']['db'], 'ok')
+        self.assertEqual(payload['checks']['cache'], 'ok')
+        self.assertEqual(payload['checks']['broker'], 'ok')

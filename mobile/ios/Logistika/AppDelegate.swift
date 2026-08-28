@@ -30,11 +30,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate, RCTBridgeDelegate {
 
   func sourceURL(for bridge: RCTBridge!) -> URL! {
     #if DEBUG
-    let url = RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index")
-    if let bundleURL = url {
-      return bundleURL
+    if let provider = RCTBundleURLProvider.sharedSettings() {
+      #if targetEnvironment(simulator)
+      // The demo stack deliberately avoids Metro's default 8081 port.
+      // Keep a manually selected Dev Menu host, otherwise use the documented demo port.
+      if provider.jsLocation?.isEmpty != false {
+        provider.jsLocation = "localhost:8083"
+      }
+      #endif
+      if let bundleURL = provider.jsBundleURL(forBundleRoot: "index") {
+        return bundleURL
+      }
     }
-    return URL(string: "http://localhost:8081/index.bundle?platform=ios&dev=true")!
+    return URL(string: "http://localhost:8083/index.bundle?platform=ios&dev=true")!
     #else
     if let bundleURL = Bundle.main.url(forResource: "main", withExtension: "jsbundle") {
       return bundleURL

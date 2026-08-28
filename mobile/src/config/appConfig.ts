@@ -7,6 +7,9 @@ import { PRODUCTION_API_BASE_URL, PRODUCTION_SUBSCRIPTIONS_ENFORCED } from './pr
  */
 export const PROD_API_BASE_URL = '';
 
+/** Separate local API port so Logistika can run alongside another project. */
+export const DEV_API_PORT = 18083;
+
 /** Dev buildda o'chirilgan; release buildda `production.ts` dan olinadi. */
 export const SUBSCRIPTIONS_ENFORCED = __DEV__ ? false : PRODUCTION_SUBSCRIPTIONS_ENFORCED;
 
@@ -26,7 +29,8 @@ export function isRunningFromMetroBundler(): boolean {
     scriptURL.includes('localhost') ||
     scriptURL.includes('127.0.0.1') ||
     scriptURL.includes(':8081') ||
-    scriptURL.includes(':8082')
+    scriptURL.includes(':8082') ||
+    scriptURL.includes(':8083')
   );
 }
 
@@ -48,7 +52,7 @@ function resolveDevApiHost(): string {
 }
 
 function getDevApiBaseUrl(): string {
-  return `http://${resolveDevApiHost()}:8000/api`;
+  return `http://${resolveDevApiHost()}:${DEV_API_PORT}/api`;
 }
 
 function resolveProductionApiUrl(): string {

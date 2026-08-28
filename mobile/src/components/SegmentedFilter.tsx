@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { borderRadius, fontSize, fontWeight, shadows, spacing } from '../theme';
+import { borderRadius, fontSize, fontWeight, spacing } from '../theme';
 import { useAppTheme } from '../theme/useAppTheme';
 
 export interface SegmentedFilterOption {
@@ -21,7 +21,7 @@ export const SegmentedFilter: React.FC<SegmentedFilterProps> = ({
   onChange,
   accentColor,
 }) => {
-  const { colors } = useAppTheme();
+  const { colors, shadows } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const accent = accentColor ?? colors.primary;
 
@@ -38,7 +38,14 @@ export const SegmentedFilter: React.FC<SegmentedFilterProps> = ({
             ]}
             onPress={() => onChange(option.key)}
             activeOpacity={0.85}>
-            <Text style={[styles.chipText, active && styles.chipTextActive]}>{option.label}</Text>
+            <Text
+              style={[
+                styles.chipText,
+                active && styles.chipTextActive,
+                active && { color: colors.onPrimary },
+              ]}>
+              {option.label}
+            </Text>
           </TouchableOpacity>
         );
       })}
@@ -63,7 +70,6 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>['colors']) =>
       borderColor: colors.borderLight,
       minHeight: 42,
       justifyContent: 'center',
-      ...shadows.sm,
     },
     chipText: {
       fontSize: fontSize.sm,

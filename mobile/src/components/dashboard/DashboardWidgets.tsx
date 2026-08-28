@@ -4,7 +4,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Card } from '../Card';
 import { EmptyState } from '../EmptyState';
 import { SkeletonCard } from '../Skeleton';
-import { spacing, borderRadius, fontSize, fontWeight, shadows } from '../../theme';
+import { spacing, borderRadius, fontSize, fontWeight } from '../../theme';
 import type { AppColors } from '../../theme/colors';
 import { useAppTheme } from '../../theme/useAppTheme';
 import { useThemedStyles } from '../../theme/useThemedStyles';
@@ -51,7 +51,7 @@ export const DashboardPeriodSelector: React.FC<PeriodSelectorProps> = ({
   labelForDays,
   accentColor,
 }) => {
-  const { colors } = useAppTheme();
+  const { colors, shadows } = useAppTheme();
   const styles = useThemedStyles(createWidgetStyles);
   const accent = accentColor ?? colors.primary;
 
@@ -89,13 +89,20 @@ export const DashboardWelcomeCard: React.FC<{
   accentColor: string;
   style?: StyleProp<ViewStyle>;
 }> = ({ title, subtitle, accentColor, style }) => {
+  const { colors } = useAppTheme();
   const styles = useThemedStyles(createDashboardStyles);
   return (
-    <Card variant="elevated" style={[styles.welcomeCard, { backgroundColor: accentColor }, style]}>
-      <View style={styles.welcomeOrbLarge} />
-      <View style={styles.welcomeOrbSmall} />
+    <Card
+      variant="elevated"
+      style={[styles.welcomeCard, { borderColor: `${accentColor}55` }, style]}>
+      <View style={[styles.welcomeSignal, { backgroundColor: accentColor }]} />
+      <View style={[styles.welcomeOrbLarge, { backgroundColor: `${accentColor}18` }]} />
+      <View style={[styles.welcomeBrandMark, { backgroundColor: `${accentColor}1F` }]}>
+        <MaterialIcons name="local-shipping" size={20} color={accentColor} />
+      </View>
       <Text style={styles.welcomeText}>{title}</Text>
       <Text style={styles.welcomeSubtext}>{subtitle}</Text>
+      <MaterialIcons name="east" size={22} color={colors.textTertiary} style={styles.welcomeArrow} />
     </Card>
   );
 };
@@ -111,6 +118,92 @@ export const DashboardStatCard: React.FC<StatCardProps> = ({ icon, iconColor, va
         {value}
       </Text>
       <Text style={styles.statLabel}>{label}</Text>
+    </Card>
+  );
+};
+
+interface ActiveOrderCardProps {
+  eyebrow: string;
+  orderId: number;
+  orderTitle?: string;
+  routeLabel?: string;
+  driverLabel?: string;
+  statusLabel?: string;
+  trackLabel: string;
+  detailsLabel: string;
+  onTrack: () => void;
+  onDetails: () => void;
+}
+
+export const DashboardActiveOrderCard: React.FC<ActiveOrderCardProps> = ({
+  eyebrow,
+  orderId,
+  orderTitle,
+  routeLabel,
+  driverLabel,
+  statusLabel,
+  trackLabel,
+  detailsLabel,
+  onTrack,
+  onDetails,
+}) => {
+  const { colors } = useAppTheme();
+  const styles = useThemedStyles(createDashboardStyles);
+
+  return (
+    <Card variant="elevated" style={styles.activeOrderCard}>
+      <View style={styles.activeOrderHeader}>
+        <View style={styles.activeOrderHeading}>
+          <View style={styles.activeOrderIcon}>
+            <MaterialIcons name="local-shipping" size={21} color={colors.primary} />
+          </View>
+          <View style={styles.activeOrderHeadingText}>
+            <Text style={styles.activeOrderEyebrow}>{eyebrow}</Text>
+            <Text style={styles.activeOrderNumber}>#{orderId}</Text>
+          </View>
+        </View>
+        {statusLabel ? (
+          <View style={styles.activeOrderStatus}>
+            <View style={styles.activeOrderStatusDot} />
+            <Text style={styles.activeOrderStatusText} numberOfLines={1}>{statusLabel}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      {orderTitle ? (
+        <Text style={styles.activeOrderTitle} numberOfLines={1}>{orderTitle}</Text>
+      ) : null}
+      {routeLabel ? (
+        <View style={styles.activeOrderMetaRow}>
+          <MaterialIcons name="route" size={18} color={colors.textTertiary} />
+          <Text style={styles.activeOrderRoute} numberOfLines={2}>{routeLabel}</Text>
+        </View>
+      ) : null}
+      {driverLabel ? (
+        <View style={styles.activeOrderMetaRow}>
+          <MaterialIcons name="person-outline" size={18} color={colors.textTertiary} />
+          <Text style={styles.activeOrderMeta} numberOfLines={1}>{driverLabel}</Text>
+        </View>
+      ) : null}
+
+      <View style={styles.activeOrderActions}>
+        <TouchableOpacity
+          style={styles.activeOrderPrimaryButton}
+          onPress={onTrack}
+          activeOpacity={0.85}
+          {...a11yButton(trackLabel)}>
+          <MaterialIcons name="my-location" size={19} color={colors.onPrimary} />
+          <Text style={styles.activeOrderPrimaryText} numberOfLines={1}>{trackLabel}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.activeOrderSecondaryButton}
+          onPress={onDetails}
+          activeOpacity={0.85}
+          {...a11yButton(detailsLabel)}>
+          <Text style={styles.activeOrderSecondaryText} numberOfLines={1}>{detailsLabel}</Text>
+          <MaterialIcons name="chevron-right" size={19} color={colors.primary} />
+        </TouchableOpacity>
+      </View>
     </Card>
   );
 };
@@ -138,8 +231,8 @@ export const DashboardActionButton: React.FC<ActionButtonProps> = ({
     <TouchableOpacity
       style={[
         styles.actionButton,
-        variant === 'primary' && { backgroundColor: accent, ...shadows.colored(accent) },
-        variant === 'secondary' && { ...styles.actionButtonSecondary, borderColor: accent },
+        variant === 'primary' && { borderLeftColor: accent },
+        variant === 'secondary' && styles.actionButtonSecondary,
       ]}
       onPress={onPress}
       activeOpacity={0.85}
@@ -147,15 +240,16 @@ export const DashboardActionButton: React.FC<ActionButtonProps> = ({
       <MaterialIcons
         name={icon}
         size={22}
-        color={variant === 'secondary' ? accent : colors.textLight}
+        color={accent}
       />
       <Text
         style={[
           styles.actionButtonText,
-          variant === 'secondary' && { ...styles.actionButtonTextSecondary, color: accent },
+          variant === 'secondary' && styles.actionButtonTextSecondary,
         ]}>
         {label}
       </Text>
+      <MaterialIcons name="chevron-right" size={20} color={colors.textTertiary} />
     </TouchableOpacity>
   );
 };
@@ -254,7 +348,7 @@ const createDashboardStyles = (colors: AppColors) =>
     },
     content: {
       padding: spacing.lg,
-      paddingBottom: spacing.xxxl + 24,
+      paddingBottom: 120,
     },
     warningBox: {
       flexDirection: 'row',
@@ -360,6 +454,26 @@ const createDashboardStyles = (colors: AppColors) =>
       overflow: 'hidden',
       position: 'relative',
     },
+    welcomeSignal: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      bottom: 0,
+      width: 4,
+    },
+    welcomeBrandMark: {
+      width: 38,
+      height: 38,
+      borderRadius: borderRadius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.md,
+    },
+    welcomeArrow: {
+      position: 'absolute',
+      right: spacing.lg,
+      top: spacing.lg,
+    },
     welcomeOrbLarge: {
       position: 'absolute',
       top: -30,
@@ -367,29 +481,145 @@ const createDashboardStyles = (colors: AppColors) =>
       width: 120,
       height: 120,
       borderRadius: 60,
-      backgroundColor: 'rgba(255,255,255,0.14)',
-    },
-    welcomeOrbSmall: {
-      position: 'absolute',
-      bottom: -20,
-      left: -10,
-      width: 80,
-      height: 80,
-      borderRadius: 40,
-      backgroundColor: 'rgba(255,255,255,0.1)',
+      backgroundColor: colors.primaryGlow,
     },
     welcomeText: {
       fontSize: fontSize.xl,
       fontWeight: fontWeight.extrabold,
-      color: colors.textLight,
+      color: colors.text,
       marginBottom: spacing.xs,
       letterSpacing: -0.3,
     },
     welcomeSubtext: {
       fontSize: fontSize.md,
-      color: colors.textLight,
-      opacity: 0.92,
+      color: colors.textSecondary,
       lineHeight: 22,
+    },
+    activeOrderCard: {
+      marginBottom: spacing.lg,
+      borderColor: `${colors.primary}55`,
+    },
+    activeOrderHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.sm,
+      marginBottom: spacing.md,
+    },
+    activeOrderHeading: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      flex: 1,
+    },
+    activeOrderIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: borderRadius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.primaryGlow,
+    },
+    activeOrderHeadingText: {
+      flexShrink: 1,
+    },
+    activeOrderEyebrow: {
+      color: colors.textSecondary,
+      fontSize: fontSize.xs,
+      fontWeight: fontWeight.semibold,
+      marginBottom: 2,
+    },
+    activeOrderNumber: {
+      color: colors.text,
+      fontSize: fontSize.lg,
+      fontWeight: fontWeight.extrabold,
+    },
+    activeOrderStatus: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      maxWidth: '46%',
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 6,
+      borderRadius: borderRadius.round,
+      backgroundColor: colors.successGlow,
+    },
+    activeOrderStatusDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+      backgroundColor: colors.success,
+    },
+    activeOrderStatusText: {
+      flexShrink: 1,
+      color: colors.success,
+      fontSize: fontSize.xs,
+      fontWeight: fontWeight.bold,
+    },
+    activeOrderTitle: {
+      color: colors.text,
+      fontSize: fontSize.md,
+      fontWeight: fontWeight.bold,
+      marginBottom: spacing.sm,
+    },
+    activeOrderMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      marginTop: spacing.xs,
+    },
+    activeOrderRoute: {
+      flex: 1,
+      color: colors.text,
+      fontSize: fontSize.sm,
+      fontWeight: fontWeight.semibold,
+      lineHeight: 20,
+    },
+    activeOrderMeta: {
+      flex: 1,
+      color: colors.textSecondary,
+      fontSize: fontSize.sm,
+      fontWeight: fontWeight.medium,
+    },
+    activeOrderActions: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      marginTop: spacing.lg,
+    },
+    activeOrderPrimaryButton: {
+      flex: 1.25,
+      minHeight: 48,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.xs,
+      paddingHorizontal: spacing.md,
+      borderRadius: borderRadius.lg,
+      backgroundColor: colors.primary,
+    },
+    activeOrderPrimaryText: {
+      flexShrink: 1,
+      color: colors.onPrimary,
+      fontSize: fontSize.sm,
+      fontWeight: fontWeight.bold,
+    },
+    activeOrderSecondaryButton: {
+      flex: 0.9,
+      minHeight: 48,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: spacing.sm,
+      borderRadius: borderRadius.lg,
+      backgroundColor: colors.surfaceMuted,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    activeOrderSecondaryText: {
+      flexShrink: 1,
+      color: colors.primary,
+      fontSize: fontSize.sm,
+      fontWeight: fontWeight.bold,
     },
     snapshotCard: {
       marginBottom: spacing.lg,
@@ -562,7 +792,7 @@ const createWidgetStyles = (colors: AppColors) =>
       color: colors.textSecondary,
     },
     periodChipTextActive: {
-      color: colors.textLight,
+      color: colors.onPrimary,
     },
     statCard: {
       width: '48%',
@@ -598,14 +828,20 @@ const createWidgetStyles = (colors: AppColors) =>
       paddingVertical: spacing.md,
       paddingHorizontal: spacing.lg,
       borderRadius: borderRadius.lg,
-      minHeight: 52,
+      minHeight: 54,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.primary,
     },
     actionButtonSecondary: {
       backgroundColor: colors.surfaceMuted,
-      borderWidth: 1.5,
+      borderLeftColor: colors.borderDark,
     },
     actionButtonText: {
-      color: colors.textLight,
+      flex: 1,
+      color: colors.text,
       fontSize: fontSize.md,
       fontWeight: fontWeight.bold,
     },
@@ -685,7 +921,7 @@ const createWidgetStyles = (colors: AppColors) =>
       justifyContent: 'center',
     },
     trendDetailButtonText: {
-      color: colors.textLight,
+      color: colors.onPrimary,
       fontWeight: fontWeight.bold,
       fontSize: fontSize.sm,
     },

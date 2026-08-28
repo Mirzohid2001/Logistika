@@ -19,6 +19,7 @@ DerivedData
 *.ipa
 *.xcuserstate
 ios/.xcode.env.local
+ios/*.xcodeproj/project.xcworkspace/
 
 # Android/IntelliJ
 build/
@@ -65,5 +66,4 @@ ios/Logistika/GoogleService-Info.plist
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
-
 

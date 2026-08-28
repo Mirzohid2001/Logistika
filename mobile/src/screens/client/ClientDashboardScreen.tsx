@@ -22,6 +22,7 @@ import {
   DashboardActionButton,
   DashboardTrendCard,
   DashboardWelcomeCard,
+  DashboardActiveOrderCard,
   useDashboardStyles,
 } from '../../components/dashboard/DashboardWidgets';
 import { ScreenBackground } from '../../components/ScreenBackground';
@@ -36,7 +37,7 @@ const ClientDashboardScreen = () => {
   const { t, currentLanguage } = useTranslation();
   const { colors } = useAppTheme();
   const { dashboardStyles: ds } = useDashboardStyles();
-  const accent = colors.warning;
+  const accent = colors.primary;
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -173,6 +174,28 @@ const ClientDashboardScreen = () => {
   }
 
   const { statistics, activeOrders, myAdvertisements } = stats;
+  const primaryActiveOrder = activeOrders[0] || null;
+  const primaryAdvertisement =
+    primaryActiveOrder && typeof primaryActiveOrder.advertisement === 'object'
+      ? primaryActiveOrder.advertisement
+      : null;
+  const departureCity =
+    primaryAdvertisement && typeof primaryAdvertisement.departure_city === 'object'
+      ? primaryAdvertisement.departure_city.name
+      : '';
+  const destinationCity =
+    primaryAdvertisement && typeof primaryAdvertisement.destination_city === 'object'
+      ? primaryAdvertisement.destination_city.name
+      : '';
+  const primaryRouteLabel =
+    departureCity && destinationCity ? `${departureCity} → ${destinationCity}` : undefined;
+  const primaryDriver =
+    primaryActiveOrder && typeof primaryActiveOrder.driver === 'object'
+      ? primaryActiveOrder.driver
+      : null;
+  const primaryDriverLabel = primaryDriver
+    ? `${t('orders.driver')}: ${primaryDriver.first_name} ${primaryDriver.last_name}`.trim()
+    : undefined;
   const dailyTrend = statistics.daily_spending || [];
   const selectedTrend =
     selectedTrendDate != null ? dailyTrend.find((d: any) => d.date === selectedTrendDate) || null : null;
@@ -191,6 +214,33 @@ const ClientDashboardScreen = () => {
             <Text style={ds.warningText}>{errorMessage}</Text>
           </View>
         )}
+      <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+      <DashboardWelcomeCard
+        title={`${t('dashboard.welcome')}, ${user?.first_name}!`}
+        subtitle={t('dashboard.clientWelcome')}
+        accentColor={accent}
+      />
+      </Animated.View>
+      {primaryActiveOrder ? (
+        <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+          <DashboardActiveOrderCard
+            eyebrow={t('dashboard.activeOrderNow')}
+            orderId={primaryActiveOrder.id}
+            orderTitle={primaryAdvertisement?.title}
+            routeLabel={primaryRouteLabel}
+            driverLabel={primaryDriverLabel}
+            statusLabel={primaryActiveOrder.status?.name || primaryActiveOrder.status?.code}
+            trackLabel={t('dashboard.openTracking')}
+            detailsLabel={t('dashboard.orderDetails')}
+            onTrack={() =>
+              (navigation as any).navigate('ClientOrderTracking', { id: primaryActiveOrder.id })
+            }
+            onDetails={() =>
+              (navigation as any).navigate('ClientOrderDetail', { id: primaryActiveOrder.id })
+            }
+          />
+        </Animated.View>
+      ) : null}
       <DashboardPeriodSelector
         value={periodDays}
         onChange={setPeriodDays}
@@ -200,13 +250,6 @@ const ClientDashboardScreen = () => {
       <Text style={ds.updatedAtText}>
         {t('dashboard.lastUpdated')}: {formatTime(lastUpdatedAt, currentLanguage)}
       </Text>
-      <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
-      <DashboardWelcomeCard
-        title={`${t('dashboard.welcome')}, ${user?.first_name}!`}
-        subtitle={t('dashboard.clientWelcome')}
-        accentColor={accent}
-      />
-      </Animated.View>
 
       <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
       <View style={ds.statsGrid}>
@@ -345,30 +388,6 @@ const ClientDashboardScreen = () => {
         />
       </View>
       </Animated.View>
-
-      {activeOrders.length > 0 && (
-        <Card variant="soft" style={ds.recentCard}>
-          <View style={ds.recentHeader}>
-            <Text style={ds.cardTitle}>{t('dashboard.activeOrders')}</Text>
-            <TouchableOpacity
-              onPress={() => (navigation as any).navigate('ClientOrders')}>
-              <Text style={[ds.seeAllText, { color: accent }]}>{t('dashboard.seeAll')}</Text>
-            </TouchableOpacity>
-          </View>
-          {activeOrders.slice(0, 3).map((order: any) => (
-            <TouchableOpacity
-              key={order.id}
-              style={ds.recentItem}
-              onPress={() => (navigation as any).navigate('ClientOrderDetail', { id: order.id })}>
-              <View style={ds.recentItemContent}>
-                <Text style={ds.recentItemTitle}>{t('orders.title')} #{order.id}</Text>
-                <Text style={ds.recentItemStatus}>{order.status?.name || order.status?.code || '—'}</Text>
-              </View>
-              <MaterialIcons name="chevron-right" size={24} color={colors.textTertiary} />
-            </TouchableOpacity>
-          ))}
-        </Card>
-      )}
 
       {myAdvertisements.length > 0 && (
         <Card variant="soft" style={ds.recentCard}>

@@ -18,6 +18,7 @@ const SHEET_TAB_GAP = 8;
 interface TrackingBottomSheetProps {
   children: ReactNode;
   expanded?: boolean;
+  fullScreen?: boolean;
   onToggleExpand?: () => void;
   expandLabel?: string;
   collapseLabel?: string;
@@ -26,16 +27,17 @@ interface TrackingBottomSheetProps {
 export const TrackingBottomSheet: React.FC<TrackingBottomSheetProps> = ({
   children,
   expanded = false,
+  fullScreen = false,
   onToggleExpand,
   expandLabel,
   collapseLabel,
 }) => {
   const styles = useThemedStyles(createStyles);
-  const { colors } = useAppTheme();
+  const { colors, shadows } = useAppTheme();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useContext(BottomTabBarHeightContext);
   const bottomClearance =
-    typeof tabBarHeight === 'number' && tabBarHeight > 0
+    !fullScreen && typeof tabBarHeight === 'number' && tabBarHeight > 0
       ? tabBarHeight + FLOATING_TAB_BAR_BOTTOM + SHEET_TAB_GAP
       : Math.max(insets.bottom, SHEET_TAB_GAP);
 
@@ -43,7 +45,12 @@ export const TrackingBottomSheet: React.FC<TrackingBottomSheetProps> = ({
   const chromeHeight = SHEET_HANDLE_HEIGHT + (onToggleExpand ? SHEET_EXPAND_ROW_HEIGHT : 0);
 
   return (
-    <View style={[styles.sheetAnchor, { bottom: bottomClearance, maxHeight: sheetMaxHeight }]}>
+    <View
+      style={[
+        styles.sheetAnchor,
+        { bottom: bottomClearance, maxHeight: sheetMaxHeight },
+        shadows.floating,
+      ]}>
       <View style={styles.sheetInner}>
         <View style={styles.handle} />
         <ScrollView
@@ -77,10 +84,11 @@ interface TrackingPhaseBadgeProps {
 export const TrackingPhaseBadge: React.FC<TrackingPhaseBadgeProps> = ({ label, icon = 'shipping' }) => {
   const styles = useThemedStyles(createStyles);
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const iconName =
     icon === 'flag' ? 'flag' : icon === 'location' ? 'my-location' : 'local-shipping';
   return (
-    <View style={styles.phaseBadge}>
+    <View style={[styles.phaseBadge, {top: Math.max(insets.top, spacing.md) + spacing.xs}]}>
       <MaterialIcons name={iconName} size={16} color={colors.primary} />
       <Text style={styles.phaseText} numberOfLines={1}>
         {label}
@@ -148,27 +156,28 @@ const createStyles = (colors: AppColors) =>
   StyleSheet.create({
     sheetAnchor: {
       position: 'absolute',
-      left: 0,
-      right: 0,
+      left: spacing.md,
+      right: spacing.md,
       bottom: 0,
       maxHeight: SHEET_MAX_COLLAPSED,
     },
     sheetInner: {
       overflow: 'hidden',
-      backgroundColor: colors.backgroundSecondary,
+      backgroundColor: colors.surfaceElevated,
       borderTopLeftRadius: borderRadius.xl,
       borderTopRightRadius: borderRadius.xl,
       borderBottomLeftRadius: borderRadius.xl,
       borderBottomRightRadius: borderRadius.xl,
       borderWidth: 1,
-      borderColor: colors.borderLight,
+      borderColor: `${colors.primary}38`,
     },
     handle: {
       alignSelf: 'center',
       width: 44,
       height: 5,
       borderRadius: 3,
-      backgroundColor: colors.border,
+      backgroundColor: colors.primary,
+      opacity: 0.72,
       marginTop: spacing.sm,
       marginBottom: spacing.xs,
     },
@@ -197,7 +206,6 @@ const createStyles = (colors: AppColors) =>
     },
     phaseBadge: {
       position: 'absolute',
-      top: spacing.md,
       alignSelf: 'center',
       maxWidth: '82%',
       zIndex: 3,
@@ -206,10 +214,10 @@ const createStyles = (colors: AppColors) =>
       gap: spacing.xs,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
-      backgroundColor: colors.backgroundSecondary,
+      backgroundColor: colors.surfaceElevated,
       borderRadius: borderRadius.round,
       borderWidth: 1,
-      borderColor: colors.borderLight,
+      borderColor: `${colors.primary}38`,
     },
     phaseText: {
       fontSize: fontSize.sm,
@@ -219,6 +227,7 @@ const createStyles = (colors: AppColors) =>
     },
     summary: {
       gap: spacing.xs,
+      paddingTop: spacing.xs,
       paddingBottom: spacing.xs,
       borderBottomWidth: 1,
       borderBottomColor: colors.borderLight,

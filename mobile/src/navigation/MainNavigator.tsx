@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
+import {getFocusedRouteNameFromRoute} from '@react-navigation/native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {useAuth} from '../context/AuthContext';
@@ -40,7 +41,7 @@ const MainNavigator = () => {
   const primaryRole = getPrimaryRole();
   const { colors } = useAppTheme();
   const tabOptions = useMemo(() => getLogisticsTabOptions(colors), [colors]);
-  const tabBarHeight = 56 + Math.max(insets.bottom, 8);
+  const tabBarHeight = 64 + Math.max(insets.bottom, 8);
   const showMarketplaceChats = primaryRole === 'client' || primaryRole === 'driver' || primaryRole === 'dispatcher';
   const chatBadge = chatUnreadCount > 0 ? (chatUnreadCount > 99 ? '99+' : chatUnreadCount) : undefined;
 
@@ -60,13 +61,17 @@ const MainNavigator = () => {
         <Tab.Screen
           name="ClientStack"
           component={ClientNavigator}
-          options={{
-            title: t('profile.client'),
-            tabBarAccessibilityLabel: t('profile.client'),
+          options={({route}) => ({
+            title: t('dashboard.home'),
+            tabBarAccessibilityLabel: t('dashboard.home'),
             tabBarIcon: ({ color, size }) => (
-              <MaterialIcons name="local-shipping" size={size} color={color} />
+              <MaterialIcons name="home" size={size} color={color} />
             ),
-          }}
+            tabBarStyle:
+              getFocusedRouteNameFromRoute(route) === 'ClientOrderTracking'
+                ? {display: 'none'}
+                : undefined,
+          })}
         />
       )}
       {primaryRole === 'driver' && (
@@ -74,10 +79,10 @@ const MainNavigator = () => {
           name="DriverStack"
           component={DriverNavigator}
           options={{
-            title: t('profile.driver'),
-            tabBarAccessibilityLabel: t('profile.driver'),
+            title: t('dashboard.home'),
+            tabBarAccessibilityLabel: t('dashboard.home'),
             tabBarIcon: ({ color, size }) => (
-              <MaterialIcons name="drive-eta" size={size} color={color} />
+              <MaterialIcons name="home" size={size} color={color} />
             ),
           }}
         />

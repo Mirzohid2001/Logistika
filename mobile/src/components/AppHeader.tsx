@@ -67,10 +67,11 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           {right ? <View style={styles.right}>{right}</View> : null}
         </View>
       )}
-      <View style={styles.accentRow}>
-        <View style={[styles.accentBar, { backgroundColor: colors.primary }]} />
-        <View style={[styles.accentBar, { backgroundColor: colors.logisticsAccent }]} />
-        <View style={[styles.accentBar, { backgroundColor: colors.secondary }]} />
+      <View style={styles.brandRow}>
+        <View style={styles.brandMark}>
+          <MaterialIcons name="local-shipping" size={15} color={colors.onPrimary} />
+        </View>
+        <View style={styles.brandRail} />
       </View>
       <Text
         style={[styles.title, variant === 'hero' && styles.titleHero, { color: colors.text }]}
@@ -122,24 +123,35 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>['colors']) =>
       alignItems: 'center',
       gap: spacing.xs,
     },
-    accentRow: {
+    brandRow: {
       flexDirection: 'row',
-      gap: 6,
+      alignItems: 'center',
+      gap: spacing.sm,
       marginBottom: spacing.md,
     },
-    accentBar: {
-      height: 4,
+    brandMark: {
       width: 28,
-      borderRadius: 999,
+      height: 28,
+      borderRadius: borderRadius.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.primary,
+    },
+    brandRail: {
+      width: 38,
+      height: 2,
+      borderRadius: borderRadius.round,
+      backgroundColor: colors.primary,
+      opacity: 0.55,
     },
     title: {
       fontSize: fontSize.xl,
       fontWeight: fontWeight.extrabold,
-      letterSpacing: -0.4,
+      letterSpacing: -0.6,
     },
     titleHero: {
       fontSize: fontSize.xxxl,
-      lineHeight: 34,
+      lineHeight: 36,
     },
     subtitle: {
       marginTop: spacing.xs,

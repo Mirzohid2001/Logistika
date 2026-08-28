@@ -6,12 +6,12 @@ export const FLOATING_TAB_BAR_BOTTOM = 10;
 
 export const getLogisticsHeaderOptions = (colors: AppColors) => ({
   headerStyle: {
-    backgroundColor: colors.primaryDark,
+    backgroundColor: colors.backgroundSecondary,
     elevation: 0,
     shadowOpacity: 0,
     borderBottomWidth: 0,
   },
-  headerTintColor: colors.textLight,
+  headerTintColor: colors.text,
   headerTitleStyle: {
     fontWeight: '700' as const,
     fontSize: 17,
@@ -25,19 +25,20 @@ export const getLogisticsTabOptions = (colors: AppColors) => {
   return {
     tabBarActiveTintColor: colors.primary,
     tabBarInactiveTintColor: colors.textTertiary,
+    tabBarActiveBackgroundColor: colors.primaryGlow,
     tabBarStyle: {
       position: 'absolute' as const,
-      left: 14,
-      right: 14,
+      left: 12,
+      right: 12,
       bottom: FLOATING_TAB_BAR_BOTTOM,
       backgroundColor: colors.backgroundSecondary,
       borderTopWidth: 0,
-      height: 68,
+      height: 72,
       paddingBottom: 8,
       paddingTop: 10,
-      borderRadius: 26,
+      borderRadius: 22,
       borderWidth: 1,
-      borderColor: `${colors.primary}14`,
+      borderColor: `${colors.primary}2E`,
       ...shadows.floating,
     },
     tabBarLabelStyle: {
@@ -47,6 +48,9 @@ export const getLogisticsTabOptions = (colors: AppColors) => {
       marginTop: 1,
     },
     tabBarItemStyle: {
+      marginHorizontal: 3,
+      marginVertical: 5,
+      borderRadius: 16,
       paddingTop: 1,
       paddingBottom: 2,
     },

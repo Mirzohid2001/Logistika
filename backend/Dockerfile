@@ -32,7 +32,7 @@ WORKDIR /app
 COPY --chown=app:app . .
 RUN mkdir -p /app/media /app/logs /app/staticfiles \
     && chown -R app:app /app/media /app/logs /app/staticfiles \
-    && DEBUG=True python manage.py collectstatic --noinput
+    && SECRET_KEY=collectstatic-build-only-secret DEBUG=False python manage.py collectstatic --noinput
 
 USER app
 

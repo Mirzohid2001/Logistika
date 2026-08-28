@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, StyleSheet, StyleProp, ViewStyle } from 'react-native';
-import { borderRadius, spacing, shadows } from '../theme';
+import { borderRadius, spacing } from '../theme';
 import { useAppTheme } from '../theme/useAppTheme';
 
 interface CardProps {
@@ -16,8 +16,8 @@ export const Card: React.FC<CardProps> = ({
   variant = 'default',
   padding = 'lg',
 }) => {
-  const { colors } = useAppTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { colors, shadows } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors, shadows), [colors, shadows]);
 
   const cardStyle = [
     styles.card,
@@ -31,7 +31,10 @@ export const Card: React.FC<CardProps> = ({
   return <View style={cardStyle}>{children}</View>;
 };
 
-const createStyles = (colors: ReturnType<typeof useAppTheme>['colors']) =>
+const createStyles = (
+  colors: ReturnType<typeof useAppTheme>['colors'],
+  shadows: ReturnType<typeof useAppTheme>['shadows'],
+) =>
   StyleSheet.create({
     card: {
       backgroundColor: colors.cardBackground,
@@ -40,7 +43,7 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>['colors']) =>
       marginHorizontal: 0,
       ...shadows.sm,
       borderWidth: 1,
-      borderColor: colors.borderLight,
+      borderColor: colors.border,
       overflow: 'hidden',
     },
     padding_md: {
@@ -54,18 +57,18 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>['colors']) =>
     },
     cardElevated: {
       backgroundColor: colors.surfaceElevated,
-      ...shadows.lg,
-      borderColor: `${colors.primaryLight}22`,
+      ...shadows.md,
+      borderColor: `${colors.primary}32`,
     },
     cardOutlined: {
       ...shadows.sm,
-      borderWidth: 1.5,
+      borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surfaceMuted,
     },
     cardSoft: {
       ...shadows.sm,
       backgroundColor: colors.surfaceMuted,
-      borderColor: `${colors.borderLight}CC`,
+      borderColor: colors.borderLight,
     },
   });

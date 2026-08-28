@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, TextInput, StyleSheet, TextInputProps } from 'react-native';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { spacing, borderRadius, fontSize, fontWeight } from '../theme';
 import type { AppColors } from '../theme/colors';
 import { useAppTheme } from '../theme/useAppTheme';
@@ -21,15 +22,27 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   const { t } = useTranslation();
   const { colors } = useAppTheme();
   const styles = useThemedStyles(createStyles);
+  const [focused, setFocused] = useState(false);
 
   return (
     <View style={[styles.wrap, containerStyle]}>
-      <TextInput
-        style={styles.input}
-        placeholderTextColor={placeholderTextColor ?? colors.textTertiary}
-        {...a11ySearchField(accessibilityLabel || props.placeholder || t('common.search'))}
-        {...props}
-      />
+      <View style={[styles.inputShell, focused && styles.inputShellFocused]}>
+        <MaterialIcons name="search" size={20} color={focused ? colors.primary : colors.textTertiary} />
+        <TextInput
+          {...props}
+          style={styles.input}
+          placeholderTextColor={placeholderTextColor ?? colors.textTertiary}
+          onFocus={(event) => {
+            setFocused(true);
+            props.onFocus?.(event);
+          }}
+          onBlur={(event) => {
+            setFocused(false);
+            props.onBlur?.(event);
+          }}
+          {...a11ySearchField(accessibilityLabel || props.placeholder || t('common.search'))}
+        />
+      </View>
     </View>
   );
 };
@@ -37,16 +50,26 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 const createStyles = (colors: AppColors) =>
   StyleSheet.create({
     wrap: {
-      backgroundColor: colors.backgroundSecondary,
+      backgroundColor: 'transparent',
       paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.md,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
+      paddingVertical: spacing.sm,
+    },
+    inputShell: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      backgroundColor: colors.inputBackground,
+      borderRadius: borderRadius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: spacing.lg,
+    },
+    inputShellFocused: {
+      borderColor: colors.primary,
+      backgroundColor: colors.surfaceElevated,
     },
     input: {
-      backgroundColor: colors.backgroundTertiary,
-      borderRadius: borderRadius.md,
-      paddingHorizontal: spacing.lg,
+      flex: 1,
       paddingVertical: spacing.md,
       fontSize: fontSize.md,
       color: colors.text,

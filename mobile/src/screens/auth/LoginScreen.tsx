@@ -1,5 +1,5 @@
-import React, {useState} from 'react';
-import {Linking, StyleSheet, Text, View} from 'react-native';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
+import {Linking, Settings, StyleSheet, Text, View} from 'react-native';
 import {useAuth} from '../../context/AuthContext';
 import {useNavigation} from '@react-navigation/native';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -14,6 +14,18 @@ import { useAppTheme } from '../../theme/useAppTheme';
 import { isValidUzPhone } from '../../utils/phone';
 import { navigateRoot } from '../../utils/navigationHelpers';
 
+const DEMO_PASSWORD = 'demo12345';
+const DEMO_ACCOUNTS = {
+  client: {labelKey: 'auth.demoClient', phone: '+998901000101'},
+  driver: {labelKey: 'auth.demoDriver', phone: '+998901000102'},
+  dispatcher: {labelKey: 'auth.demoDispatcher', phone: '+998901000103'},
+  updater: {labelKey: 'auth.demoUpdater', phone: '+998901000104'},
+  fee_client: {labelKey: 'auth.demoFeeClient', phone: '+998901000105'},
+  fee_driver: {labelKey: 'auth.demoFeeDriver', phone: '+998901000106'},
+} as const;
+
+type DemoRole = keyof typeof DEMO_ACCOUNTS;
+
 const LoginScreen = () => {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -23,6 +35,50 @@ const LoginScreen = () => {
   const navigation = useNavigation();
   const {t} = useTranslation();
   const { colors } = useAppTheme();
+  const demoLoginInFlight = useRef(false);
+
+  const handleDemoLogin = useCallback(async (role: DemoRole) => {
+    if (!__DEV__ || demoLoginInFlight.current) {
+      return;
+    }
+
+    demoLoginInFlight.current = true;
+    setLoading(true);
+    try {
+      await login(DEMO_ACCOUNTS[role].phone, DEMO_PASSWORD);
+    } catch (error: any) {
+      const appError = errorService.parseError(error);
+      errorService.logError(appError, { screen: 'LoginScreen', provider: 'demo', role });
+      toastService.error(errorService.getUserFriendlyMessage(appError));
+      demoLoginInFlight.current = false;
+    } finally {
+      setLoading(false);
+    }
+  }, [login]);
+
+  useEffect(() => {
+    if (!__DEV__) {
+      return;
+    }
+
+    const openDemoAccount = (url: string | null) => {
+      const match = url?.match(/^logistika:\/\/dev-login(?:\?|\/).*?(?:role=|\/)([a-z_]+)/i);
+      const role = match?.[1] as DemoRole | undefined;
+      if (role && DEMO_ACCOUNTS[role]) {
+        void handleDemoLogin(role);
+      }
+    };
+
+    const launchRole = Settings.get('demoAutoLoginRole') as DemoRole | undefined;
+    if (launchRole && DEMO_ACCOUNTS[launchRole]) {
+      Settings.set({demoAutoLoginRole: ''});
+      void handleDemoLogin(launchRole);
+    }
+
+    void Linking.getInitialURL().then(openDemoAccount);
+    const subscription = Linking.addEventListener('url', event => openDemoAccount(event.url));
+    return () => subscription.remove();
+  }, [handleDemoLogin]);
 
   const handleTelegramLogin = async () => {
     setTelegramLoading(true);
@@ -74,6 +130,28 @@ const LoginScreen = () => {
       <Text style={[styles.telegramHint, { color: colors.textSecondary }]}>
         {t('auth.telegramShareHint')}
       </Text>
+
+      {__DEV__ && (
+        <View style={[styles.demoPanel, {backgroundColor: colors.surfaceMuted, borderColor: colors.border}]}>
+          <Text style={[styles.demoTitle, {color: colors.text}]}>{t('auth.demoLoginTitle')}</Text>
+          <Text style={[styles.demoHint, {color: colors.textSecondary}]}>
+            {t('auth.demoLoginHint')}
+          </Text>
+          <View style={styles.demoGrid}>
+            {(Object.keys(DEMO_ACCOUNTS) as DemoRole[]).map(role => (
+              <View key={role} style={styles.demoCell}>
+                <Button
+                  title={t(DEMO_ACCOUNTS[role].labelKey)}
+                  onPress={() => handleDemoLogin(role)}
+                  disabled={loading || telegramLoading}
+                  variant={role.includes('fee') ? 'warning' : 'outline'}
+                  size="sm"
+                />
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
 
       <View style={styles.dividerRow}>
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -128,6 +206,22 @@ const LoginScreen = () => {
 const styles = StyleSheet.create({
   telegramButton: { marginTop: spacing.xs },
   telegramHint: { marginTop: spacing.sm, textAlign: 'center', lineHeight: 20 },
+  demoPanel: {
+    marginTop: spacing.lg,
+    padding: spacing.md,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  demoTitle: {fontSize: 15, fontWeight: '700', textAlign: 'center'},
+  demoHint: {fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: spacing.xs},
+  demoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  demoCell: {width: '48%'},
   dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: spacing.xl },
   divider: { flex: 1, height: StyleSheet.hairlineWidth },
   legacyTitle: { marginHorizontal: spacing.sm, fontSize: 12, textAlign: 'center' },

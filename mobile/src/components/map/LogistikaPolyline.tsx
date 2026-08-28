@@ -57,7 +57,7 @@ export const LogistikaPolyline: React.FC<LogistikaPolylineProps> = ({
         ? colors.textTertiary
         : colors.primary);
   const width = strokeWidth ?? KIND_WIDTH[kind];
-  const casingColor = isDark ? '#0B1220' : '#FFFFFF';
+  const casingColor = isDark ? '#071116' : '#FFFFFF';
 
   const shape = useMemo(() => {
     if (coordinates.length < 2) {

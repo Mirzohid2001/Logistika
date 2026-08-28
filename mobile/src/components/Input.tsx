@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { TextInput, Text, View, StyleSheet, TextInputProps, Platform } from 'react-native';
 import { borderRadius, spacing, shadows, fontSize, fontWeight } from '../theme';
 import { useAppTheme } from '../theme/useAppTheme';
@@ -22,6 +22,7 @@ export const Input: React.FC<InputProps> = ({
 }) => {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const [focused, setFocused] = useState(false);
 
   const inputProps: any = {
     ...props,
@@ -49,16 +50,25 @@ export const Input: React.FC<InputProps> = ({
       <View style={styles.inputContainer}>
         {leftIcon && <View style={styles.leftIcon}>{leftIcon}</View>}
         <TextInput
+          {...inputProps}
           style={[
             styles.input,
             leftIcon && styles.inputWithLeftIcon,
             rightIcon && styles.inputWithRightIcon,
+            focused && styles.inputFocused,
             error && styles.inputError,
             style,
           ]}
           placeholderTextColor={colors.textTertiary}
           accessibilityLabel={accessibilityLabel || label}
-          {...inputProps}
+          onFocus={(event) => {
+            setFocused(true);
+            props.onFocus?.(event);
+          }}
+          onBlur={(event) => {
+            setFocused(false);
+            props.onBlur?.(event);
+          }}
         />
         {rightIcon && <View style={styles.rightIcon}>{rightIcon}</View>}
       </View>
@@ -86,8 +96,8 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>['colors']) =>
     },
     input: {
       flex: 1,
-      borderWidth: 1.5,
-      borderColor: colors.borderLight,
+      borderWidth: 1,
+      borderColor: colors.border,
       borderRadius: borderRadius.lg,
       paddingHorizontal: spacing.xl,
       paddingVertical: spacing.lg,
@@ -96,6 +106,10 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>['colors']) =>
       color: colors.text,
       fontWeight: fontWeight.medium,
       ...shadows.sm,
+    },
+    inputFocused: {
+      borderColor: colors.primary,
+      backgroundColor: colors.surfaceElevated,
     },
     inputWithLeftIcon: {
       paddingLeft: spacing.xxxl + spacing.md,

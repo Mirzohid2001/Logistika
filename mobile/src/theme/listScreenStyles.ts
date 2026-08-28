@@ -12,7 +12,7 @@ export const createListScreenStyles = (colors: ThemeColors) =>
     },
     listContainer: {
       padding: spacing.lg,
-      paddingBottom: spacing.xxxl + 24,
+      paddingBottom: 120,
     },
     emptyContainer: {
       flex: 1,
@@ -36,7 +36,7 @@ export const createListScreenStyles = (colors: ThemeColors) =>
       ...shadows.colored(colors.primaryDark),
     },
     avatarText: {
-      color: colors.textLight,
+      color: colors.onPrimary,
       fontSize: fontSize.lg,
       fontWeight: fontWeight.bold,
     },

@@ -17,7 +17,7 @@ export const createScreenStyles = (colors: ThemeColors) =>
     },
     content: {
       padding: spacing.lg,
-      paddingBottom: spacing.xxxl,
+      paddingBottom: 120,
     },
     section: {
       marginBottom: spacing.xl,
@@ -70,6 +70,6 @@ export const createScreenStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
     },
     filterPillTextActive: {
-      color: colors.textLight,
+      color: colors.onPrimary,
     },
   });

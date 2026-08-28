@@ -8,7 +8,8 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const THEME_STORAGE_KEY = 'app-theme-preference';
+// v2 starts the Premium Navigation redesign in dark mode while keeping the toggle available.
+const THEME_STORAGE_KEY = 'app-theme-preference-v2';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
@@ -22,7 +23,7 @@ type ThemeContextValue = {
 };
 
 const ThemeContext = createContext<ThemeContextValue>({
-  preference: 'system',
+  preference: 'dark',
   setPreference: () => undefined,
   cyclePreference: () => undefined,
   isReady: true,
@@ -42,7 +43,7 @@ export function resolveIsDark(
 }
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [preference, setPreferenceState] = useState<ThemePreference>('system');
+  const [preference, setPreferenceState] = useState<ThemePreference>('dark');
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {

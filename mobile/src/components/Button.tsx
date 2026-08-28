@@ -1,6 +1,6 @@
 import React, { useMemo, useRef } from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, StyleProp, ViewStyle, TextStyle, Animated } from 'react-native';
-import { borderRadius, spacing, shadows, fontSize, fontWeight } from '../theme';
+import { borderRadius, spacing, fontSize, fontWeight } from '../theme';
 import { useAppTheme } from '../theme/useAppTheme';
 import { a11yButton } from '../utils/accessibility';
 
@@ -29,8 +29,8 @@ export const Button: React.FC<ButtonProps> = ({
   accessibilityLabel,
   accessibilityHint,
 }) => {
-  const { colors } = useAppTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { colors, shadows } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors, shadows), [colors, shadows]);
   const scale = useRef(new Animated.Value(1)).current;
 
   const animatePress = (toValue: number) => {
@@ -83,7 +83,10 @@ export const Button: React.FC<ButtonProps> = ({
   );
 };
 
-const createStyles = (colors: ReturnType<typeof useAppTheme>['colors']) =>
+const createStyles = (
+  colors: ReturnType<typeof useAppTheme>['colors'],
+  shadows: ReturnType<typeof useAppTheme>['shadows'],
+) =>
   StyleSheet.create({
     button: {
       borderRadius: borderRadius.lg,
@@ -109,7 +112,7 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>['colors']) =>
     },
     primary: {
       backgroundColor: colors.primary,
-      ...shadows.colored(colors.primaryDark),
+      ...shadows.colored(colors.primary),
     },
     secondary: {
       backgroundColor: colors.secondary,
@@ -129,7 +132,7 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>['colors']) =>
     },
     outline: {
       backgroundColor: colors.surfaceMuted,
-      borderWidth: 1.5,
+      borderWidth: 1,
       borderColor: colors.primary,
       ...shadows.sm,
     },
@@ -150,7 +153,7 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>['colors']) =>
       fontSize: fontSize.lg,
     },
     primaryText: {
-      color: colors.textLight,
+      color: colors.onPrimary,
     },
     secondaryText: {
       color: colors.textLight,

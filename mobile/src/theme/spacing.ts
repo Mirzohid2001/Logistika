@@ -23,11 +23,11 @@ export const spacing = {
 };
 
 export const borderRadius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
-  xxl: 24,
+  sm: 7,
+  md: 11,
+  lg: 15,
+  xl: 18,
+  xxl: 22,
   round: 9999,
   /** Alias of round — used by pills/chips across screens. */
   full: 9999,
@@ -104,4 +104,4 @@ export const createShadows = (colors: Pick<AppColors, 'shadow' | 'shadowTint'>) 
   }),
 });
 
-export const shadows = createShadows({ shadow: '#0B1220', shadowTint: '#0A5BD6' });
+export const shadows = createShadows({ shadow: '#071319', shadowTint: '#18C5C8' });

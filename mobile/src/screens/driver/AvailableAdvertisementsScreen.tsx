@@ -420,7 +420,7 @@ const AvailableAdvertisementsScreen = () => {
           <MaterialIcons
             name="tune"
             size={20}
-            color={hasActiveFilters ? colors.textLight : colors.primary}
+            color={hasActiveFilters ? colors.onPrimary : colors.primary}
           />
           {hasActiveFilters && <View style={styles.filterBadge} />}
         </TouchableOpacity>
@@ -430,6 +430,39 @@ const AvailableAdvertisementsScreen = () => {
           <MaterialIcons name="bookmark" size={20} color={colors.primary} />
         </TouchableOpacity>
       </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.quickSortRow}>
+        {([
+          ['nearby', 'near-me', t('advertisements.sortByNearby')],
+          ['date', 'schedule', t('advertisements.sortByDate')],
+          ['price', 'payments', t('advertisements.sortByPrice')],
+          ['trust', 'verified-user', t('advertisements.sortByTrust', { defaultValue: 'Ishonch' })],
+        ] as const).map(([key, icon, label]) => {
+          const active = sortBy === key;
+          return (
+            <TouchableOpacity
+              key={key}
+              style={[styles.quickSortChip, active && styles.quickSortChipActive]}
+              onPress={() => {
+                setSortBy(key);
+                setSortOrder(key === 'price' ? 'cheap' : 'new');
+                setPage(1);
+              }}>
+              <MaterialIcons
+                name={icon}
+                size={16}
+                color={active ? colors.onPrimary : colors.textSecondary}
+              />
+              <Text style={[styles.quickSortText, active && styles.quickSortTextActive]}>
+                {label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
 
       <FlatList
         data={advertisements}
@@ -825,8 +858,9 @@ const AvailableAdvertisementsScreen = () => {
 const createStyles = (colors: AppColors) =>
   StyleSheet.create({
   listContainer: {
+    paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    paddingBottom: spacing.xxxl + 24,
+    paddingBottom: 120,
   },
   emptyContainer: {
     flex: 1,
@@ -988,19 +1022,18 @@ const createStyles = (colors: AppColors) =>
   },
   searchBar: {
     flexDirection: 'row',
-    padding: 16,
-    backgroundColor: colors.backgroundSecondary,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-    gap: 12,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    backgroundColor: 'transparent',
+    gap: spacing.sm,
   },
   searchInputContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.background,
-    borderRadius: 12,
-    paddingHorizontal: 12,
+    backgroundColor: colors.inputBackground,
+    borderRadius: 15,
+    paddingHorizontal: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -1024,8 +1057,8 @@ const createStyles = (colors: AppColors) =>
   filterButton: {
     width: 48,
     height: 48,
-    borderRadius: 12,
-    backgroundColor: colors.background,
+    borderRadius: 15,
+    backgroundColor: colors.surfaceElevated,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
@@ -1033,7 +1066,7 @@ const createStyles = (colors: AppColors) =>
     position: 'relative',
   },
   filterButtonActive: {
-    backgroundColor: colors.primaryGlow,
+    backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
   filterButtonText: {
@@ -1048,16 +1081,46 @@ const createStyles = (colors: AppColors) =>
     borderRadius: 4,
     backgroundColor: colors.danger,
   },
+  quickSortRow: {
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs,
+  },
+  quickSortChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 38,
+    paddingHorizontal: spacing.md,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  quickSortChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  quickSortText: {
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  quickSortTextActive: {
+    color: colors.onPrimary,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: colors.backgroundSecondary,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: colors.surfaceElevated,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
     maxHeight: '80%',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1200,7 +1263,7 @@ const createStyles = (colors: AppColors) =>
     color: colors.textSecondary,
   },
   sortOrderOptionTextActive: {
-    color: colors.textLight,
+    color: colors.onPrimary,
   },
   modalFooter: {
     flexDirection: 'row',

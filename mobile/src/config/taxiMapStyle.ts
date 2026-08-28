@@ -45,17 +45,17 @@ const LIGHT: Palette = {
 };
 
 const DARK: Palette = {
-  background: '#141A24',
-  park: '#1A2A22',
-  water: '#1B3A52',
-  roadCasing: '#0E131C',
-  roadFill: '#3A4558',
-  motorway: '#8A7340',
-  motorwayCasing: '#5C4C28',
-  building: '#2A3344',
-  building3d: '#343E52',
-  label: '#C5CDD8',
-  labelHalo: '#141A24',
+  background: '#0D161C',
+  park: '#14251F',
+  water: '#12313C',
+  roadCasing: '#091116',
+  roadFill: '#293842',
+  motorway: '#41666A',
+  motorwayCasing: '#1C3539',
+  building: '#1B2932',
+  building3d: '#23343E',
+  label: '#B8C7CC',
+  labelHalo: '#0D161C',
 };
 
 function roadWidth(base: number) {

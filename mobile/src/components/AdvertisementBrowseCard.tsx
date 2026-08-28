@@ -43,7 +43,8 @@ export const AdvertisementBrowseCard: React.FC<Props> = ({
 
   return (
     <TouchableOpacity activeOpacity={0.76} onPress={onPress}>
-      <Card variant="soft" style={styles.card} padding="md">
+      <Card variant="elevated" style={styles.card} padding="md">
+        <View style={styles.cardSignal} />
         <View style={styles.headerRow}>
           {photoUri ? (
             <Image source={{ uri: photoUri }} style={styles.photo} resizeMode="cover" />
@@ -121,9 +122,14 @@ export const AdvertisementBrowseCard: React.FC<Props> = ({
 
             <View style={styles.footerRow}>
               <Text style={styles.date}>{dateText}</Text>
-              <Text style={styles.price} numberOfLines={1}>
-                {priceText}
-              </Text>
+              <View style={styles.priceRow}>
+                <Text style={styles.price} numberOfLines={1}>
+                  {priceText}
+                </Text>
+                <View style={styles.openButton}>
+                  <MaterialIcons name="east" size={16} color={colors.onPrimary} />
+                </View>
+              </View>
             </View>
           </View>
         </View>
@@ -136,22 +142,32 @@ const createStyles = (colors: AppColors) =>
   StyleSheet.create({
     card: {
       marginVertical: spacing.xs,
+      borderColor: `${colors.primary}2E`,
+      position: 'relative',
+    },
+    cardSignal: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      bottom: 0,
+      width: 3,
+      backgroundColor: colors.primary,
     },
     headerRow: {
       flexDirection: 'row',
       alignItems: 'flex-start',
     },
     photo: {
-      width: 86,
-      height: 86,
-      borderRadius: borderRadius.lg,
+      width: 72,
+      height: 72,
+      borderRadius: borderRadius.md,
       marginRight: spacing.md,
       backgroundColor: colors.borderLight,
     },
     photoPlaceholder: {
-      width: 86,
-      height: 86,
-      borderRadius: borderRadius.lg,
+      width: 72,
+      height: 72,
+      borderRadius: borderRadius.md,
       marginRight: spacing.md,
       backgroundColor: colors.primaryGlow,
       alignItems: 'center',
@@ -159,7 +175,7 @@ const createStyles = (colors: AppColors) =>
     },
     content: {
       flex: 1,
-      minHeight: 86,
+      minHeight: 72,
     },
     titleRow: {
       flexDirection: 'row',
@@ -168,7 +184,7 @@ const createStyles = (colors: AppColors) =>
     },
     title: {
       flex: 1,
-      fontSize: fontSize.md,
+      fontSize: fontSize.base,
       fontWeight: fontWeight.bold,
       color: colors.text,
       lineHeight: 21,
@@ -186,6 +202,12 @@ const createStyles = (colors: AppColors) =>
       alignItems: 'center',
       gap: spacing.xs,
       marginTop: spacing.sm,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.sm,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.inputBackground,
+      borderWidth: 1,
+      borderColor: colors.borderLight,
     },
     routePill: {
       flex: 1,
@@ -254,6 +276,9 @@ const createStyles = (colors: AppColors) =>
       justifyContent: 'space-between',
       gap: spacing.sm,
       marginTop: spacing.sm,
+      paddingTop: spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: colors.borderLight,
     },
     date: {
       fontSize: fontSize.xs,
@@ -261,10 +286,23 @@ const createStyles = (colors: AppColors) =>
       fontWeight: fontWeight.medium,
     },
     price: {
-      flex: 1,
       textAlign: 'right',
-      fontSize: fontSize.sm,
+      fontSize: fontSize.md,
       color: colors.primary,
       fontWeight: fontWeight.bold,
+      maxWidth: 130,
+    },
+    priceRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    openButton: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
   });

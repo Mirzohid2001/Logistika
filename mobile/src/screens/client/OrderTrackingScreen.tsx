@@ -5,8 +5,11 @@ import {
   StyleSheet,
   Linking,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
-import { useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {
   LogistikaMap,
   LogistikaPolyline,
@@ -68,6 +71,7 @@ import {
   routeStopsToMapCoordinates,
   stopToLatLng,
 } from '../../utils/routeStops';
+import { navigateRoleStack } from '../../utils/navigationHelpers';
 
 const DEFAULT_CENTER = regionFromCenter(41.2995, 69.2401, 0.08);
 
@@ -75,6 +79,8 @@ const ClientOrderTrackingScreen = () => {
   const styles = useThemedStyles(createStyles);
   const { colors } = useAppTheme();
   const route = useRoute();
+  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { id } = route.params as { id: number };
   const { t } = useTranslation();
 
@@ -334,6 +340,19 @@ const ClientOrderTrackingScreen = () => {
       : order?.status?.code === 'completed'
       ? t('orders.completed')
       : t('tracking.title');
+  const stopAlertMessage =
+    order.tracking_summary?.last_stop_minutes != null
+      ? t('tracking.driverStoppedForMinutes', {
+          count: Math.max(0, Math.round(order.tracking_summary.last_stop_minutes)),
+        })
+      : order.tracking_summary?.alert_message;
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    navigateRoleStack(navigation, 'ClientStack', 'Dashboard');
+  };
   const openYandexMaps = (lat: number, lng: number) => {
     const url = Platform.select({
       ios: `yandexmaps://maps.yandex.ru/?pt=${lng},${lat}&z=15`,
@@ -425,6 +444,18 @@ const ClientOrderTrackingScreen = () => {
           ) : null}
         </LogistikaMap>
 
+        <TouchableOpacity
+          style={[
+            styles.backButton,
+            {top: Math.max(insets.top, spacing.md) + spacing.xs},
+          ]}
+          onPress={handleBack}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
+          activeOpacity={0.82}>
+          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+
         <TrackingPhaseBadge label={phaseLabel} icon={navPhase === 'to_destination' ? 'flag' : 'shipping'} />
         <MapRecenterFab
           visible={!followDriver && !!smoothDriverPoint}
@@ -432,11 +463,15 @@ const ClientOrderTrackingScreen = () => {
           onPress={() => setFollowDriver(true)}
         />
 
-        <View style={styles.mapOverlayTop}>
+        <View
+          style={[
+            styles.mapOverlayTop,
+            {top: Math.max(insets.top, spacing.md) + 58},
+          ]}>
           <View style={[styles.liveBadge, { backgroundColor: presenceTint + 'E6' }]}>
             <View style={styles.liveDot} />
             <Text style={styles.liveBadgeText}>
-              {t('tracking.driverLiveLocation')}
+              {presenceLabel}
               {presenceAge != null ? ` · ${presenceAge}s` : ''}
             </Text>
           </View>
@@ -466,6 +501,7 @@ const ClientOrderTrackingScreen = () => {
         </View>
 
         <TrackingBottomSheet
+          fullScreen
           expanded={detailsExpanded}
           onToggleExpand={() => setDetailsExpanded((prev) => !prev)}
           expandLabel={t('common.moreDetails')}
@@ -494,7 +530,7 @@ const ClientOrderTrackingScreen = () => {
             </View>
           )}
 
-          {!!order.tracking_summary?.alert_level && !!order.tracking_summary?.alert_message && (
+          {!!order.tracking_summary?.alert_level && !!stopAlertMessage && (
             <View
               style={[
                 styles.alertCard,
@@ -507,7 +543,7 @@ const ClientOrderTrackingScreen = () => {
                   ? t('tracking.criticalAlert')
                   : t('tracking.warningAlert')}
               </Text>
-              <Text style={styles.alertText}>{order.tracking_summary.alert_message}</Text>
+              <Text style={styles.alertText}>{stopAlertMessage}</Text>
             </View>
           )}
 
@@ -564,9 +600,21 @@ const createStyles = (colors: AppColors) =>
   StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1 },
+  backButton: {
+    position: 'absolute',
+    left: spacing.md,
+    zIndex: 6,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.round,
+    backgroundColor: colors.surfaceElevated + 'F2',
+    borderWidth: 1,
+    borderColor: `${colors.primary}38`,
+  },
   mapOverlayTop: {
     position: 'absolute',
-    top: spacing.md + 44,
     left: spacing.md,
     right: spacing.md,
     flexDirection: 'row',
