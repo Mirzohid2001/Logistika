@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#09151b" />
+    <meta
+      name="description"
+      content="Logivo — единая платформа для поиска грузов, управления перевозками и трекинга в реальном времени."
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap"
+      rel="stylesheet"
+    />
+    <title>Logivo — перевозки под полным контролем</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Перейти к содержимому</a>
+    <div class="page-noise" aria-hidden="true"></div>
+    <div class="cursor-glow" aria-hidden="true"></div>
+
+    <header class="site-header" data-header>
+      <div class="container header-inner">
+        <a class="brand" href="#top" aria-label="Logivo — на главную">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" role="img">
+              <path d="M5 9h14v12H5zM19 13h4l4 5v3h-8z" />
+              <circle cx="10" cy="23" r="3" />
+              <circle cx="23" cy="23" r="3" />
+            </svg>
+          </span>
+          <span class="brand-name">Logivo</span>
+        </a>
+
+        <nav class="desktop-nav" aria-label="Основная навигация">
+          <a href="#product">Продукт</a>
+          <a href="#roles">Для кого</a>
+          <a href="#workflow">Как работает</a>
+          <a href="#features">Возможности</a>
+        </nav>
+
+        <a class="header-cta" href="#cta">
+          Начать работу
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+        </a>
+
+        <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="mobile-menu">
+          <span></span><span></span>
+          <span class="sr-only">Открыть меню</span>
+        </button>
+      </div>
+
+      <div class="mobile-menu" id="mobile-menu" aria-hidden="true">
+        <a href="#product">Продукт</a>
+        <a href="#roles">Для кого</a>
+        <a href="#workflow">Как работает</a>
+        <a href="#features">Возможности</a>
+        <a class="button button-primary" href="#cta">Начать работу</a>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero section" id="top">
+        <div class="hero-orb hero-orb-one" aria-hidden="true"></div>
+        <div class="hero-orb hero-orb-two" aria-hidden="true"></div>
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <div class="eyebrow hero-enter" style="--delay: 0ms">
+              <span class="live-dot"></span>
+              Логистика в реальном времени
+            </div>
+            <h1 class="hero-enter" style="--delay: 90ms">
+              Грузы движутся.<br />
+              <span>Вы всё контролируете.</span>
+            </h1>
+            <p class="hero-lead hero-enter" style="--delay: 180ms">
+              Единая платформа для клиентов, водителей и диспетчеров — от публикации груза
+              до безопасной доставки с live-трекингом.
+            </p>
+            <div class="hero-actions hero-enter" style="--delay: 270ms">
+              <a class="button button-primary button-large" href="#product">
+                Посмотреть приложение
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+              </a>
+              <a class="button button-ghost button-large" href="#workflow">
+                <span class="play-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="m9 7 8 5-8 5z" /></svg>
+                </span>
+                Как это работает
+              </a>
+            </div>
+            <div class="hero-proof hero-enter" style="--delay: 360ms">
+              <div class="avatar-stack" aria-hidden="true">
+                <span>AK</span><span>BR</span><span>DS</span><span>+</span>
+              </div>
+              <p><strong>Одна система</strong><br />для всей команды перевозки</p>
+            </div>
+          </div>
+
+          <div class="hero-stage hero-enter" style="--delay: 180ms" aria-label="Превью приложения Logivo">
+            <div class="stage-status status-top">
+              <span class="status-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+              </span>
+              <div><b>305 км</b><small>маршрут построен</small></div>
+            </div>
+            <div class="stage-status status-bottom">
+              <span class="pulse-ring"></span>
+              <div><b>Водитель онлайн</b><small>обновлено 3 сек. назад</small></div>
+            </div>
+
+            <div class="map-card" aria-hidden="true">
+              <div class="map-grid"></div>
+              <div class="road road-one"></div>
+              <div class="road road-two"></div>
+              <div class="road road-three"></div>
+              <svg class="route-line" viewBox="0 0 540 620" preserveAspectRatio="none">
+                <path class="route-shadow" d="M90 560C160 470 112 396 232 340S303 226 430 82" />
+                <path class="route-main" d="M90 560C160 470 112 396 232 340S303 226 430 82" />
+              </svg>
+              <span class="map-pin pin-start"><i></i></span>
+              <span class="map-pin pin-end"><i></i></span>
+              <span class="driver-pin">
+                <svg viewBox="0 0 24 24"><path d="M4 8h11v9H4zM15 11h3l3 4v2h-6z" /></svg>
+              </span>
+              <div class="map-label label-tashkent">Ташкент</div>
+              <div class="map-label label-samarkand">Самарканд</div>
+            </div>
+
+            <div class="hero-phone phone-shell">
+              <div class="phone-speaker"></div>
+              <div class="phone-screen dashboard-mini">
+                <div class="phone-status"><span>9:41</span><span>● ● ▰</span></div>
+                <div class="mini-brand"><span class="mini-logo">▰</span><span></span></div>
+                <h3>Главная</h3>
+                <div class="welcome-mini">
+                  <small>Добро пожаловать</small>
+                  <strong>Привет, Aziz!</strong>
+                  <span>Управляйте перевозками в одном месте</span>
+                </div>
+                <div class="order-mini">
+                  <div class="order-mini-top"><small>Активный заказ</small><b>В пути</b></div>
+                  <strong>#1 · Текстиль</strong>
+                  <span>Ташкент <i>→</i> Самарканд</span>
+                  <button type="button" tabindex="-1">Открыть трекинг</button>
+                </div>
+                <div class="stats-mini">
+                  <span><b>1</b><small>Активный</small></span>
+                  <span><b>24</b><small>Завершено</small></span>
+                </div>
+                <div class="bottom-mini"><b>⌂</b><span>▤</span><span>●</span><span>◉</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="container trust-strip reveal">
+          <p>Всё необходимое для современной перевозки</p>
+          <div class="trust-items">
+            <span><i>01</i> Telegram ID</span>
+            <span><i>02</i> Live GPS</span>
+            <span><i>03</i> Безопасные сделки</span>
+            <span><i>04</i> 3 языка</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section product-section" id="product">
+        <div class="container">
+          <div class="section-heading centered reveal">
+            <span class="section-kicker">Приложение</span>
+            <h2>Вся перевозка — <span>в одном экране</span></h2>
+            <p>Понятный интерфейс показывает главное и не отвлекает от работы.</p>
+          </div>
+
+          <div class="product-tabs reveal" role="tablist" aria-label="Экраны приложения">
+            <button class="product-tab is-active" role="tab" aria-selected="true" data-screen-target="dashboard">
+              <span>01</span> Главная
+            </button>
+            <button class="product-tab" role="tab" aria-selected="false" data-screen-target="tracking">
+              <span>02</span> Трекинг
+            </button>
+            <button class="product-tab" role="tab" aria-selected="false" data-screen-target="market">
+              <span>03</span> Поиск грузов
+            </button>
+          </div>
+
+          <div class="showcase-grid reveal">
+            <div class="showcase-copy">
+              <article class="screen-description is-active" data-screen-copy="dashboard">
+                <span class="copy-number">01 / Главная</span>
+                <h3>Главное видно сразу</h3>
+                <p>Активный заказ, быстрые действия и ключевые цифры без перегруженных таблиц и лишних переходов.</p>
+                <ul class="feature-list">
+                  <li><span>✓</span> Активный заказ отдельной карточкой</li>
+                  <li><span>✓</span> Быстрый доступ к трекингу</li>
+                  <li><span>✓</span> Статистика за 7, 30 и 90 дней</li>
+                </ul>
+              </article>
+              <article class="screen-description" data-screen-copy="tracking">
+                <span class="copy-number">02 / Трекинг</span>
+                <h3>Маршрут оживает на карте</h3>
+                <p>Плавное движение автомобиля, онлайн-статус и маршрутные точки помогают понимать ситуацию без звонков.</p>
+                <ul class="feature-list">
+                  <li><span>✓</span> GPS-обновления в реальном времени</li>
+                  <li><span>✓</span> Контроль остановок и отклонений</li>
+                  <li><span>✓</span> Быстрый переход в навигатор</li>
+                </ul>
+              </article>
+              <article class="screen-description" data-screen-copy="market">
+                <span class="copy-number">03 / Маркетплейс</span>
+                <h3>Подходящий груз — быстрее</h3>
+                <p>Умные фильтры, параметры транспорта и понятные карточки помогают водителю выбирать выгодные рейсы.</p>
+                <ul class="feature-list">
+                  <li><span>✓</span> Фильтры по маршруту, дате и цене</li>
+                  <li><span>✓</span> Рейтинг и профиль заказчика</li>
+                  <li><span>✓</span> Предложение своей стоимости</li>
+                </ul>
+              </article>
+            </div>
+
+            <div class="showcase-device-wrap">
+              <div class="showcase-halo"></div>
+              <div class="showcase-device phone-shell">
+                <div class="phone-speaker"></div>
+                <div class="phone-screen showcase-screen">
+                  <div class="mock-screen is-active" data-screen="dashboard">
+                    <div class="mock-status"><span>9:41</span><span>● ● ▰</span></div>
+                    <div class="mock-appmark"><b>▰</b><i></i></div>
+                    <h4>Главная</h4>
+                    <div class="mock-welcome"><small>Привет, Aziz!</small><span>Всё под контролем</span></div>
+                    <div class="mock-order">
+                      <div><small>Активный заказ</small><em>В пути</em></div>
+                      <b>#1 · Текстиль</b><span>Ташкент → Самарканд</span>
+                      <button type="button" tabindex="-1">Открыть трекинг</button>
+                    </div>
+                    <div class="mock-period"><span>7 дн.</span><b>30 дн.</b><span>90 дн.</span></div>
+                    <div class="mock-kpis"><span><b>3.8 млн</b><small>Расходы</small></span><span><b>24</b><small>Доставки</small></span></div>
+                    <div class="mock-nav"><b>⌂</b><span>▤</span><span>●</span><span>◉</span></div>
+                  </div>
+
+                  <div class="mock-screen tracking-screen" data-screen="tracking">
+                    <div class="tracking-map">
+                      <div class="tracking-roads"></div>
+                      <svg viewBox="0 0 320 600" preserveAspectRatio="none" aria-hidden="true">
+                        <path d="M70 560C130 480 82 390 188 312S205 166 275 42" />
+                      </svg>
+                      <button class="map-back" type="button" tabindex="-1">‹</button>
+                      <span class="phase-pill">⚑ К назначению</span>
+                      <span class="signal-pill"><i></i> Водитель онлайн · 3с</span>
+                      <span class="truck-marker">▰</span>
+                    </div>
+                    <div class="tracking-sheet">
+                      <i class="sheet-handle"></i>
+                      <div class="sheet-title"><b>#1</b><em>Онлайн</em></div>
+                      <strong>Текстиль · Ташкент → Самарканд</strong>
+                      <small>Водитель: Bekzod Rasulov</small>
+                      <div class="route-progress"><span></span></div>
+                      <div class="route-stop"><i>✓</i><span><b>Погрузка — Ташкент</b><small>Выполнено</small></span></div>
+                      <div class="route-stop active"><i>2</i><span><b>Выгрузка — Самарканд</b><small>Текущая точка</small></span></div>
+                    </div>
+                  </div>
+
+                  <div class="mock-screen market-screen" data-screen="market">
+                    <div class="mock-status"><span>9:41</span><span>● ● ▰</span></div>
+                    <div class="mock-appmark"><b>▰</b><i></i></div>
+                    <h4>Поиск грузов</h4>
+                    <div class="mock-search">⌕ <span>Поиск...</span><b>☷</b></div>
+                    <div class="mock-filters"><b>Рядом</b><span>По дате</span><span>По цене</span></div>
+                    <div class="load-card">
+                      <div class="load-icon">▰</div><em>♥</em>
+                      <div class="load-copy"><b>Электроника</b><strong>Ташкент → Бухара</strong></div>
+                      <div class="load-route"><span>● Ташкент</span><i>→</i><span>● Бухара</span></div>
+                      <div class="load-meta"><span>4 200 кг</span><span>★ 5.0</span></div>
+                      <div class="load-price"><small>27 авг.</small><b>4 800 000 сум</b></div>
+                    </div>
+                    <div class="mock-nav"><b>⌂</b><span>▤</span><span>●</span><span>◉</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="device-float float-one"><b>99.9%</b><span>точность маршрута</span></div>
+              <div class="device-float float-two"><span class="live-dot"></span><b>Live</b></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section roles-section" id="roles">
+        <div class="container">
+          <div class="section-heading split reveal">
+            <div><span class="section-kicker">Единая экосистема</span><h2>Каждому — свой <span>рабочий сценарий</span></h2></div>
+            <p>Роли связаны одной актуальной информацией, но каждый видит только то, что нужно ему сейчас.</p>
+          </div>
+
+          <div class="role-grid">
+            <article class="role-card role-client reveal" style="--delay: 0ms">
+              <div class="role-top"><span>Для клиента</span><i>01</i></div>
+              <div class="role-icon">
+                <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M6 8h20v18H6zM10 4v8M22 4v8M10 17h12" /></svg>
+              </div>
+              <h3>Заказ без хаоса</h3>
+              <p>Создавайте объявления, сравнивайте предложения и следите за доставкой в реальном времени.</p>
+              <a href="#workflow">Как работает <span>→</span></a>
+            </article>
+            <article class="role-card role-driver reveal" style="--delay: 100ms">
+              <div class="role-top"><span>Для водителя</span><i>02</i></div>
+              <div class="role-icon">
+                <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 10h16v13H4zM20 14h5l4 5v4h-9zM9 26a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM24 26a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" /></svg>
+              </div>
+              <h3>Рейсы, которые подходят</h3>
+              <p>Находите грузы под свой транспорт, договаривайтесь о цене и ведите маршрут из приложения.</p>
+              <a href="#product">Смотреть экран <span>→</span></a>
+            </article>
+            <article class="role-card role-dispatcher reveal" style="--delay: 200ms">
+              <div class="role-top"><span>Для диспетчера</span><i>03</i></div>
+              <div class="role-icon">
+                <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 6h22v20H5zM9 11h8M9 16h14M9 21h11" /></svg>
+              </div>
+              <h3>Контроль всей картины</h3>
+              <p>Мониторьте водителей, заказы и исключения. Реагируйте на задержки до того, как они станут проблемой.</p>
+              <a href="#features">Все возможности <span>→</span></a>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section workflow-section" id="workflow">
+        <div class="container workflow-grid">
+          <div class="workflow-copy reveal">
+            <span class="section-kicker">Простой процесс</span>
+            <h2>От заявки до доставки — <span>четыре шага</span></h2>
+            <p>Платформа ведёт участников по процессу и показывает следующий понятный шаг.</p>
+            <div class="workflow-note"><span>⚡</span><p><b>Без долгого старта.</b><br />Регистрация через Telegram занимает несколько секунд.</p></div>
+          </div>
+          <ol class="steps-list">
+            <li class="step-item reveal" style="--delay: 0ms">
+              <span class="step-number">01</span><div><h3>Опубликуйте груз</h3><p>Маршрут, параметры груза, дата и желаемая стоимость.</p></div><i>↗</i>
+            </li>
+            <li class="step-item reveal" style="--delay: 80ms">
+              <span class="step-number">02</span><div><h3>Выберите предложение</h3><p>Сравните цену, рейтинг, транспорт и профиль водителя.</p></div><i>↗</i>
+            </li>
+            <li class="step-item reveal" style="--delay: 160ms">
+              <span class="step-number">03</span><div><h3>Следите за маршрутом</h3><p>Live-карта, точки маршрута, уведомления и чат в одном месте.</p></div><i>↗</i>
+            </li>
+            <li class="step-item reveal" style="--delay: 240ms">
+              <span class="step-number">04</span><div><h3>Завершите безопасно</h3><p>Подтверждение доставки, документы, оплата и рейтинг.</p></div><i>✓</i>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="section features-section" id="features">
+        <div class="container">
+          <div class="section-heading centered reveal">
+            <span class="section-kicker">Возможности</span>
+            <h2>Технологии, которые <span>работают незаметно</span></h2>
+            <p>Сложная логистика внутри. Простой интерфейс снаружи.</p>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card feature-wide reveal">
+              <div class="feature-icon cyan"><svg viewBox="0 0 24 24"><path d="M4 19V9l8-5 8 5v10M8 21v-8h8v8" /></svg></div>
+              <div><h3>Трекинг в реальном времени</h3><p>Плавное движение на карте, статус сигнала, остановки и контроль отклонения от маршрута.</p></div>
+              <div class="signal-chart" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><span></span></div>
+            </article>
+            <article class="feature-card reveal" style="--delay: 80ms">
+              <div class="feature-icon green"><svg viewBox="0 0 24 24"><path d="M12 3 4 7v5c0 5 3 8 8 9 5-1 8-4 8-9V7zM8 12l3 3 5-6" /></svg></div>
+              <h3>Проверенные профили</h3><p>Документы, транспорт, рейтинг и история работы помогают принимать решение.</p>
+            </article>
+            <article class="feature-card reveal" style="--delay: 120ms">
+              <div class="feature-icon orange"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4zM7 9h5M7 13h10" /></svg></div>
+              <h3>Документы заказа</h3><p>Накладные, акты и подтверждение доставки остаются привязаны к заказу.</p>
+            </article>
+            <article class="feature-card reveal" style="--delay: 160ms">
+              <div class="feature-icon blue"><svg viewBox="0 0 24 24"><path d="M4 5h16v12H8l-4 3zM8 9h8M8 13h5" /></svg></div>
+              <h3>Чаты и уведомления</h3><p>Переписка по заказу и важные события без потери контекста.</p>
+            </article>
+            <article class="feature-card reveal" style="--delay: 200ms">
+              <div class="feature-icon violet"><svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2" /></svg></div>
+              <h3>Аналитика и контроль</h3><p>Расходы, доходы, качество перевозок и операционные исключения.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section security-section">
+        <div class="container security-grid reveal">
+          <div class="security-visual" aria-hidden="true">
+            <div class="shield-rings"><i></i><i></i><i></i><span>✓</span></div>
+            <div class="security-tag tag-one"><b>Telegram ID</b><small>Подтверждено</small></div>
+            <div class="security-tag tag-two"><b>JWT + Secure Storage</b><small>Защищено</small></div>
+          </div>
+          <div class="security-copy">
+            <span class="section-kicker">Безопасность</span>
+            <h2>Доверие строится <span>на деталях</span></h2>
+            <p>Регистрация проходит через официальный Telegram OIDC. Приложение не получает пароль Telegram и не читает переписку.</p>
+            <div class="security-points">
+              <span><i>✓</i> Подтверждённый номер телефона</span>
+              <span><i>✓</i> Токены в защищённом хранилище</span>
+              <span><i>✓</i> Ролевая модель доступа</span>
+              <span><i>✓</i> История действий и уведомления</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section metrics-section" aria-label="Преимущества платформы">
+        <div class="container metrics-grid reveal">
+          <div><b data-count="4">0</b><span>роли в одной системе</span></div>
+          <div><b data-count="3">0</b><span>языка интерфейса</span></div>
+          <div><b data-count="24">0</b><span>часа доступ к статусу</span></div>
+          <div><b data-count="1">0</b><span>актуальная версия маршрута</span></div>
+        </div>
+      </section>
+
+      <section class="section cta-section" id="cta">
+        <div class="container cta-card reveal">
+          <div class="cta-grid" aria-hidden="true"></div>
+          <div class="cta-orb" aria-hidden="true"></div>
+          <span class="section-kicker">Начните сегодня</span>
+          <h2>Перевозки могут быть <span>понятными</span></h2>
+          <p>Объедините заказы, водителей, трекинг и коммуникацию в одной платформе.</p>
+          <div class="cta-actions">
+            <a class="button button-dark button-large" href="#product">Посмотреть продукт <span>→</span></a>
+            <a class="button button-outline-dark button-large" href="#top">Вернуться наверх</a>
+          </div>
+          <div class="cta-route" aria-hidden="true"><i></i><span></span><i></i></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-top">
+        <div class="footer-brand">
+          <a class="brand" href="#top"><span class="brand-mark"><svg viewBox="0 0 32 32"><path d="M5 9h14v12H5zM19 13h4l4 5v3h-8z" /><circle cx="10" cy="23" r="3" /><circle cx="23" cy="23" r="3" /></svg></span><span class="brand-name">Logivo</span></a>
+          <p>Цифровая платформа для современной грузовой логистики.</p>
+        </div>
+        <div class="footer-links"><b>Продукт</b><a href="#product">Приложение</a><a href="#features">Возможности</a><a href="#roles">Для кого</a></div>
+        <div class="footer-links"><b>Платформа</b><a href="#workflow">Как работает</a><a href="#roles">Клиентам</a><a href="#roles">Водителям</a></div>
+        <div class="footer-links"><b>Безопасность</b><a href="#features">Telegram-вход</a><a href="#features">Трекинг</a><a href="#features">Документы</a></div>
+      </div>
+      <div class="container footer-bottom"><span>© <span data-year></span> Logivo</span><span>Создано для движения вперёд</span></div>
+    </footer>
+
+    <script type="module" src="/script.js"></script>
+  </body>
+</html>
