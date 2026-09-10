@@ -59,9 +59,9 @@ const FavoritesScreen = () => {
     }
   };
 
-  const formatPrice = (price?: number) => {
+  const formatPrice = (price?: number, currency = 'UZS') => {
     if (!price) {return t('advertisements.priceNegotiable');}
-    return `${price.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} ${t('dashboard.currencySuffix')}`;
+    return `${price.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} ${currency === 'USD' ? '$' : t('dashboard.currencySuffix')}`;
   };
 
   const formatDate = (dateString: string) => {
@@ -84,7 +84,7 @@ const FavoritesScreen = () => {
           onToggleFavorite={() => handleRemoveFavorite(item.id)}
           showFavorite
           dateText={formatDate(advertisement.created_at || '')}
-          priceText={formatPrice(advertisement.proposed_cost)}
+          priceText={formatPrice(advertisement.proposed_cost, advertisement.currency)}
         />
       </AnimatedListItem>
     );

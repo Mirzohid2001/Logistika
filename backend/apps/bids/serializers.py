@@ -10,6 +10,7 @@ class BidSerializer(serializers.ModelSerializer):
     can_counter_by_client = serializers.SerializerMethodField()
     can_agree_to_counter_by_driver = serializers.SerializerMethodField()
     driver_user = UserReputationSerializer(source='driver', read_only=True)
+    currency = serializers.CharField(source='advertisement.currency', read_only=True)
 
     def get_current_amount(self, obj):
         return obj.get_current_amount()
@@ -29,7 +30,7 @@ class BidSerializer(serializers.ModelSerializer):
             'id', 'advertisement', 'client', 'driver', 'driver_user',
             'is_driver_agreed_to_amount', 'proposed_amounts', 'is_rejected_by_client',
             'is_accepted_by_client', 'is_rejected_by_driver', 'last_counter_by',
-            'current_amount', 'can_counter_by_driver', 'can_counter_by_client',
+            'current_amount', 'currency', 'can_counter_by_driver', 'can_counter_by_client',
             'can_agree_to_counter_by_driver',
             'created_at', 'updated_at',
         ]

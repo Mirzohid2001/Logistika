@@ -93,12 +93,15 @@ def get_duplicate_risk(
     to_city_id: int,
     weight: Decimal | None = None,
     proposed_cost: Decimal | None = None,
+    currency: str = 'UZS',
 ) -> dict:
+    currency = str(currency or 'UZS').upper()
     now = timezone.now()
     recent_ads = Advertisement.objects.filter(
         client=user,
         departure_city_id=from_city_id,
         destination_city_id=to_city_id,
+        currency=currency,
         created_at__gte=now - timedelta(days=14),
     ).order_by('-created_at')[:30]
 
@@ -118,7 +121,8 @@ def get_duplicate_risk(
             if ad_cost is None:
                 cost_ok = False
             else:
-                tolerance = max(proposed_cost * Decimal('0.2'), Decimal('100000'))
+                minimum_tolerance = Decimal('10') if currency == 'USD' else Decimal('100000')
+                tolerance = max(proposed_cost * Decimal('0.2'), minimum_tolerance)
                 cost_ok = abs(ad_cost - proposed_cost) <= tolerance
         if weight_ok and cost_ok:
             matches.append(
@@ -127,6 +131,7 @@ def get_duplicate_risk(
                     'title': ad.title_ru or ad.title_uz or ad.title_en,
                     'weight': float(ad.weight),
                     'proposed_cost': float(ad.proposed_cost) if ad.proposed_cost is not None else None,
+                    'currency': ad.currency,
                     'created_at': ad.created_at.isoformat(),
                     'is_closed': ad.is_closed,
                 }

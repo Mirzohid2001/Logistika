@@ -304,6 +304,7 @@ const DispatcherOrderDetailScreen = () => {
 
   const advertisement =
     typeof order.advertisement === 'object' ? order.advertisement : null;
+  const orderCurrencySuffix = advertisement?.currency === 'USD' ? '$' : "so'm";
   const driver = typeof order.driver === 'object' ? order.driver : null;
   const client = typeof order.client === 'object' ? order.client : null;
 
@@ -437,7 +438,7 @@ const DispatcherOrderDetailScreen = () => {
             <View style={styles.infoRow}>
               <Text style={styles.label}>{t('dispatcherOps.price')}:</Text>
               <Text style={styles.value}>
-                {advertisement.proposed_cost.toLocaleString('uz-UZ')} so'm
+                {advertisement.proposed_cost.toLocaleString('uz-UZ')} {orderCurrencySuffix}
               </Text>
             </View>
           )}

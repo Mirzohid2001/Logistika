@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07131c"/><stop offset="1" stop-color="#102733"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="#20c7cf" stop-opacity=".3"/><stop offset="1" stop-color="#20c7cf" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <circle cx="540" cy="960" r="670" fill="url(#glow)"/>
+  <rect x="418" y="650" width="244" height="244" rx="68" fill="#20c7cf"/>
+  <path d="M468 725h95l57 64v48h-30a38 38 0 0 1-72 0h-50z" fill="#07131c"/>
+  <circle cx="554" cy="830" r="19" fill="#20c7cf"/>
+  <text x="540" y="1060" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="128" font-weight="700" letter-spacing="4">LOGIVO</text>
+  <text x="540" y="1150" text-anchor="middle" fill="#20c7cf" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700">Move freight with confidence.</text>
+</svg>

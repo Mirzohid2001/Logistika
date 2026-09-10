@@ -141,6 +141,7 @@ export interface Advertisement {
   destination_country: Country | number;
   destination_city: City | number;
   proposed_cost?: number;
+  currency?: 'UZS' | 'USD' | string;
   is_closed: boolean;
   is_favorite?: boolean;
   created_at: string;
@@ -174,6 +175,7 @@ export interface Bid {
   is_rejected_by_driver: boolean;
   last_counter_by?: 'client' | 'driver';
   current_amount?: string;
+  currency?: 'UZS' | 'USD' | string;
   can_counter_by_driver?: boolean;
   can_counter_by_client?: boolean;
   can_agree_to_counter_by_driver?: boolean;
@@ -314,6 +316,7 @@ export interface Order {
   } | null;
   documents?: OrderDocument[];
   total_amount?: number;
+  prepaid_funded?: boolean;
   paid_amount?: number;
   remaining_amount?: number;
   is_fully_paid?: boolean;
@@ -482,6 +485,36 @@ export interface OrderCompletionFee {
 export interface OrderCompletionFeeListResponse {
   summary: OrderCompletionFeeSummary;
   results: OrderCompletionFee[];
+}
+
+export interface AccountBalanceItem {
+  id: number;
+  type: 'order' | 'commission';
+  base_currency: 'UZS' | 'USD';
+  available: number;
+  reserved: number;
+  total: number;
+  display: Record<'UZS' | 'USD', {
+    available: number;
+    reserved: number;
+    total: number;
+  }>;
+}
+
+export interface AccountBalancesResponse {
+  balances: AccountBalanceItem[];
+  commission: {
+    enabled: boolean;
+    amount_per_order: number;
+    currency: 'UZS' | 'USD';
+    display: Record<'UZS' | 'USD', number>;
+    role: 'client' | 'driver';
+  };
+  supported_currencies: Array<'UZS' | 'USD'>;
+  top_up_exchange: {
+    gateway_currency: 'UZS';
+    usd_to_uzs: number;
+  };
 }
 
 export interface PaymentHistory {
@@ -977,6 +1010,7 @@ export interface BackhaulMatch {
   destination_city: string;
   weight: number;
   proposed_cost?: number | null;
+  currency?: 'UZS' | 'USD' | string;
   cargo_category: string;
   match_score: number;
   match_reason: string;
@@ -1118,6 +1152,7 @@ export interface DuplicateRiskInsight {
     title: string;
     weight: number;
     proposed_cost?: number | null;
+    currency?: 'UZS' | 'USD' | string;
     created_at: string;
     is_closed: boolean;
   }>;

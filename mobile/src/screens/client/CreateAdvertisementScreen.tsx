@@ -101,6 +101,7 @@ const CreateAdvertisementScreen = () => {
   const [titleRu, setTitleRu] = useState('');
   const [descriptionRu, setDescriptionRu] = useState('');
   const [proposedCost, setProposedCost] = useState('');
+  const [currency, setCurrency] = useState<'UZS' | 'USD'>('UZS');
   const [weight, setWeight] = useState('');
   const [volumeM3, setVolumeM3] = useState('');
   const [unitsCount, setUnitsCount] = useState('');
@@ -353,6 +354,7 @@ const CreateAdvertisementScreen = () => {
       setTitleRu(title);
       setDescriptionRu(ad.description || '');
       setProposedCost(ad.proposed_cost?.toString() || '');
+      setCurrency(ad.currency === 'USD' ? 'USD' : 'UZS');
       setWeight(ad.weight?.toString() || '');
       setVolumeM3(ad.volume_m3?.toString() || '');
       setUnitsCount(ad.units_count?.toString() || '');
@@ -491,9 +493,16 @@ const CreateAdvertisementScreen = () => {
 
     const parsedWeight = parseFloat(weight);
     const parsedCost = parseFloat(proposedCost);
-    const payload: { from_city: number; to_city: number; weight?: number; proposed_cost?: number } = {
+    const payload: {
+      from_city: number;
+      to_city: number;
+      weight?: number;
+      proposed_cost?: number;
+      currency: 'UZS' | 'USD';
+    } = {
       from_city: fromCity,
       to_city: toCity,
+      currency,
     };
     if (Number.isFinite(parsedWeight) && parsedWeight > 0) {payload.weight = parsedWeight;}
     if (Number.isFinite(parsedCost) && parsedCost > 0) {payload.proposed_cost = parsedCost;}
@@ -516,7 +525,7 @@ const CreateAdvertisementScreen = () => {
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [selectedDepartureCity, selectedDestinationCity, weight, proposedCost]);
+  }, [selectedDepartureCity, selectedDestinationCity, weight, proposedCost, currency]);
 
   const openCountrySelection = (isDeparture: boolean) => {
     setLocationModalMode(isDeparture ? 'departure-country' : 'destination-country');
@@ -778,7 +787,7 @@ const CreateAdvertisementScreen = () => {
       return;
     }
 
-    if (parsedCost !== undefined && (isNaN(parsedCost) || parsedCost <= 0)) {
+    if (parsedCost === undefined || isNaN(parsedCost) || parsedCost <= 0) {
       Alert.alert(t('common.error'), t('advertisementsCreate.errors.costInvalid'));
       return;
     }
@@ -894,6 +903,7 @@ const CreateAdvertisementScreen = () => {
         description_en: normalizedDescription,
         description_uz: normalizedDescription,
         proposed_cost: parsedCost,
+        currency,
         weight: parsedWeight,
         cargo_category: cargoCategory,
         volume_m3: parsedVolume,
@@ -1029,12 +1039,23 @@ const CreateAdvertisementScreen = () => {
       />
 
       <Input
-        label={t('advertisementsCreate.fields.proposedCost')}
+        label={t('advertisementsCreate.fields.proposedCost', { currency })}
         value={proposedCost}
         onChangeText={setProposedCost}
         keyboardType="numeric"
         placeholder={t('advertisementsCreate.placeholders.proposedCost')}
       />
+      <Text style={styles.inlineLabel}>{t('balances.currency')}</Text>
+      <View style={styles.chipWrap}>
+        {(['UZS', 'USD'] as const).map(item => (
+          <TouchableOpacity
+            key={item}
+            style={[styles.chip, currency === item && styles.chipActive]}
+            onPress={() => setCurrency(item)}>
+            <Text style={[styles.chipText, currency === item && styles.chipTextActive]}>{item}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
       <Text style={styles.sectionTitle}>{t('advertisementsCreate.sections.cargoDetails')}</Text>
       <Text style={styles.inlineLabel}>{t('advertisementsCreate.fields.cargoType')}</Text>
@@ -1355,6 +1376,7 @@ const CreateAdvertisementScreen = () => {
         fromCityId={selectedDepartureCity}
         toCityId={selectedDestinationCity}
         weight={weight}
+        currency={currency}
         onApplySuggested={(amount) => setProposedCost(String(amount))}
       />
       {marketInsightLoading ? (

@@ -1,7 +1,7 @@
 import { Notification } from '../types';
 import { navigateRoot, navigateRoleStack } from './navigationHelpers';
 
-export type UserRole = 'client' | 'driver' | 'dispatcher' | 'updater' | null;
+export type UserRole = 'client' | 'driver' | 'updater' | null;
 
 type NavigationLike = Parameters<typeof navigateRoot>[0];
 
@@ -44,7 +44,7 @@ function getAvailableStacks(nav: NavigationLike): string[] {
   return routes.map((route: any) => route.name);
 }
 
-type RoleStack = 'ClientStack' | 'DriverStack' | 'DispatcherStack' | 'UpdaterStack';
+type RoleStack = 'ClientStack' | 'DriverStack' | 'UpdaterStack';
 
 function resolveClientStack(nav: NavigationLike, role: UserRole): 'ClientStack' | null {
   const stacks = getAvailableStacks(nav);
@@ -124,14 +124,6 @@ export function navigateFromNotification(
   }
 
   if (type === 'driver_sos') {
-    if (role === 'dispatcher' || getAvailableStacks(nav).includes('DispatcherStack')) {
-      if (orderId) {
-        goToStackScreen(nav, 'DispatcherStack', 'DispatcherOrderDetail', { id: orderId });
-      } else {
-        goToStackScreen(nav, 'DispatcherStack', 'DispatcherMonitoring');
-      }
-      return;
-    }
     if (orderId) {
       const clientStack = resolveClientStack(nav, role);
       if (clientStack) {
@@ -149,10 +141,6 @@ export function navigateFromNotification(
 
   if (type === 'document_expiry') {
     const stacks = getAvailableStacks(nav);
-    if (stacks.includes('DispatcherStack') || role === 'dispatcher') {
-      goToStackScreen(nav, 'DispatcherStack', 'DispatcherDriverDocuments');
-      return;
-    }
     if (stacks.includes('UpdaterStack') || role === 'updater') {
       goToStackScreen(nav, 'UpdaterStack', 'UpdaterDriverDocuments');
       return;
@@ -163,10 +151,6 @@ export function navigateFromNotification(
 
   if (type === 'complaint_filed') {
     const stacks = getAvailableStacks(nav);
-    if (stacks.includes('DispatcherStack') || role === 'dispatcher') {
-      goToStackScreen(nav, 'DispatcherStack', 'StaffComplaints');
-      return;
-    }
     if (stacks.includes('UpdaterStack') || role === 'updater') {
       goToStackScreen(nav, 'UpdaterStack', 'StaffComplaints');
       return;
@@ -252,10 +236,6 @@ export function navigateFromNotification(
       return;
     }
 
-    if (role === 'dispatcher' || stacks.includes('DispatcherStack')) {
-      goToStackScreen(nav, 'DispatcherStack', 'DispatcherOrderDetail', { id: orderId });
-      return;
-    }
   }
 
   const clientStack = resolveClientStack(nav, role);
@@ -299,7 +279,6 @@ export function getPrimaryRole(user: {
   is_updater?: boolean;
 } | null): UserRole {
   if (!user) {return null;}
-  if (user.is_dispatcher) {return 'dispatcher';}
   if (user.is_updater) {return 'updater';}
   if (user.is_driver) {return 'driver';}
   if (user.is_client) {return 'client';}

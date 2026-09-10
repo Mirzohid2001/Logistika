@@ -13,8 +13,9 @@ if not DEBUG and SECRET_KEY.startswith('django-insecure'):
 # When True, clients can use payment_method="mock" to mark a payment completed immediately (no gateway callback).
 # Default follows DEBUG so local/staging works without Click/Payme webhooks hitting localhost.
 PAYMENTS_ALLOW_MOCK = config('PAYMENTS_ALLOW_MOCK', default=DEBUG, cast=bool)
-# Buyurtma to'lovi shafyor va mijoz o'rtasida — platforma orqali emas.
+# Legacy direct order checkout is disabled; marketplace orders use prepaid balances.
 ORDER_PLATFORM_PAYMENTS_ENABLED = config('ORDER_PLATFORM_PAYMENTS_ENABLED', default=False, cast=bool)
+PREPAID_BALANCES_ENFORCED = config('PREPAID_BALANCES_ENFORCED', default=True, cast=bool)
 PLATFORM_COMMISSION_PERCENT = config('PLATFORM_COMMISSION_PERCENT', default=10, cast=int)
 CANCELLATION_FEE_CLIENT_BEFORE_START_PERCENT = config(
     'CANCELLATION_FEE_CLIENT_BEFORE_START_PERCENT', default=0, cast=int,

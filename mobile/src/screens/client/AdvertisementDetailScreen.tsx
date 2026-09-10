@@ -83,9 +83,9 @@ const AdvertisementDetailScreen = () => {
     );
   };
 
-  const formatPrice = (price?: number) => {
+  const formatPrice = (price?: number, currency = 'UZS') => {
     if (!price) {return t('advertisements.priceNegotiable');}
-    return `${price.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} so'm`;
+    return `${price.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} ${currency === 'USD' ? '$' : "so'm"}`;
   };
 
   const formatDate = (dateString: string) => {
@@ -167,7 +167,7 @@ const AdvertisementDetailScreen = () => {
           <View style={[styles.metaChip, styles.metaChipPrimary]}>
             <MaterialIcons name="payments" size={14} color={colors.primary} />
             <Text style={[styles.metaChipText, styles.metaChipTextPrimary]}>
-              {formatPrice(advertisement.proposed_cost)}
+              {formatPrice(advertisement.proposed_cost, advertisement.currency)}
             </Text>
           </View>
         </View>
@@ -248,7 +248,7 @@ const AdvertisementDetailScreen = () => {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('advertisements.price')}</Text>
-          <Text style={styles.price}>{formatPrice(advertisement.proposed_cost)}</Text>
+          <Text style={styles.price}>{formatPrice(advertisement.proposed_cost, advertisement.currency)}</Text>
         </View>
 
         <View style={styles.divider} />

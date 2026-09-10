@@ -114,7 +114,9 @@ def completion_fee_summary(user) -> dict:
         for row in rows
     ]
     pending_count = sum(item['count'] for item in totals)
-    required = pending_count > 0 and not is_staff_account(user)
+    # Legacy post-completion fees stay visible in history, but the marketplace now
+    # uses prepaid commission balances and never blocks an account with old fees.
+    required = False
     return {
         'required': required,
         'marketplace_actions_allowed': not required,

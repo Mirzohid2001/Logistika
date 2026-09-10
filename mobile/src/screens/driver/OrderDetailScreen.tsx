@@ -489,6 +489,7 @@ const OrderDetailScreen = () => {
 
   const advertisement =
     typeof order.advertisement === 'object' ? order.advertisement : null;
+  const orderCurrencySuffix = advertisement?.currency === 'USD' ? '$' : "so'm";
   const client = typeof order.client === 'object' ? order.client : null;
 
   const departureCity =
@@ -726,14 +727,18 @@ const OrderDetailScreen = () => {
       {['in_progress', 'in_transit'].includes(order.status.code) && (
         <Card style={styles.paymentWaitCard}>
           <Text style={styles.paymentWaitTitle}>{t('orders.driverPaymentTitle')}</Text>
-          <Text style={styles.paymentWaitHint}>{t('orders.driverPaymentHint')}</Text>
+          <Text style={styles.paymentWaitHint}>
+            {t(order.prepaid_funded ? 'orders.prepaidPaymentHint' : 'orders.driverPaymentHint')}
+          </Text>
           {order.total_amount !== undefined && order.total_amount > 0 && (
             <Text style={styles.paymentWaitAmount}>
-              {t('orders.agreedAmount')}: {order.total_amount.toLocaleString()} so'm
+              {t('orders.agreedAmount')}: {order.total_amount.toLocaleString()} {orderCurrencySuffix}
             </Text>
           )}
           <Text style={styles.paymentWaitStatus}>
-            {order.client_payment_confirmed === true
+            {order.prepaid_funded
+              ? t('orders.prepaidPaymentSecured')
+              : order.client_payment_confirmed === true
               ? t('orders.driverPaymentReceived')
               : order.client_payment_confirmed === false
                 ? t('orders.driverPaymentNotReceived')
@@ -741,7 +746,7 @@ const OrderDetailScreen = () => {
                   ? t('orders.clientReportedPaid')
                   : t('orders.driverPaymentPending')}
           </Text>
-          <View style={styles.driverPaymentButtons}>
+          {!order.prepaid_funded && <View style={styles.driverPaymentButtons}>
             <Button
               title={t('orders.markPaymentReceived')}
               onPress={() => {
@@ -760,7 +765,7 @@ const OrderDetailScreen = () => {
               variant={order.client_payment_confirmed === false ? 'primary' : 'outline'}
               style={styles.driverPaymentButton}
             />
-          </View>
+          </View>}
         </Card>
       )}
       {canComplete && !!order.proof_of_delivery && (
@@ -850,7 +855,7 @@ const OrderDetailScreen = () => {
             <View style={[styles.metaChip, styles.metaChipPrimary]}>
               <MaterialIcons name="payments" size={14} color={colors.primary} />
               <Text style={[styles.metaChipText, styles.metaChipTextPrimary]}>
-                {order.total_amount.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} so'm
+                {order.total_amount.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} {orderCurrencySuffix}
               </Text>
             </View>
           ) : null}
@@ -1015,10 +1020,12 @@ const OrderDetailScreen = () => {
                        <Text style={styles.sectionTitle}>{t('orders.agreedAmount')}</Text>
                        <View style={styles.infoRow}>
                          <Text style={styles.infoValue}>
-                           {order.total_amount.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} so'm
+                           {order.total_amount.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} {orderCurrencySuffix}
                          </Text>
                        </View>
-                       <Text style={styles.paymentWaitHint}>{t('orders.driverPaymentHint')}</Text>
+                       <Text style={styles.paymentWaitHint}>
+                         {t(order.prepaid_funded ? 'orders.prepaidPaymentHint' : 'orders.driverPaymentHint')}
+                       </Text>
                      </View>
                    </>
                  )}

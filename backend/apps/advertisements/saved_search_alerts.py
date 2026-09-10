@@ -34,13 +34,14 @@ def notify_saved_search_matches(advertisement: Advertisement) -> int:
             continue
 
         title = advertisement.title_uz or advertisement.title_ru or "Yangi e'lon"
+        currency_suffix = '$' if advertisement.currency == 'USD' else "so'm"
         create_notification(
             user=saved_search.user,
             notification_type='saved_search_match',
             title="Saqlangan qidiruv bo'yicha yangi e'lon",
             message=(
                 f"«{saved_search.name}» qidiruvingizga mos yangi e'lon: {title}. "
-                f"Narxi: {advertisement.proposed_cost or 'kelishiladi'} so'm."
+                f"Narxi: {advertisement.proposed_cost or 'kelishiladi'} {currency_suffix}."
             ),
             advertisement=advertisement,
             send_push=True,

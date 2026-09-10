@@ -30,6 +30,7 @@ import CreatePaymentScreen from '../screens/client/CreatePaymentScreen';
 import PaymentsScreen from '../screens/client/PaymentsScreen';
 import PaymentDetailScreen from '../screens/client/PaymentDetailScreen';
 import ServiceFeesScreen from '../screens/ServiceFeesScreen';
+import BalancesScreen from '../screens/BalancesScreen';
 import PublicTrackingShareScreen from '../screens/PublicTrackingShareScreen';
 import OpenTrackingLinkScreen from '../screens/OpenTrackingLinkScreen';
 import { useAppTheme } from '../theme/useAppTheme';
@@ -198,6 +199,7 @@ const AppNavigator = () => {
             <Stack.Screen name="Payments" component={PaymentsScreen} />
             <Stack.Screen name="PaymentDetail" component={PaymentDetailScreen} />
             <Stack.Screen name="ServiceFees" component={ServiceFeesScreen} />
+            <Stack.Screen name="Balances" component={BalancesScreen} />
           </>
         ) : (
           <Stack.Screen name="Auth" component={AuthNavigator} />

@@ -3,6 +3,10 @@ from django.utils import timezone
 from apps.common.admin_mixins import OperatorMixin
 from config.admin import admin_site
 from .models import (
+    AccountBalance,
+    BalanceExchangeRateSettings,
+    BalanceEntry,
+    BalanceReservation,
     LedgerEntry,
     OrderCompletionFee,
     OrderCompletionFeeSettings,
@@ -11,6 +15,69 @@ from .models import (
     PaymentHistory,
     Wallet,
 )
+
+
+@admin.register(BalanceExchangeRateSettings, site=admin_site)
+class BalanceExchangeRateSettingsAdmin(OperatorMixin, admin.ModelAdmin):
+    fields = ['usd_to_uzs', 'updated_at']
+    readonly_fields = ['updated_at']
+
+    def has_add_permission(self, request):
+        return not BalanceExchangeRateSettings.objects.exists() and super().has_add_permission(request)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(AccountBalance, site=admin_site)
+class AccountBalanceAdmin(OperatorMixin, admin.ModelAdmin):
+    list_display = ['id', 'user', 'balance_type', 'currency', 'available', 'reserved', 'updated_at']
+    list_filter = ['balance_type']
+    search_fields = ['user__phone', 'user__first_name', 'user__last_name']
+    readonly_fields = ['user', 'balance_type', 'currency', 'available', 'reserved', 'created_at', 'updated_at']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(BalanceReservation, site=admin_site)
+class BalanceReservationAdmin(OperatorMixin, admin.ModelAdmin):
+    list_display = [
+        'id', 'purpose', 'user', 'advertisement', 'order', 'amount', 'currency',
+        'balance_amount', 'status',
+    ]
+    list_filter = ['purpose', 'status', 'currency']
+    search_fields = ['user__phone', 'advertisement__id', 'order__id']
+    readonly_fields = [
+        'balance', 'user', 'advertisement', 'order', 'purpose', 'amount', 'currency', 'balance_amount',
+        'settlement_uzs_rate', 'status', 'captured_at', 'released_at', 'created_at', 'updated_at',
+    ]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(BalanceEntry, site=admin_site)
+class BalanceEntryAdmin(OperatorMixin, admin.ModelAdmin):
+    list_display = ['id', 'entry_type', 'user', 'amount', 'available_delta', 'reserved_delta', 'created_at']
+    list_filter = ['entry_type', 'balance__currency', 'created_at']
+    search_fields = ['user__phone', 'idempotency_key', 'note']
+    readonly_fields = [
+        'balance', 'user', 'reservation', 'advertisement', 'order', 'payment', 'entry_type',
+        'amount', 'available_delta', 'reserved_delta', 'idempotency_key', 'note', 'metadata', 'created_at',
+    ]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Payment, site=admin_site)
@@ -68,13 +135,13 @@ class PaymentHistoryAdmin(OperatorMixin, admin.ModelAdmin):
 @admin.register(OrderCompletionFeeSettings, site=admin_site)
 class OrderCompletionFeeSettingsAdmin(OperatorMixin, admin.ModelAdmin):
     fieldsets = (
-        ('Umumiy sozlamalar', {
+        ('Oldindan to\'lanadigan komissiya', {
             'fields': ('is_enabled', 'currency', 'updated_at'),
         }),
-        ('Mijoz uchun', {
+        ('Mijoz uchun (har bir buyurtma)', {
             'fields': ('client_fee_enabled', 'client_fee_amount'),
         }),
-        ('Haydovchi uchun', {
+        ('Haydovchi uchun (har bir buyurtma)', {
             'fields': ('driver_fee_enabled', 'driver_fee_amount'),
         }),
     )

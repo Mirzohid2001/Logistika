@@ -59,7 +59,7 @@ export function navigateMainTab(
 
 export function navigateRoleStack(
   navigation: NavigationLike,
-  stack: 'ClientStack' | 'DriverStack' | 'DispatcherStack' | 'UpdaterStack',
+  stack: 'ClientStack' | 'DriverStack' | 'UpdaterStack',
   screen: string,
   params?: object,
 ) {

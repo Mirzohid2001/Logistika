@@ -1,5 +1,7 @@
 from django.urls import path
 from .views import (
+    BalanceTopUpView,
+    BalanceView,
     MyPaymentsView,
     OrderCompletionFeeListView,
     OrderCompletionFeePayView,
@@ -16,6 +18,8 @@ from .views import (
 app_name = 'payments'
 
 urlpatterns = [
+    path('balances/', BalanceView.as_view(), name='balances'),
+    path('balances/top-up/', BalanceTopUpView.as_view(), name='balance-top-up'),
     path('create/', PaymentCreateView.as_view(), name='create'),
     path('wallet/', WalletView.as_view(), name='wallet'),
     path('completion-fees/', OrderCompletionFeeListView.as_view(), name='completion-fees'),

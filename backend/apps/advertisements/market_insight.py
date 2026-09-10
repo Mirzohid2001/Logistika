@@ -21,6 +21,7 @@ def _collect_lane_amounts(
     departure_city_id: int,
     destination_city_id: int,
     weight: Decimal | None = None,
+    currency: str = 'UZS',
 ) -> list[Decimal]:
     amounts: list[Decimal] = []
 
@@ -28,6 +29,7 @@ def _collect_lane_amounts(
         departure_city_id=departure_city_id,
         destination_city_id=destination_city_id,
         proposed_cost__isnull=False,
+        currency=currency,
     )
     if weight is not None:
         low = weight * Decimal('0.7')
@@ -42,6 +44,7 @@ def _collect_lane_amounts(
     bid_filter = Q(
         advertisement__departure_city_id=departure_city_id,
         advertisement__destination_city_id=destination_city_id,
+        advertisement__currency=currency,
         is_accepted_by_client=True,
     )
     if weight is not None:
@@ -60,6 +63,7 @@ def _collect_lane_amounts(
     completed_orders = Order.objects.filter(
         advertisement__departure_city_id=departure_city_id,
         advertisement__destination_city_id=destination_city_id,
+        advertisement__currency=currency,
         status__code='completed',
     ).select_related('advertisement', 'status')[:80]
 
@@ -83,13 +87,15 @@ def get_lane_price_insight(
     departure_city_id: int,
     destination_city_id: int,
     weight: Decimal | None = None,
+    currency: str = 'UZS',
 ) -> dict:
-    amounts = _collect_lane_amounts(departure_city_id, destination_city_id, weight)
+    currency = str(currency or 'UZS').upper()
+    amounts = _collect_lane_amounts(departure_city_id, destination_city_id, weight, currency)
     if not amounts:
         return {
             'available': False,
             'sample_count': 0,
-            'currency': 'UZS',
+            'currency': currency,
             'message': 'Bu yo\'nalish bo\'yicha hozircha yetarli tarixiy ma\'lumot yo\'q.',
         }
 
@@ -107,7 +113,7 @@ def get_lane_price_insight(
     return {
         'available': True,
         'sample_count': len(amounts_sorted),
-        'currency': 'UZS',
+        'currency': currency,
         'min_amount': float(low),
         'max_amount': float(high),
         'median_amount': float(med),

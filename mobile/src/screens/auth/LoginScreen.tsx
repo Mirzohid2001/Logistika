@@ -18,7 +18,6 @@ const DEMO_PASSWORD = 'demo12345';
 const DEMO_ACCOUNTS = {
   client: {labelKey: 'auth.demoClient', phone: '+998901000101'},
   driver: {labelKey: 'auth.demoDriver', phone: '+998901000102'},
-  dispatcher: {labelKey: 'auth.demoDispatcher', phone: '+998901000103'},
   updater: {labelKey: 'auth.demoUpdater', phone: '+998901000104'},
   fee_client: {labelKey: 'auth.demoFeeClient', phone: '+998901000105'},
   fee_driver: {labelKey: 'auth.demoFeeDriver', phone: '+998901000106'},

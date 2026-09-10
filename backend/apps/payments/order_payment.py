@@ -88,6 +88,30 @@ def finalize_completed_payment(payment) -> None:
                 )
         return
 
+    gateway = payment.gateway_response if isinstance(payment.gateway_response, dict) else {}
+    if gateway.get('purpose') == 'balance_top_up':
+        from apps.payments.balances import credit_balance_from_payment
+
+        credit_balance_from_payment(payment)
+        credited_amount = gateway.get('requested_amount', gateway.get('balance_amount', payment.amount))
+        credited_currency = gateway.get('requested_currency', gateway.get('balance_currency', payment.currency))
+        try:
+            create_notification(
+                user=payment.user,
+                notification_type='payment_received',
+                title='Balans to\'ldirildi',
+                message=(
+                    f"{credited_amount} {credited_currency} "
+                    f"{gateway.get('balance_type', '')} balansiga qo'shildi."
+                ),
+            )
+        except Exception:
+            logger.exception(
+                'Failed to notify user about balance top-up',
+                extra={'event': 'balance_top_up_notify_failed', 'payment_id': payment.id},
+            )
+        return
+
     _maybe_activate_subscription_payment(payment)
 
     if payment.order_id:

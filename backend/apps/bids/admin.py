@@ -29,19 +29,20 @@ class BidAdmin(OperatorMixin, admin.ModelAdmin):
     def current_amount_display(self, obj):
         amount = obj.get_current_amount()
         if amount:
-            return f"{amount} UZS"
+            return f"{amount} {obj.advertisement.currency}"
         return "Taklif yo'q"
     current_amount_display.short_description = 'Joriy taklif'
     
     def proposed_amounts_display(self, obj):
         if obj.proposed_amounts:
             amounts = []
+            currency = obj.advertisement.currency
             for proposal in obj.proposed_amounts:
                 if isinstance(proposal, dict):
                     by_value = proposal.get('by', 'Noma\'lum')
-                    amounts.append(f"{proposal.get('amount')} UZS ({by_value})")
+                    amounts.append(f"{proposal.get('amount')} {currency} ({by_value})")
                 else:
-                    amounts.append(f"{proposal} UZS")
+                    amounts.append(f"{proposal} {currency}")
             return ', '.join(amounts)
         return "Takliflar yo'q"
     proposed_amounts_display.short_description = 'Barcha takliflar'

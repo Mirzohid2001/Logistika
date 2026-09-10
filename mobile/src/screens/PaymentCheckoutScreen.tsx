@@ -19,7 +19,7 @@ import type { AppColors } from '../theme/colors';
 import { useThemedStyles } from '../theme/useThemedStyles';
 import { useAppTheme } from '../theme/useAppTheme';
 
-type CheckoutMode = 'order' | 'subscription' | 'service_fee';
+type CheckoutMode = 'order' | 'subscription' | 'service_fee' | 'balance';
 
 const PaymentCheckoutScreen = () => {
   const styles = useThemedStyles(createStyles);
@@ -53,12 +53,16 @@ const PaymentCheckoutScreen = () => {
             ? t('subscriptions.purchaseSuccess')
             : mode === 'service_fee'
               ? t('payments.serviceFeePaid')
+              : mode === 'balance'
+                ? t('balances.topUpSuccess')
               : t('payments.paymentCreatedCompleted'),
         );
         if (mode === 'subscription') {
           (navigation as any).navigate('Main');
         } else if (mode === 'service_fee') {
           (navigation as any).navigate('ServiceFees');
+        } else if (mode === 'balance') {
+          (navigation as any).navigate('Balances');
         } else {
           navigation.goBack();
         }

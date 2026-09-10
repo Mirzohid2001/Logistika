@@ -14,6 +14,7 @@ interface PriceInsightCardProps {
   fromCityId: number | null;
   toCityId: number | null;
   weight?: string;
+  currency?: 'UZS' | 'USD';
   onApplySuggested?: (amount: number) => void;
   showApplyButton?: boolean;
 }
@@ -22,6 +23,7 @@ export const PriceInsightCard: React.FC<PriceInsightCardProps> = ({
   fromCityId,
   toCityId,
   weight,
+  currency = 'UZS',
   onApplySuggested,
   showApplyButton = Boolean(onApplySuggested),
 }) => {
@@ -45,6 +47,7 @@ export const PriceInsightCard: React.FC<PriceInsightCardProps> = ({
           from_city: fromCityId,
           to_city: toCityId,
           weight: weight ? Number(weight) : undefined,
+          currency,
         });
         if (!cancelled) {setInsight(data);}
       } catch {
@@ -57,7 +60,7 @@ export const PriceInsightCard: React.FC<PriceInsightCardProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [fromCityId, toCityId, weight]);
+  }, [currency, fromCityId, toCityId, weight]);
 
   if (!fromCityId || !toCityId || fromCityId === toCityId) {
     return null;
@@ -80,7 +83,7 @@ export const PriceInsightCard: React.FC<PriceInsightCardProps> = ({
     );
   }
 
-  const suffix = t('dashboard.currencySuffix');
+  const suffix = insight.currency === 'USD' ? '$' : t('dashboard.currencySuffix');
 
   return (
     <View style={styles.card}>

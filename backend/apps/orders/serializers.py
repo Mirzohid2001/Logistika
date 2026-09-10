@@ -48,6 +48,7 @@ class OrderSerializer(serializers.ModelSerializer):
     driver = UserSerializer(read_only=True)
     client = UserSerializer(read_only=True)
     total_amount = serializers.ReadOnlyField()
+    prepaid_funded = serializers.ReadOnlyField()
     paid_amount = serializers.ReadOnlyField()
     remaining_amount = serializers.ReadOnlyField()
     is_fully_paid = serializers.ReadOnlyField()
@@ -79,14 +80,14 @@ class OrderSerializer(serializers.ModelSerializer):
                   'estimated_eta_minutes', 'tracking_summary',
                   'proof_of_delivery', 'return_quality', 'tracking_share',
                   'custody_events', 'active_sos', 'escrow', 'documents',
-                  'total_amount', 'paid_amount', 'remaining_amount', 'is_fully_paid', 'payment_progress',
+                  'total_amount', 'prepaid_funded', 'paid_amount', 'remaining_amount', 'is_fully_paid', 'payment_progress',
                   'payment_disputed',
                   'client_paid_reported', 'client_paid_reported_at',
                   'client_payment_confirmed', 'client_payment_confirmed_at',
                   'client_delivery_confirmed', 'client_delivery_confirmed_at',
                   'created_at', 'updated_at', 'started_at', 'completed_at']
         read_only_fields = [
-            'id', 'created_at', 'updated_at', 'total_amount', 'paid_amount', 'remaining_amount',
+            'id', 'created_at', 'updated_at', 'total_amount', 'prepaid_funded', 'paid_amount', 'remaining_amount',
             'is_fully_paid', 'payment_progress', 'payment_disputed', 'client_paid_reported', 'client_paid_reported_at',
             'client_payment_confirmed', 'client_payment_confirmed_at',
             'client_delivery_confirmed', 'client_delivery_confirmed_at',

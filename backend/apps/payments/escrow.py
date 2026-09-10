@@ -7,7 +7,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from apps.orders.financial import resolved_order_amount
+from apps.orders.financial import resolved_order_amount, resolved_order_amount_uzs
 from apps.orders.models import Order
 from apps.payments.ledger import (
     ZERO,
@@ -248,6 +248,20 @@ def settle_order_cancellation(order: Order, *, actor: str) -> dict:
     status_code = order.status.code if order.status else ''
     gross = money(resolved_order_amount(order))
 
+    # Prepaid transport funds are held separately from the non-refundable fixed
+    # commissions. A cancellation returns only the transport amount to the client.
+    from apps.payments.balances import release_order_funds
+
+    prepaid_refund = release_order_funds(order, reason=f'Order cancelled by {actor}')
+    if prepaid_refund > ZERO:
+        return {
+            'fee': 0.0,
+            'fee_to': None,
+            'refunded': float(prepaid_refund),
+            'actor': actor,
+            'currency': order.advertisement.currency,
+        }
+
     if actor == 'client':
         fee_percent = client_cancel_fee_percent(status_code)
         fee_to = 'driver'
@@ -377,7 +391,7 @@ def hold_on_complaint(complaint: Complaint) -> None:
     if escrow and escrow.status == OrderEscrow.STATUS_RELEASED:
         hold_amount = money(escrow.released_to_driver)
     else:
-        hold_amount = money(resolved_order_amount(order))
+        hold_amount = money(resolved_order_amount_uzs(order))
 
     hold_available(
         order.driver,

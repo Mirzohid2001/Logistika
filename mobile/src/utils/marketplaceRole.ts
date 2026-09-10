@@ -50,12 +50,9 @@ export async function resolveActiveMarketplaceRole(user: User | null): Promise<M
   return available[0];
 }
 
-export function resolveStaffRole(user: User | null): 'dispatcher' | 'updater' | null {
+export function resolveStaffRole(user: User | null): 'updater' | null {
   if (!user) {
     return null;
-  }
-  if (user.is_dispatcher) {
-    return 'dispatcher';
   }
   if (user.is_updater) {
     return 'updater';

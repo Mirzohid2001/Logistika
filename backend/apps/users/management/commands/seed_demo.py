@@ -31,7 +31,7 @@ from apps.orders.models import (
     OrderStatus,
 )
 from apps.payments.models import (
-    OrderCompletionFee,
+    AccountBalance,
     OrderCompletionFeeSettings,
     Payment,
     PaymentHistory,
@@ -81,6 +81,7 @@ class Command(BaseCommand):
         vehicles = self._vehicles_and_documents(users, now, demo_media)
         advertisements = self._advertisements(users, cities, now)
         orders = self._orders(users, advertisements, statuses, now)
+        self._balances(users, advertisements)
         self._marketplace(users, advertisements, orders, cities, now)
         self._tracking(orders['active'], cities, now)
         self._chats(orders, now)
@@ -215,12 +216,12 @@ class Command(BaseCommand):
                 'is_verified': True, 'verification_status': 'approved', 'updater_code': 'DEMO-UPD',
             },
             'fee_client': {
-                'first_name': 'Fee', 'last_name': 'Client', 'email': 'fee-client@demo.logistika.uz',
+                'first_name': 'Balance', 'last_name': 'Client', 'email': 'fee-client@demo.logistika.uz',
                 'is_client': True, 'is_driver': False, 'is_verified': True,
                 'verification_status': 'approved', 'company_inn': '309876542',
             },
             'fee_driver': {
-                'first_name': 'Fee', 'last_name': 'Driver', 'email': 'fee-driver@demo.logistika.uz',
+                'first_name': 'Balance', 'last_name': 'Driver', 'email': 'fee-driver@demo.logistika.uz',
                 'is_client': False, 'is_driver': True, 'is_verified': True,
                 'verification_status': 'approved', 'document_photos': [demo_media['driver_license']],
             },
@@ -245,7 +246,7 @@ class Command(BaseCommand):
 
         companies = [
             (users['client'], '309876541', 'Demo Cargo LLC'),
-            (users['fee_client'], '309876542', 'Demo Fee Scenario LLC'),
+            (users['fee_client'], '309876542', 'Demo Balance Scenario LLC'),
         ]
         for user, inn, name in companies:
             company, _ = Company.objects.update_or_create(
@@ -371,10 +372,10 @@ class Command(BaseCommand):
             },
             'fee_blocked': {
                 'client': users['fee_client'],
-                'title_ru': '[DEMO] Сценарий неоплаченного сбора',
-                'title_en': '[DEMO] Unpaid service fee scenario',
-                'title_uz': '[DEMO] To\'lanmagan xizmat haqi ssenariysi',
-                'description_ru': 'Завершённый заказ: обе стороны должны оплатить сервисный сбор.',
+                'title_ru': '[DEMO] Сценарий предоплаченной комиссии',
+                'title_en': '[DEMO] Prepaid commission scenario',
+                'title_uz': '[DEMO] Oldindan to\'langan komissiya ssenariysi',
+                'description_ru': 'Завершённый заказ с отдельными балансами заказа и комиссии.',
                 'weight': Decimal('5000'), 'volume_m3': Decimal('40'),
                 'departure_city': cities['bukhara'], 'departure_address': 'Demo Bukhara warehouse',
                 'destination_city': cities['tashkent'], 'destination_address': 'Demo Tashkent terminal',
@@ -405,9 +406,9 @@ class Command(BaseCommand):
                 'is_enabled': True,
                 'client_fee_enabled': True,
                 'driver_fee_enabled': True,
-                'client_fee_amount': Decimal('50000'),
-                'driver_fee_amount': Decimal('40000'),
-                'currency': 'UZS',
+                'client_fee_amount': Decimal('50'),
+                'driver_fee_amount': Decimal('50'),
+                'currency': 'USD',
             },
         )
         fee_settings.save()
@@ -468,6 +469,25 @@ class Command(BaseCommand):
             )
             result[key] = order
         return result
+
+    def _balances(self, users, advertisements):
+        from apps.payments.balances import get_balance, reserve_advertisement_balances
+
+        specs = [
+            (users['client'], AccountBalance.TYPE_ORDER, Decimal('20000000')),
+            (users['client'], AccountBalance.TYPE_COMMISSION, Decimal('500')),
+            (users['driver'], AccountBalance.TYPE_COMMISSION, Decimal('500')),
+            (users['fee_client'], AccountBalance.TYPE_ORDER, Decimal('10000000')),
+            (users['fee_client'], AccountBalance.TYPE_COMMISSION, Decimal('250')),
+            (users['fee_driver'], AccountBalance.TYPE_COMMISSION, Decimal('250')),
+        ]
+        for user, balance_type, total in specs:
+            balance = get_balance(user, balance_type)
+            # Keep fixture totals stable across repeated seed_demo runs even when
+            # an open advertisement already has held funds.
+            balance.available = max(Decimal('0'), total - balance.reserved)
+            balance.save(update_fields=['available', 'updated_at'])
+        reserve_advertisement_balances(advertisements['available'])
 
     def _marketplace(self, users, advertisements, orders, cities, now):
         open_bid, _ = Bid.objects.update_or_create(
@@ -632,34 +652,6 @@ class Command(BaseCommand):
             defaults={'gateway_response': {'fixture': True}},
         )
 
-        for fee in completed_order.completion_fees.all():
-            payment, _ = Payment.objects.update_or_create(
-                transaction_id=f'DEMO-FEE-PAID-{fee.role.upper()}-001',
-                defaults={
-                    'user': fee.user, 'order': fee.order, 'completion_fee': fee,
-                    'amount': fee.amount, 'currency': fee.currency,
-                    'payment_method': 'mock', 'payment_status': 'completed',
-                    'gateway_response': {'fixture': True, 'kind': 'completion_fee'},
-                    'paid_at': now - timedelta(days=4),
-                },
-            )
-            fee.status = OrderCompletionFee.STATUS_PAID
-            fee.paid_payment = payment
-            fee.paid_at = payment.paid_at
-            fee.waived_at = None
-            fee.admin_note = 'Paid demo fixture'
-            fee.save(update_fields=['status', 'paid_payment', 'paid_at', 'waived_at', 'admin_note', 'updated_at'])
-
-        blocked_order = orders['fee_blocked']
-        for fee in blocked_order.completion_fees.all():
-            if fee.paid_payment_id:
-                fee.paid_payment = None
-            fee.status = OrderCompletionFee.STATUS_PENDING
-            fee.paid_at = None
-            fee.waived_at = None
-            fee.admin_note = 'Pending demo fixture used to verify account gate'
-            fee.save(update_fields=['status', 'paid_payment', 'paid_at', 'waived_at', 'admin_note', 'updated_at'])
-
         Rating.objects.update_or_create(
             order=completed_order,
             from_user=users['client'],
@@ -763,14 +755,14 @@ class Command(BaseCommand):
         )
         contents = {
             'guide_clients': (
-                '1. Создайте объявление. 2. Сравните предложения. 3. Отслеживайте груз. 4. Закройте сервисный сбор.',
-                "1. E'lon yarating. 2. Takliflarni solishtiring. 3. Yukni kuzating. 4. Xizmat haqini yoping.",
-                '1. Create a listing. 2. Compare bids. 3. Track cargo. 4. Settle the service fee.',
+                '1. Пополните балансы заказа и комиссии. 2. Создайте объявление. 3. Сравните предложения. 4. Отслеживайте груз.',
+                "1. Buyurtma va komissiya balanslarini to'ldiring. 2. E'lon yarating. 3. Takliflarni solishtiring. 4. Yukni kuzating.",
+                '1. Fund order and commission balances. 2. Create a listing. 3. Compare bids. 4. Track the cargo.',
             ),
             'guide_drivers': (
-                '1. Добавьте автомобиль. 2. Выберите груз. 3. Передавайте геопозицию. 4. Закройте сервисный сбор.',
-                "1. Avtomobil qo'shing. 2. Yukni tanlang. 3. Geolokatsiyani yuboring. 4. Xizmat haqini yoping.",
-                '1. Add a vehicle. 2. Choose cargo. 3. Share location. 4. Settle the service fee.',
+                '1. Пополните баланс комиссии. 2. Добавьте автомобиль. 3. Выберите груз. 4. Передавайте геопозицию.',
+                "1. Komissiya balansini to'ldiring. 2. Avtomobil qo'shing. 3. Yukni tanlang. 4. Geolokatsiyani yuboring.",
+                '1. Fund the commission balance. 2. Add a vehicle. 3. Choose cargo. 4. Share location.',
             ),
             'public_offer': ('Демонстрационная публичная оферта.', 'Demo ommaviy oferta.', 'Demo public offer.'),
             'disclaimer': ('Демонстрационный отказ от ответственности.', 'Demo javobgarlik cheklovi.', 'Demo disclaimer.'),

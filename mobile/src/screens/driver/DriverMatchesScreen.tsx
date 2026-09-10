@@ -51,7 +51,7 @@ const DriverMatchesScreen = () => {
           <Text style={styles.meta}>
             {Number(match.weight || 0)} kg
             {match.proposed_cost
-              ? ` · ${formatMoney(Number(match.proposed_cost), currentLanguage, t('dashboard.currencySuffix'))}`
+              ? ` · ${formatMoney(Number(match.proposed_cost), currentLanguage, match.currency === 'USD' ? '$' : t('dashboard.currencySuffix'))}`
               : ''}
           </Text>
           {reasons.length ? <Text style={styles.reasons}>{reasons.join(' · ')}</Text> : null}

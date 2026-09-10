@@ -158,11 +158,20 @@ class Order(models.Model):
         return total
     
     @property
+    def prepaid_funded(self):
+        """Whether Logivo currently holds or has settled prepaid order funds."""
+        from apps.payments.balances import order_has_funding
+
+        return order_has_funding(self)
+
+    @property
     def is_payment_settled(self):
-        """Haydovchi tasdiqlagan yoki escrow to'ldirilgan buyurtma to'langan hisoblanadi."""
+        """Prepaid reservation, driver confirmation, or escrow marks an order paid."""
         amount = self.agreed_amount if self.agreed_amount is not None else self.total_amount
         if amount is None or amount <= 0:
             return False
+        if self.prepaid_funded:
+            return True
         if self.client_payment_confirmed is True:
             return True
         from django.core.exceptions import ObjectDoesNotExist

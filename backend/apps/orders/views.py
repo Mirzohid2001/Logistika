@@ -4,6 +4,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from drf_spectacular.utils import extend_schema
 from django.core.cache import cache
+from django.db import transaction
 from django.db.models import Q
 from apps.users.permissions import IsDriver, IsClient, IsDispatcherOrUpdater, can_access_order
 from django.utils import timezone
@@ -359,9 +360,12 @@ class OrderStopView(APIView):
     permission_classes = [IsAuthenticated, IsDriver]
 
     @extend_schema(responses={200: OrderSerializer})
+    @transaction.atomic
     def post(self, request, pk):
         try:
-            order = Order.objects.select_related('advertisement', 'status').get(pk=pk, driver=request.user)
+            order = Order.objects.select_for_update().select_related(
+                'advertisement', 'status'
+            ).get(pk=pk, driver=request.user)
             if order.status.code not in ('in_progress', 'in_transit', 'approved_by_client'):
                 return Response(
                     {'error': 'Buyurtmani to\'xtatish faqat faol holatda mumkin.'},
@@ -372,7 +376,7 @@ class OrderStopView(APIView):
             order.save(update_fields=['status', 'updated_at'])
             from apps.orders.marketplace_recovery import reopen_advertisement_marketplace
 
-            reopen_advertisement_marketplace(order.advertisement)
+            advertisement_reopened = reopen_advertisement_marketplace(order.advertisement)
             _invalidate_order_list_cache(order)
 
             from apps.subscriptions.trial import restore_trial_for_order
@@ -385,7 +389,14 @@ class OrderStopView(APIView):
                     user=order.client,
                     notification_type='order_cancelled',
                     title='Buyurtma to\'xtatildi',
-                    message=f"Haydovchi buyurtma #{order.id}ni to'xtatdi. E'lon qayta ochiq.",
+                    message=(
+                        f"Haydovchi buyurtma #{order.id}ni to'xtatdi. "
+                        + (
+                            "E'lon qayta ochiq."
+                            if advertisement_reopened
+                            else "Balans yetarli bo'lmagani uchun e'lon yopiq qoldi."
+                        )
+                    ),
                     order=order,
                 )
             except Exception as e:
@@ -465,9 +476,12 @@ class OrderDeclineByClientView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(responses={200: OrderSerializer})
+    @transaction.atomic
     def post(self, request, pk):
         try:
-            order = Order.objects.select_related('advertisement', 'driver', 'client', 'status').get(pk=pk)
+            order = Order.objects.select_for_update().select_related(
+                'advertisement', 'driver', 'client', 'status'
+            ).get(pk=pk)
             if order.client_id != request.user.id:
                 return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
             if order.status.code not in ('pending', 'approved_by_client'):
@@ -492,7 +506,7 @@ class OrderDeclineByClientView(APIView):
             order.save(update_fields=['status', 'updated_at'])
             from apps.orders.marketplace_recovery import reopen_advertisement_marketplace
 
-            reopen_advertisement_marketplace(order.advertisement)
+            advertisement_reopened = reopen_advertisement_marketplace(order.advertisement)
             _invalidate_order_list_cache(order)
 
             from apps.subscriptions.trial import restore_trial_for_order
@@ -504,7 +518,10 @@ class OrderDeclineByClientView(APIView):
                     user=order.driver,
                     notification_type='order_cancelled',
                     title='Buyurtma bekor qilindi',
-                    message=f"Mijoz {client_name} buyurtma #{order.id}ni rad etdi. E'lon qayta ochiq.",
+                    message=(
+                        f"Mijoz {client_name} buyurtma #{order.id}ni rad etdi. "
+                        + ("E'lon qayta ochiq." if advertisement_reopened else "E'lon hozircha yopiq.")
+                    ),
                     order=order,
                 )
             except Exception as e:
@@ -545,6 +562,14 @@ class OrderMarkDriverPaymentView(APIView):
                 {'error': 'To\'lov holatini faqat faol buyurtmada belgilash mumkin.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if order.prepaid_funded:
+            return Response(
+                {
+                    'error': 'Bu buyurtma puli Logivo balansida saqlangan va qo\'lda o\'zgartirilmaydi.',
+                    'code': 'prepaid_payment_managed',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         order.client_payment_confirmed = received
         order.client_payment_confirmed_at = timezone.now()
@@ -581,6 +606,14 @@ class OrderConfirmClientPaymentView(APIView):
         if order.status.code in ('cancelled', 'rejected', 'pending', 'completed', 'stopped'):
             return Response(
                 {'error': 'To\'lov holatini faqat faol buyurtmada belgilash mumkin.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if order.prepaid_funded:
+            return Response(
+                {
+                    'error': 'Bu buyurtma puli Logivo balansida saqlangan va qo\'lda o\'zgartirilmaydi.',
+                    'code': 'prepaid_payment_managed',
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -669,9 +702,10 @@ class OrderCompleteView(APIView):
     permission_classes = [IsAuthenticated, IsDriver]
 
     @extend_schema(responses={200: OrderSerializer})
+    @transaction.atomic
     def post(self, request, pk):
         try:
-            order = Order.objects.get(pk=pk, driver=request.user)
+            order = Order.objects.select_for_update().get(pk=pk, driver=request.user)
             
             if order.status.code != 'in_transit':
                 return Response(
@@ -741,8 +775,12 @@ class OrderCompleteView(APIView):
 
             on_order_completed(order)
             order.refresh_from_db()
+            from apps.payments.balances import settle_prepaid_order
             from apps.payments.escrow import settle_driver_on_complete
-            settle_driver_on_complete(order)
+
+            prepaid_settlement = settle_prepaid_order(order)
+            if prepaid_settlement is None:
+                settle_driver_on_complete(order)
             try:
                 from apps.orders.documents import ensure_order_documents
 
@@ -790,9 +828,10 @@ class OrderRejectView(APIView):
     permission_classes = [IsAuthenticated, IsDriver]
 
     @extend_schema(responses={200: OrderSerializer})
+    @transaction.atomic
     def post(self, request, pk):
         try:
-            order = Order.objects.get(pk=pk, driver=request.user)
+            order = Order.objects.select_for_update().get(pk=pk, driver=request.user)
             if order.status.code not in ('pending', 'approved_by_client'):
                 return Response(
                     {'error': 'Faqat kutilayotgan yoki tasdiqlangan buyurtmani rad etish mumkin.'},
@@ -805,7 +844,7 @@ class OrderRejectView(APIView):
             order.save(update_fields=['status', 'updated_at'])
             from apps.orders.marketplace_recovery import reopen_advertisement_marketplace
 
-            reopen_advertisement_marketplace(order.advertisement)
+            advertisement_reopened = reopen_advertisement_marketplace(order.advertisement)
             _invalidate_order_list_cache(order)
             from apps.subscriptions.trial import restore_trial_for_order
             from apps.orders.realtime import broadcast_order_status_changed
@@ -818,7 +857,14 @@ class OrderRejectView(APIView):
                     user=order.client,
                     notification_type='order_cancelled',
                     title='Buyurtma rad etildi',
-                    message=f"Haydovchi {driver_name} buyurtma #{order.id}ni rad etdi. E'lon qayta ochiq.",
+                    message=(
+                        f"Haydovchi {driver_name} buyurtma #{order.id}ni rad etdi. "
+                        + (
+                            "E'lon qayta ochiq."
+                            if advertisement_reopened
+                            else "Balans yetarli bo'lmagani uchun e'lon yopiq qoldi."
+                        )
+                    ),
                     order=order,
                 )
             except Exception as e:
@@ -845,9 +891,12 @@ class OrderCancelView(APIView):
         request=ReasonRequestSerializer,
         responses={200: OrderSerializer},
     )
+    @transaction.atomic
     def post(self, request, pk):
         try:
-            order = Order.objects.select_related('advertisement', 'driver', 'client', 'status').get(pk=pk)
+            order = Order.objects.select_for_update().select_related(
+                'advertisement', 'driver', 'client', 'status'
+            ).get(pk=pk)
         except Order.DoesNotExist:
             return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -875,7 +924,7 @@ class OrderCancelView(APIView):
         order.status = cancelled_status
         order.save(update_fields=['status', 'updated_at'])
         from apps.orders.marketplace_recovery import reopen_advertisement_marketplace
-        reopen_advertisement_marketplace(order.advertisement)
+        advertisement_reopened = reopen_advertisement_marketplace(order.advertisement)
         _invalidate_order_list_cache(order)
 
         counterpart = order.driver if actor == 'client' else order.client
@@ -896,6 +945,7 @@ class OrderCancelView(APIView):
         )
         payload = OrderSerializer(order, context={'request': request}).data
         payload['cancellation'] = settlement
+        payload['advertisement_reopened'] = advertisement_reopened
         return Response(payload, status=status.HTTP_200_OK)
 
 

@@ -4,7 +4,7 @@ import {useNavigation, useRoute} from '@react-navigation/native';
 import {AuthLayout} from '../../components/auth/AuthLayout';
 import {useAuth} from '../../context/AuthContext';
 import {useTranslation} from '../../hooks/useTranslation';
-import {errorService} from '../../services/errorService';
+import {ErrorCode, errorService} from '../../services/errorService';
 import {toastService} from '../../services/toastService';
 import {spacing} from '../../theme';
 import {useAppTheme} from '../../theme/useAppTheme';
@@ -46,7 +46,11 @@ const TelegramAuthScreen = () => {
     void completeTelegramAuth(ticket).catch((error: any) => {
       const appError = errorService.parseError(error);
       errorService.logError(appError, {screen: 'TelegramAuthScreen'});
-      toastService.error(t('auth.telegramSessionExpired'));
+      toastService.error(
+        appError.code === ErrorCode.PERMISSION_DENIED
+          ? errorService.getUserFriendlyMessage(appError)
+          : t('auth.telegramSessionExpired'),
+      );
       navigation.replace('Login');
     });
   }, [completeTelegramAuth, navigation, route.params, t]);

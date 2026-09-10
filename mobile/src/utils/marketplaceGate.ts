@@ -15,6 +15,27 @@ export function promptMarketplaceGateError(
   },
 ): boolean {
   const parsed = errorService.parseError(error);
+  if (parsed.code === ErrorCode.BALANCE_REQUIRED) {
+    Alert.alert(
+      options.t('balances.requiredTitle'),
+      parsed.message || options.t('balances.requiredMessage'),
+      [
+        { text: options.t('common.cancel'), style: 'cancel' },
+        {
+          text: options.t('balances.openBalance'),
+          onPress: () => navigateRoot(options.navigation, 'Balances'),
+        },
+      ],
+    );
+    return true;
+  }
+  if (parsed.code === ErrorCode.COUNTERPARTY_BALANCE_REQUIRED) {
+    Alert.alert(
+      options.t('balances.counterpartyRequiredTitle'),
+      parsed.message || options.t('balances.counterpartyRequiredMessage'),
+    );
+    return true;
+  }
   if (
     parsed.code === ErrorCode.SUBSCRIPTION_REQUIRED ||
     parsed.code === ErrorCode.PAYMENT_REQUIRED

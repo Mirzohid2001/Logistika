@@ -44,14 +44,6 @@ export const appLinkingConfig = {
               MyBids: 'driver/bids',
             },
           },
-          DispatcherStack: {
-            screens: {
-              DispatcherOrderDetail: 'dispatcher/orders/:id',
-              DispatcherMonitoring: 'dispatcher/monitoring',
-              DispatcherDriverDocuments: 'dispatcher/driver-documents',
-              StaffComplaints: 'dispatcher/complaints',
-            },
-          },
         },
       },
       DriverDocuments: 'driver-documents',

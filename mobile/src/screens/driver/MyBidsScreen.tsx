@@ -124,9 +124,9 @@ const MyBidsScreen = () => {
     }
   };
 
-  const formatPrice = (amount?: string) => {
+  const formatPrice = (amount?: string, currency = 'UZS') => {
     if (!amount) {return t('bids.noPrice');}
-    return `${parseFloat(amount).toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} so'm`;
+    return `${parseFloat(amount).toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} ${currency === 'USD' ? '$' : "so'm"}`;
   };
 
   const formatDate = (dateString: string) => {
@@ -207,7 +207,7 @@ const MyBidsScreen = () => {
 
             <View style={styles.bidAmountContainer}>
               <Text style={styles.bidAmountLabel}>{t('bids.proposedPrice')}</Text>
-              <Text style={styles.bidAmount}>{formatPrice(item.current_amount)}</Text>
+              <Text style={styles.bidAmount}>{formatPrice(item.current_amount, item.currency)}</Text>
             </View>
 
             {canAgree && (
@@ -224,7 +224,7 @@ const MyBidsScreen = () => {
                 <Text style={styles.counterLabel}>{t('bids.counterOffer')}</Text>
                 <TextInput
                   style={styles.counterInput}
-                  placeholder={t('bids.counterOfferPlaceholder')}
+                  placeholder={t('bids.counterOfferPlaceholder', { currency: item.currency || 'UZS' })}
                   keyboardType="numeric"
                   value={counterAmounts[item.id] || ''}
                   onChangeText={(text) => setCounterAmounts((prev) => ({ ...prev, [item.id]: text }))}

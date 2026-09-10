@@ -50,7 +50,7 @@ class AdvertisementListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Advertisement
         fields = [
-            'id', 'photo', 'title', 'proposed_cost', 'weight', 'cargo_category', 'is_fragile',
+            'id', 'photo', 'title', 'proposed_cost', 'currency', 'weight', 'cargo_category', 'is_fragile',
             'required_body_type', 'requires_adr', 'requires_reefer', 'is_heavy',
             'pickup_window_start', 'pickup_window_end', 'delivery_deadline',
             'departure_country', 'departure_city', 'destination_country', 'destination_city',
@@ -131,7 +131,7 @@ class AdvertisementDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Advertisement
         fields = [
-            'id', 'client', 'photo', 'title', 'description', 'proposed_cost', 'weight',
+            'id', 'client', 'photo', 'title', 'description', 'proposed_cost', 'currency', 'weight',
             'cargo_category', 'is_fragile', 'volume_m3', 'units_count',
             'pickup_window_start', 'pickup_window_end', 'delivery_deadline',
             'contact_name', 'contact_phone', 'receiver_name', 'receiver_phone',
@@ -182,7 +182,7 @@ class AdvertisementCreateSerializer(serializers.ModelSerializer):
         fields = [
             'photo', 'title_ru', 'title_en', 'title_uz',
             'description_ru', 'description_en', 'description_uz',
-            'proposed_cost', 'weight', 'cargo_category', 'volume_m3', 'units_count',
+            'proposed_cost', 'currency', 'weight', 'cargo_category', 'volume_m3', 'units_count',
             'pickup_window_start', 'pickup_window_end', 'delivery_deadline',
             'contact_name', 'contact_phone', 'receiver_name', 'receiver_phone',
             'special_requirements', 'required_body_type', 'requires_adr', 'requires_reefer', 'is_heavy',
@@ -191,6 +191,17 @@ class AdvertisementCreateSerializer(serializers.ModelSerializer):
         ]
 
     def validate(self, attrs):
+        proposed_cost = attrs.get('proposed_cost', getattr(self.instance, 'proposed_cost', None))
+        from apps.payments.balances import prepaid_balances_enabled
+
+        if proposed_cost is None and prepaid_balances_enabled():
+            raise serializers.ValidationError({'proposed_cost': 'Buyurtma narxi majburiy'})
+        if proposed_cost is not None and proposed_cost <= 0:
+            raise serializers.ValidationError({'proposed_cost': 'Buyurtma narxi 0 dan katta bo\'lishi kerak'})
+        currency = str(attrs.get('currency', getattr(self.instance, 'currency', 'UZS')) or 'UZS').upper()
+        if currency not in ('UZS', 'USD'):
+            raise serializers.ValidationError({'currency': 'Faqat UZS yoki USD valyutasi qo\'llab-quvvatlanadi'})
+        attrs['currency'] = currency
         reqs = list(attrs.get('special_requirements') or getattr(self.instance, 'special_requirements', None) or [])
         if attrs.get('requires_reefer') or 'refrigerated' in reqs:
             attrs['requires_reefer'] = True

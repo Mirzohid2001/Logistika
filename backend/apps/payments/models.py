@@ -74,38 +74,39 @@ class Payment(models.Model):
 
 
 class OrderCompletionFeeSettings(models.Model):
-    """Singleton admin settings for fees charged after a completed order."""
+    """Singleton admin settings for prepaid per-order commissions."""
 
     CURRENCY_CHOICES = [
         ('UZS', 'UZS (so\'m)'),
+        ('USD', 'USD ($)'),
     ]
 
-    is_enabled = models.BooleanField(default=False)
+    is_enabled = models.BooleanField(default=True)
     client_fee_enabled = models.BooleanField(default=True)
     driver_fee_enabled = models.BooleanField(default=True)
     client_fee_amount = models.DecimalField(
         max_digits=12,
         decimal_places=2,
-        default=0,
+        default=50,
         validators=[MinValueValidator(Decimal('0'))],
     )
     driver_fee_amount = models.DecimalField(
         max_digits=12,
         decimal_places=2,
-        default=0,
+        default=50,
         validators=[MinValueValidator(Decimal('0'))],
     )
-    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='UZS')
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='USD')
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'order_completion_fee_settings'
-        verbose_name = 'Order completion fee settings'
-        verbose_name_plural = 'Order completion fee settings'
+        verbose_name = 'Prepaid order commission settings'
+        verbose_name_plural = 'Prepaid order commission settings'
 
     def save(self, *args, **kwargs):
         self.pk = 1
-        self.currency = (self.currency or 'UZS').upper()
+        self.currency = (self.currency or 'USD').upper()
         return super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
@@ -113,7 +114,232 @@ class OrderCompletionFeeSettings(models.Model):
 
     def __str__(self):
         state = 'enabled' if self.is_enabled else 'disabled'
-        return f'Order completion fees ({state})'
+        return f'Prepaid order commissions ({state})'
+
+
+class BalanceExchangeRateSettings(models.Model):
+    """Singleton rate used when a UZS-only gateway funds a USD balance."""
+
+    usd_to_uzs = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=13000,
+        validators=[MinValueValidator(Decimal('1'))],
+        help_text="UZS charged by the gateway for each 1 USD credited to a balance.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'balance_exchange_rate_settings'
+        verbose_name = 'Balance exchange rate settings'
+        verbose_name_plural = 'Balance exchange rate settings'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        return None
+
+    def __str__(self):
+        return f'1 USD = {self.usd_to_uzs} UZS'
+
+
+class AccountBalance(models.Model):
+    """One canonical balance per user and purpose.
+
+    Order funds are stored in UZS and commission funds in USD.  The API can
+    present either balance in UZS or USD without creating a second wallet.
+    """
+
+    TYPE_ORDER = 'order'
+    TYPE_COMMISSION = 'commission'
+    TYPE_CHOICES = [
+        (TYPE_ORDER, 'Order balance'),
+        (TYPE_COMMISSION, 'Commission balance'),
+    ]
+    CURRENCY_CHOICES = [
+        ('UZS', 'UZS (so\'m)'),
+        ('USD', 'USD ($)'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='account_balances')
+    balance_type = models.CharField(max_length=16, choices=TYPE_CHOICES)
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES)
+    available = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    reserved = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'account_balances'
+        ordering = ['balance_type']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'balance_type'],
+                name='unique_user_balance_type',
+            ),
+            models.CheckConstraint(condition=models.Q(available__gte=0), name='account_balance_available_nonnegative'),
+            models.CheckConstraint(condition=models.Q(reserved__gte=0), name='account_balance_reserved_nonnegative'),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'balance_type'], name='account_balance_user_type_idx'),
+        ]
+
+    def __str__(self):
+        return (
+            f'{self.user_id} {self.balance_type} {self.currency}: '
+            f'{self.available} available, {self.reserved} reserved'
+        )
+
+
+class BalanceReservation(models.Model):
+    """Immutable-purpose hold that prevents the same funds funding two orders."""
+
+    PURPOSE_CLIENT_ORDER = 'client_order'
+    PURPOSE_CLIENT_COMMISSION = 'client_commission'
+    PURPOSE_DRIVER_COMMISSION = 'driver_commission'
+    PURPOSE_CHOICES = [
+        (PURPOSE_CLIENT_ORDER, 'Client order funds'),
+        (PURPOSE_CLIENT_COMMISSION, 'Client commission'),
+        (PURPOSE_DRIVER_COMMISSION, 'Driver commission'),
+    ]
+    STATUS_HELD = 'held'
+    STATUS_CAPTURED = 'captured'
+    STATUS_RELEASED = 'released'
+    STATUS_CHOICES = [
+        (STATUS_HELD, 'Held'),
+        (STATUS_CAPTURED, 'Captured'),
+        (STATUS_RELEASED, 'Released'),
+    ]
+
+    balance = models.ForeignKey(AccountBalance, on_delete=models.PROTECT, related_name='reservations')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='balance_reservations')
+    advertisement = models.ForeignKey(
+        'advertisements.Advertisement',
+        on_delete=models.CASCADE,
+        related_name='balance_reservations',
+    )
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='balance_reservations',
+    )
+    purpose = models.CharField(max_length=24, choices=PURPOSE_CHOICES)
+    amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))],
+    )
+    currency = models.CharField(max_length=3, choices=AccountBalance.CURRENCY_CHOICES)
+    balance_amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))],
+        help_text='Amount held in the canonical currency of the linked balance.',
+    )
+    settlement_uzs_rate = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal('1'))],
+        help_text='Locked UZS rate used to pay the driver; set only for client order funds.',
+    )
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=STATUS_HELD)
+    captured_at = models.DateTimeField(null=True, blank=True)
+    released_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'balance_reservations'
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['advertisement', 'purpose'],
+                condition=models.Q(status='held'),
+                name='unique_held_advertisement_balance_purpose',
+            ),
+            models.CheckConstraint(condition=models.Q(amount__gt=0), name='balance_reservation_amount_positive'),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'status'], name='balance_res_user_status_idx'),
+            models.Index(fields=['order', 'purpose'], name='balance_res_order_purpose_idx'),
+        ]
+
+    def __str__(self):
+        return (
+            f'{self.purpose} ad={self.advertisement_id}: {self.amount} {self.currency} '
+            f'({self.balance_amount} {self.balance.currency}, {self.status})'
+        )
+
+
+class BalanceEntry(models.Model):
+    TYPE_TOP_UP = 'top_up'
+    TYPE_RESERVE = 'reserve'
+    TYPE_RELEASE = 'release'
+    TYPE_CAPTURE = 'capture'
+    TYPE_ADMIN_ADJUSTMENT = 'admin_adjustment'
+    TYPE_CHOICES = [
+        (TYPE_TOP_UP, 'Top up'),
+        (TYPE_RESERVE, 'Reserve'),
+        (TYPE_RELEASE, 'Release'),
+        (TYPE_CAPTURE, 'Capture'),
+        (TYPE_ADMIN_ADJUSTMENT, 'Admin adjustment'),
+    ]
+
+    balance = models.ForeignKey(AccountBalance, on_delete=models.PROTECT, related_name='entries')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='balance_entries')
+    reservation = models.ForeignKey(
+        BalanceReservation,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='entries',
+    )
+    advertisement = models.ForeignKey(
+        'advertisements.Advertisement',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='balance_entries',
+    )
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='balance_entries',
+    )
+    payment = models.ForeignKey(
+        Payment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='balance_entries',
+    )
+    entry_type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    available_delta = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    reserved_delta = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    idempotency_key = models.CharField(max_length=160, unique=True)
+    note = models.CharField(max_length=255, blank=True, default='')
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'balance_entries'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'created_at'], name='balance_entry_user_date_idx'),
+            models.Index(fields=['entry_type', 'created_at'], name='balance_entry_type_date_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.entry_type} {self.amount} key={self.idempotency_key}'
 
 
 class OrderCompletionFee(models.Model):

@@ -58,7 +58,7 @@ export const BackhaulMatchesCard: React.FC = () => {
           <Text style={styles.meta}>
             {match.weight} kg
             {match.proposed_cost
-              ? ` · ${formatMoney(match.proposed_cost, currentLanguage, t('dashboard.currencySuffix'))}`
+              ? ` · ${formatMoney(match.proposed_cost, currentLanguage, match.currency === 'USD' ? '$' : t('dashboard.currencySuffix'))}`
               : ''}
           </Text>
         </TouchableOpacity>

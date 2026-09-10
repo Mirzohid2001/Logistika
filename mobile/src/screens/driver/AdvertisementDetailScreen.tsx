@@ -339,9 +339,9 @@ const AdvertisementDetailScreen = () => {
     );
   };
 
-  const formatPrice = (price?: number) => {
+  const formatPrice = (price?: number, currency = 'UZS') => {
     if (!price) {return t('advertisements.priceNegotiable');}
-    return `${price.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} so'm`;
+    return `${price.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} ${currency === 'USD' ? '$' : "so'm"}`;
   };
 
   if (loading) {
@@ -419,7 +419,7 @@ const AdvertisementDetailScreen = () => {
           <View style={styles.metaChip}>
             <MaterialIcons name="payments" size={14} color={colors.primary} />
             <Text style={[styles.metaChipText, styles.metaChipTextPrimary]}>
-              {formatPrice(advertisement.proposed_cost)}
+              {formatPrice(advertisement.proposed_cost, advertisement.currency)}
             </Text>
           </View>
           <View style={styles.metaChip}>
@@ -513,7 +513,7 @@ const AdvertisementDetailScreen = () => {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('advertisements.proposedPriceTitle')}</Text>
-          <Text style={styles.price}>{formatPrice(advertisement.proposed_cost)}</Text>
+          <Text style={styles.price}>{formatPrice(advertisement.proposed_cost, advertisement.currency)}</Text>
         </View>
       </Card>
 
@@ -541,7 +541,7 @@ const AdvertisementDetailScreen = () => {
           style={styles.input}
           value={proposedAmount}
           onChangeText={setProposedAmount}
-          placeholder={t('advertisements.pricePlaceholder')}
+          placeholder={t('advertisements.pricePlaceholder', { currency: advertisement.currency || 'UZS' })}
           keyboardType="numeric"
           placeholderTextColor={colors.textTertiary}
         />

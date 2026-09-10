@@ -5,9 +5,23 @@ import {
   Payment,
   PaymentHistory,
   PaginatedResponse,
+  AccountBalancesResponse,
 } from '../types';
 
 export const paymentsService = {
+  async getBalances(role: 'client' | 'driver'): Promise<AccountBalancesResponse> {
+    return apiService.get('/payments/balances/', { role });
+  },
+
+  async topUpBalance(data: {
+    balance_type: 'order' | 'commission';
+    amount: number;
+    currency: 'UZS' | 'USD';
+    payment_method: 'click' | 'payme' | 'uzum' | 'mock';
+  }): Promise<Payment> {
+    return apiService.post('/payments/balances/top-up/', data);
+  },
+
   // Создать платеж
   async createPayment(data: {
     order_id?: number;

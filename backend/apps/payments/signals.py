@@ -1,8 +1,8 @@
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import pre_delete, pre_save
 from django.dispatch import receiver
 
-from apps.orders.models import Order
 from apps.users.models import DriverPayoutRequest
+from apps.advertisements.models import Advertisement
 
 
 @receiver(pre_save, sender=DriverPayoutRequest)
@@ -26,13 +26,11 @@ def restore_wallet_on_payout_reject(sender, instance: DriverPayoutRequest, **kwa
         )
 
 
-@receiver(post_save, sender=Order)
-def create_fees_when_order_is_completed(sender, instance: Order, created, update_fields=None, **kwargs):
-    if not created and update_fields is not None and 'status' not in update_fields:
-        return
-    if not instance.status_id or instance.status.code != 'completed':
-        return
+@receiver(pre_delete, sender=Advertisement)
+def release_balances_before_advertisement_delete(sender, instance: Advertisement, **kwargs):
+    from apps.payments.balances import release_advertisement_reservations
 
-    from apps.payments.completion_fees import create_completion_fees_for_order
+    release_advertisement_reservations(instance, reason='Advertisement deleted')
 
-    create_completion_fees_for_order(instance)
+
+# Post-completion debt creation was replaced by prepaid commission balances.

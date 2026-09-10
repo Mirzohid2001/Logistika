@@ -61,9 +61,9 @@ const MyAdvertisementsScreen = () => {
     loadAdvertisements();
   };
 
-  const formatPrice = (price?: number) => {
+  const formatPrice = (price?: number, currency = 'UZS') => {
     if (!price) {return t('advertisements.priceNegotiable');}
-    return `${price.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} so'm`;
+    return `${price.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} ${currency === 'USD' ? '$' : "so'm"}`;
   };
 
   const renderItem = ({ item, index }: { item: Advertisement; index: number }) => {
@@ -125,7 +125,7 @@ const MyAdvertisementsScreen = () => {
                 </View>
               </View>
               <View style={styles.footerRow}>
-                <Text style={styles.price}>{formatPrice(item.proposed_cost)}</Text>
+                <Text style={styles.price}>{formatPrice(item.proposed_cost, item.currency)}</Text>
               </View>
             </View>
           </View>

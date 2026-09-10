@@ -27,6 +27,7 @@ import { getBidStatusStyle } from '../../utils/statusColors';
 import { getApiErrorMessage } from '../../services/errorService';
 import { UserReputationBadge } from '../../components/UserReputationBadge';
 import { TrustScoreCard } from '../../components/TrustScoreCard';
+import { promptMarketplaceGateError } from '../../utils/marketplaceGate';
 
 const BidsScreen = () => {
   const route = useRoute();
@@ -101,7 +102,9 @@ const BidsScreen = () => {
               },
             ]);
           } catch (error: unknown) {
-            Alert.alert(t('common.error'), getApiErrorMessage(error, t('errors.unknownError')));
+            if (!promptMarketplaceGateError(error, { t, navigation: navigation as any })) {
+              Alert.alert(t('common.error'), getApiErrorMessage(error, t('errors.unknownError')));
+            }
           } finally {
             setActionLoading(null);
           }
@@ -152,9 +155,9 @@ const BidsScreen = () => {
     }
   };
 
-  const formatPrice = (amount?: string) => {
+  const formatPrice = (amount?: string, currency = 'UZS') => {
     if (!amount) {return t('bids.noPrice');}
-    return `${parseFloat(amount).toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} so'm`;
+    return `${parseFloat(amount).toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} ${currency === 'USD' ? '$' : "so'm"}`;
   };
 
   const formatDate = (dateString: string) => {
@@ -191,7 +194,7 @@ const BidsScreen = () => {
               </View>
             )}
             {item.driver_user ? <TrustScoreCard user={item.driver_user} compact /> : null}
-            <Text style={styles.bidAmount}>{formatPrice(item.current_amount)}</Text>
+            <Text style={styles.bidAmount}>{formatPrice(item.current_amount, item.currency)}</Text>
             <Text style={styles.bidDate}>{formatDate(item.created_at)}</Text>
           </View>
           {(item.is_accepted_by_client || item.is_rejected_by_client) && (
@@ -213,7 +216,7 @@ const BidsScreen = () => {
             {item.proposed_amounts.map((proposal, proposalIndex) => (
               <View key={proposalIndex} style={styles.historyItem}>
                 <Text style={styles.historyAmount}>
-                  {formatPrice(proposal.amount)} ({proposal.by === 'driver' ? t('orders.driver') : t('orders.client')})
+                  {formatPrice(proposal.amount, item.currency)} ({proposal.by === 'driver' ? t('orders.driver') : t('orders.client')})
                 </Text>
               </View>
             ))}
@@ -225,7 +228,7 @@ const BidsScreen = () => {
             <Text style={styles.counterLabel}>{t('bids.counterOffer')}</Text>
             <TextInput
               style={styles.counterInput}
-              placeholder={t('bids.counterOfferPlaceholder')}
+              placeholder={t('bids.counterOfferPlaceholder', { currency: item.currency || 'UZS' })}
               keyboardType="numeric"
               value={counterAmounts[item.id] || ''}
               onChangeText={(text) => setCounterAmounts((prev) => ({ ...prev, [item.id]: text }))}

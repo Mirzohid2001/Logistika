@@ -23,6 +23,7 @@ from apps.common.exceptions import (
     DatabaseError,
 )
 from .serializers import (
+    BalanceTopUpSerializer,
     OrderCompletionFeePaySerializer,
     OrderCompletionFeeSerializer,
     PaymentSerializer,
@@ -74,6 +75,88 @@ class WalletView(APIView):
             payload.update(driver_earnings_payload(request.user))
             payload['available'] = payload.get('available_balance', payload['available'])
         return Response(payload, status=status.HTTP_200_OK)
+
+
+class BalanceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(responses={200: {'type': 'object'}})
+    def get(self, request):
+        from .balances import balances_payload
+
+        return Response(
+            balances_payload(request.user, requested_role=request.query_params.get('role')),
+            status=status.HTTP_200_OK,
+        )
+
+
+class BalanceTopUpView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(request=BalanceTopUpSerializer, responses={201: PaymentSerializer})
+    def post(self, request):
+        serializer = BalanceTopUpSerializer(data=request.data)
+        if not serializer.is_valid():
+            raise ValidationError(detail=serializer.errors)
+
+        balance_type = serializer.validated_data['balance_type']
+        if balance_type == 'order' and not request.user.is_client:
+            raise PermissionDeniedError(detail='Buyurtma balansini faqat mijoz to\'ldira oladi')
+        if balance_type == 'commission' and not (request.user.is_client or request.user.is_driver):
+            raise PermissionDeniedError(detail='Komissiya balansi faqat mijoz yoki haydovchi uchun mavjud')
+
+        amount = serializer.validated_data['amount']
+        currency = serializer.validated_data['currency']
+        payment_method = serializer.validated_data['payment_method']
+        from .balances import balance_top_up_charge
+
+        charge = balance_top_up_charge(amount, currency, balance_type)
+        if charge['charge_amount'] > Decimal('9999999999.99'):
+            raise ValidationError(detail={
+                'amount': 'Bitta to\'lov uchun summa ruxsat etilgan limitdan oshdi',
+            })
+        gateway_payload = {
+            'purpose': 'balance_top_up',
+            'balance_type': balance_type,
+            'requested_amount': str(charge['requested_amount']),
+            'requested_currency': charge['requested_currency'],
+            'balance_amount': str(charge['balance_amount']),
+            'balance_currency': charge['balance_currency'],
+            'charge_amount': str(charge['charge_amount']),
+            'charge_currency': charge['charge_currency'],
+        }
+        gateway_payload['usd_to_uzs_rate'] = str(charge['exchange_rate'])
+
+        with transaction.atomic():
+            payment = Payment.objects.create(
+                user=request.user,
+                amount=charge['charge_amount'],
+                currency=charge['charge_currency'],
+                payment_method=payment_method,
+                gateway_response=gateway_payload,
+            )
+            if payment_method == 'mock':
+                if not getattr(settings, 'PAYMENTS_ALLOW_MOCK', False):
+                    raise PermissionDeniedError(detail='Mock to\'lov usuli o\'chirilgan')
+                payment.transaction_id = f'mock-balance-{payment.pk}-{uuid.uuid4().hex[:10]}'
+                payment.save(update_fields=['transaction_id', 'updated_at'])
+                response_payload = {**gateway_payload, 'mock': True}
+                mark_payment_completed(payment, gateway_response=response_payload)
+                PaymentHistory.objects.create(
+                    payment=payment,
+                    status='pending',
+                    status_new='completed',
+                    gateway_response=response_payload,
+                )
+            else:
+                initiate_gateway_payment(payment)
+
+        payment.refresh_from_db()
+        _invalidate_payment_list_caches(payment)
+        return Response(
+            PaymentSerializer(payment, context={'request': request, 'include_history': True}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class OrderCompletionFeeListView(APIView):
@@ -509,6 +592,11 @@ class PaymentRefundView(APIView):
             if payment.completion_fee_id:
                 raise PermissionDeniedError(
                     detail='Hisobni qayta bloklamaslik uchun xizmat to\'lovlari avtomatik qaytarilmaydi. Administratorga murojaat qiling.'
+                )
+            gateway = payment.gateway_response if isinstance(payment.gateway_response, dict) else {}
+            if gateway.get('purpose') == 'balance_top_up':
+                raise PermissionDeniedError(
+                    detail='Balans to\'ldirish to\'lovlari avtomatik qaytarilmaydi. Administratorga murojaat qiling.'
                 )
             
             if payment.payment_status != 'completed':

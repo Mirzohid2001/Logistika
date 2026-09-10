@@ -4,17 +4,18 @@ from tempfile import TemporaryDirectory
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from apps.advertisements.models import Advertisement
 from apps.orders.models import Order, OrderLocationTrack
-from apps.payments.models import OrderCompletionFee
+from apps.payments.models import AccountBalance, OrderCompletionFee
 from apps.vehicles.models import Vehicle
 
 
 User = get_user_model()
 
 
+@override_settings(PREPAID_BALANCES_ENFORCED=True)
 class SeedDemoCommandTests(TestCase):
     def test_seed_demo_is_complete_and_idempotent(self):
         with TemporaryDirectory() as media_root, self.settings(MEDIA_ROOT=media_root):
@@ -43,7 +44,7 @@ class SeedDemoCommandTests(TestCase):
                 'advertisements': 4,
                 'orders': 3,
                 'tracks': 7,
-                'pending_fees': 2,
+                'pending_fees': 0,
             },
         )
         self.assertEqual(
@@ -66,4 +67,14 @@ class SeedDemoCommandTests(TestCase):
         self.assertTrue(admin.check_password('demo12345'))
         self.assertTrue(driver.is_driver)
         self.assertTrue(driver.document_photos)
+        client = User.objects.get(phone='+998901000101')
+        client_order_balance = AccountBalance.objects.get(
+            user=client,
+            balance_type=AccountBalance.TYPE_ORDER,
+            currency='UZS',
+        )
+        self.assertEqual(
+            client_order_balance.available + client_order_balance.reserved,
+            20000000,
+        )
         self.assertIn('Demo fixtures are ready.', output.getvalue())

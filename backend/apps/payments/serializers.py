@@ -86,3 +86,16 @@ class OrderCompletionFeePaySerializer(serializers.Serializer):
         if getattr(settings, 'PAYMENTS_ALLOW_MOCK', False):
             choices.append('mock')
         self.fields['payment_method'] = serializers.ChoiceField(choices=choices)
+
+
+class BalanceTopUpSerializer(serializers.Serializer):
+    balance_type = serializers.ChoiceField(choices=['order', 'commission'])
+    amount = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=1)
+    currency = serializers.ChoiceField(choices=['UZS', 'USD'])
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        choices = ['click', 'payme', 'uzum']
+        if getattr(settings, 'PAYMENTS_ALLOW_MOCK', False):
+            choices.append('mock')
+        self.fields['payment_method'] = serializers.ChoiceField(choices=choices)

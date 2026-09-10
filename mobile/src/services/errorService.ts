@@ -12,6 +12,8 @@ export enum ErrorCode {
   SUBSCRIPTION_REQUIRED = 'subscription_required',
   PAYMENT_REQUIRED = 'payment_required',
   SERVICE_FEE_REQUIRED = 'service_fee_required',
+  BALANCE_REQUIRED = 'balance_required',
+  COUNTERPARTY_BALANCE_REQUIRED = 'counterparty_balance_required',
   DOCUMENT_EXPIRED = 'document_expired',
   RATE_LIMITED = 'rate_limited',
   VALIDATION_ERROR = 'validation_error',
@@ -130,6 +132,10 @@ class ErrorService {
       code = ErrorCode.PAYMENT_REQUIRED;
     } else if (errorData.code === 'service_fee_required') {
       code = ErrorCode.SERVICE_FEE_REQUIRED;
+    } else if (errorData.code === 'insufficient_balance') {
+      code = ErrorCode.BALANCE_REQUIRED;
+    } else if (errorData.code === 'counterparty_insufficient_balance') {
+      code = ErrorCode.COUNTERPARTY_BALANCE_REQUIRED;
     } else if (errorData.code === 'document_expired') {
       code = ErrorCode.DOCUMENT_EXPIRED;
     } else if (errorData.code === 'phone_already_registered') {
@@ -168,6 +174,8 @@ class ErrorService {
             'timeout_error': ErrorCode.TIMEOUT_ERROR,
             'payment_required': ErrorCode.PAYMENT_REQUIRED,
             'service_fee_required': ErrorCode.SERVICE_FEE_REQUIRED,
+            'insufficient_balance': ErrorCode.BALANCE_REQUIRED,
+            'counterparty_insufficient_balance': ErrorCode.BALANCE_REQUIRED,
             'document_expired': ErrorCode.DOCUMENT_EXPIRED,
             'delivery_confirmation_required': ErrorCode.VALIDATION_ERROR,
             'location_updates_not_allowed': ErrorCode.VALIDATION_ERROR,
@@ -207,6 +215,7 @@ class ErrorService {
       error.code === ErrorCode.SUBSCRIPTION_REQUIRED ||
       error.code === ErrorCode.PAYMENT_REQUIRED ||
       error.code === ErrorCode.SERVICE_FEE_REQUIRED ||
+      error.code === ErrorCode.BALANCE_REQUIRED ||
       error.code === ErrorCode.DOCUMENT_EXPIRED ||
       error.code === ErrorCode.VALIDATION_ERROR ||
       error.code === ErrorCode.PERMISSION_DENIED ||

@@ -21,7 +21,9 @@ def notify_client_payment_needed(order, *, source: str = 'driver_unpaid') -> boo
     if order.is_payment_settled:
         return False
 
-    cache_key = f'payment_reminder_order_{order.id}:{source}'
+    # Include the creation instant so a reused primary key (for example after a
+    # database restore) cannot inherit another order's reminder cooldown.
+    cache_key = f'payment_reminder_order_{order.id}:{order.created_at.isoformat()}:{source}'
     if cache.get(cache_key):
         return False
     cache.set(cache_key, 1, REMINDER_COOLDOWN_SECONDS)
@@ -64,7 +66,7 @@ def notify_client_payment_needed(order, *, source: str = 'driver_unpaid') -> boo
 def notify_driver_client_reported_paid(order, *, paid: bool = True) -> bool:
     """Mijoz to'lov qilganini bildirganda haydovchiga xabar yuboradi."""
     order.refresh_from_db()
-    cache_key = f'client_paid_report_order_{order.id}:{paid}'
+    cache_key = f'client_paid_report_order_{order.id}:{order.created_at.isoformat()}:{paid}'
     if cache.get(cache_key):
         return False
     cache.set(cache_key, 1, REMINDER_COOLDOWN_SECONDS)

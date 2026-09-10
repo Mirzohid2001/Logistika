@@ -3,6 +3,10 @@ import { SUBSCRIPTIONS_ENFORCED } from '../config/appConfig';
 
 export type MarketplaceRole = 'client' | 'driver';
 
+export function isDispatcherAccount(user: User | null | undefined): boolean {
+  return Boolean(user?.is_dispatcher);
+}
+
 export function isStaffAccount(user: User | null | undefined): boolean {
   if (!user) {return false;}
   if (user.account?.is_staff) {return true;}

@@ -53,7 +53,6 @@ const ProfileScreen = () => {
 
   const getPrimaryRole = () => {
     if (!user) {return null;}
-    if (user.is_dispatcher) {return 'dispatcher';}
     if (user.is_updater) {return 'updater';}
     if (activeMarketplaceRole) {return activeMarketplaceRole;}
     if (user.is_driver) {return 'driver';}
@@ -272,11 +271,6 @@ const ProfileScreen = () => {
               {user.is_client ? `✓ ${t('profile.client')}` : t('profile.client')}
             </Text>
           </View>
-          {user.is_dispatcher && (
-            <View style={[styles.badge, styles.badgeActive]}>
-              <Text style={[styles.badgeText, styles.badgeTextActive]}>✓ {t('profile.dispatcher')}</Text>
-            </View>
-          )}
           {user.is_updater && (
             <View style={[styles.badge, styles.badgeActive]}>
               <Text style={[styles.badgeText, styles.badgeTextActive]}>✓ {t('profile.updater')}</Text>
@@ -528,32 +522,6 @@ const ProfileScreen = () => {
         </>
       )}
 
-      {primaryRole === 'dispatcher' && (
-        <ProfileMenuSection title={t('profile.menuSections.work')}>
-          <ProfileMenuItem
-            icon="dashboard"
-            iconColor={colors.primary}
-            iconBackground={colors.primaryGlow}
-            label={t('profile.dashboard')}
-            onPress={() => navigateRoleStack(navigation, 'DispatcherStack', 'DispatcherDashboard')}
-          />
-          <ProfileMenuItem
-            icon="inventory-2"
-            iconColor={colors.primary}
-            iconBackground={colors.primaryGlow}
-            label={t('orders.title')}
-            onPress={() => navigateRoleStack(navigation, 'DispatcherStack', 'DispatcherOrders')}
-          />
-          <ProfileMenuItem
-            icon="bar-chart"
-            iconColor={colors.secondary}
-            iconBackground={colors.secondaryGlow}
-            label={t('profile.statistics')}
-            onPress={() => navigateRoleStack(navigation, 'DispatcherStack', 'DispatcherStatistics')}
-          />
-        </ProfileMenuSection>
-      )}
-
       {primaryRole === 'updater' && (
         <ProfileMenuSection title={t('profile.menuSections.work')}>
           <ProfileMenuItem
@@ -596,6 +564,18 @@ const ProfileScreen = () => {
 
       {(primaryRole === 'client' || primaryRole === 'driver') && (
         <ProfileMenuSection title={t('profile.menuSections.activity')}>
+          <ProfileMenuItem
+            icon="account-balance-wallet"
+            iconColor={colors.primary}
+            iconBackground={colors.primaryGlow}
+            label={t('balances.title')}
+            subtitle={
+              primaryRole === 'client'
+                ? t('balances.clientMenuSubtitle')
+                : t('balances.driverMenuSubtitle')
+            }
+            onPress={() => navigateRoot(navigation, 'Balances')}
+          />
           {primaryRole === 'driver' && (
             <ProfileMenuItem
               icon="insights"
@@ -639,7 +619,7 @@ const ProfileScreen = () => {
         />
       </ProfileMenuSection>
 
-      {(primaryRole === 'client' || primaryRole === 'driver' || primaryRole === 'dispatcher') && (
+      {(primaryRole === 'client' || primaryRole === 'driver') && (
         <ProfileMenuSection title={t('profile.menuSections.tools')}>
           <ProfileMenuItem
             icon="link"
@@ -659,7 +639,7 @@ const ProfileScreen = () => {
           label={t('notificationSettings.title')}
           onPress={() => navigateRoot(navigation, 'NotificationSettings')}
         />
-        {(primaryRole === 'client' || primaryRole === 'driver' || primaryRole === 'dispatcher') && (
+        {(primaryRole === 'client' || primaryRole === 'driver') && (
           <ProfileMenuItem
             icon="chat"
             iconColor={colors.secondary}
@@ -752,7 +732,8 @@ const createStyles = (colors: AppColors) =>
   },
   content: {
     padding: spacing.lg,
-    paddingBottom: spacing.xxxl + 24,
+    // Keep the final action fully reachable above the floating tab bar.
+    paddingBottom: 160,
   },
   inlineBanner: {
     borderRadius: borderRadius.md,

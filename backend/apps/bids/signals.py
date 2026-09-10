@@ -20,6 +20,7 @@ def create_bid_notification(sender, instance: Bid, created: bool, **kwargs):
 
     try:
         amount = instance.get_current_amount() or ""
+        currency_suffix = '$' if instance.advertisement.currency == 'USD' else "so'm"
         create_notification(
             user=instance.client,
             notification_type="bid_received",
@@ -27,7 +28,7 @@ def create_bid_notification(sender, instance: Bid, created: bool, **kwargs):
             message=(
                 f"Sizning e'loningizga yangi taklif yuborildi. "
                 f"Haydovchi: {instance.driver.first_name} {instance.driver.last_name}. "
-                f"Taklif: {amount} so'm."
+                f"Taklif: {amount} {currency_suffix}."
             ),
             advertisement=instance.advertisement,
             send_push=True,

@@ -117,6 +117,7 @@ describe('notificationNavigation', () => {
   it('detects primary role', () => {
     expect(getPrimaryRole({ is_client: true, is_driver: true })).toBe('driver');
     expect(getPrimaryRole({ is_client: true })).toBe('client');
+    expect(getPrimaryRole({ is_dispatcher: true })).toBeNull();
   });
 
   it('navigates to chat detail when chat_id is present', () => {
@@ -135,28 +136,6 @@ describe('notificationNavigation', () => {
     expect(action.payload).toEqual({
       name: 'ChatDetail',
       params: { id: 15 },
-    });
-  });
-
-  it('navigates dispatcher to order detail for SOS', () => {
-    const nav = makeNav(['DispatcherStack', 'Main']);
-    navigateFromNotification(
-      nav,
-      baseNotification({
-        notification_type: 'driver_sos',
-        order: { id: 9 } as Notification['order'],
-      }),
-      'dispatcher',
-    );
-
-    expect(nav.dispatch).toHaveBeenCalled();
-    const action = nav.dispatch.mock.calls[0][0];
-    expect(action.payload.params).toEqual({
-      screen: 'DispatcherStack',
-      params: {
-        screen: 'DispatcherOrderDetail',
-        params: { id: 9 },
-      },
     });
   });
 

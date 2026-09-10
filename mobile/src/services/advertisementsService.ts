@@ -78,6 +78,7 @@ export const advertisementsService = {
     description_en?: string;
     description_uz?: string;
     proposed_cost?: number;
+    currency?: 'UZS' | 'USD';
     weight: number;
     cargo_category?: string;
     volume_m3?: number;
@@ -143,6 +144,7 @@ export const advertisementsService = {
     description_en?: string;
     description_uz?: string;
     proposed_cost?: number;
+    currency?: 'UZS' | 'USD';
     weight?: number;
     cargo_category?: string;
     volume_m3?: number;
@@ -266,6 +268,7 @@ export const advertisementsService = {
     from_city: number;
     to_city: number;
     weight?: number;
+    currency?: 'UZS' | 'USD';
   }): Promise<import('../types').PriceInsight> {
     return apiService.get('/advertisements/price-insight/', params);
   },
@@ -348,6 +351,7 @@ export const advertisementsService = {
     to_city: number;
     weight?: number;
     proposed_cost?: number;
+    currency?: 'UZS' | 'USD';
   }): Promise<import('../types').DuplicateRiskInsight> {
     return apiService.get('/advertisements/duplicate-risk/', params);
   },

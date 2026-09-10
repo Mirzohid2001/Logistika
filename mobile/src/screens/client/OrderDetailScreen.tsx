@@ -249,6 +249,7 @@ const ClientOrderDetailScreen = () => {
 
   const advertisement =
     typeof order.advertisement === 'object' ? order.advertisement : null;
+  const orderCurrencySuffix = advertisement?.currency === 'USD' ? '$' : "so'm";
   const driver = typeof order.driver === 'object' ? order.driver : null;
   const currentLat =
     order.current_location_lat != null
@@ -363,7 +364,7 @@ const ClientOrderDetailScreen = () => {
             <View style={[styles.metaChip, styles.metaChipPrimary]}>
               <MaterialIcons name="payments" size={14} color={colors.primary} />
               <Text style={[styles.metaChipText, styles.metaChipTextPrimary]}>
-                {advertisement.proposed_cost.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} so'm
+                {advertisement.proposed_cost.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} {orderCurrencySuffix}
               </Text>
             </View>
           ) : null}
@@ -421,7 +422,7 @@ const ClientOrderDetailScreen = () => {
             <View style={styles.infoRow}>
               <Text style={styles.label}>{t('orders.price')}:</Text>
               <Text style={styles.value}>
-                {advertisement.proposed_cost.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} so'm
+                {advertisement.proposed_cost.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} {orderCurrencySuffix}
               </Text>
             </View>
           )}
@@ -782,17 +783,21 @@ const ClientOrderDetailScreen = () => {
       {['in_progress', 'in_transit', 'completed'].includes(order.status.code) && (
         <Card style={styles.card}>
           <Text style={styles.cardTitle}>{t('orders.clientPaymentStatusTitle')}</Text>
-          <Text style={styles.offlinePaymentHint}>{t('orders.clientPaymentStatusHint')}</Text>
+          <Text style={styles.offlinePaymentHint}>
+            {t(order.prepaid_funded ? 'orders.prepaidPaymentHint' : 'orders.clientPaymentStatusHint')}
+          </Text>
           {order.total_amount !== undefined && order.total_amount > 0 && (
             <View style={styles.paymentSummaryRow}>
               <Text style={styles.paymentSummaryLabel}>{t('orders.agreedAmount')}:</Text>
               <Text style={styles.paymentSummaryValue}>
-                {order.total_amount.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} so'm
+                {order.total_amount.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} {orderCurrencySuffix}
               </Text>
             </View>
           )}
           <Text style={styles.offlinePaymentStatus}>
-            {order.client_payment_confirmed === true
+            {order.prepaid_funded
+              ? t('orders.prepaidPaymentSecured')
+              : order.client_payment_confirmed === true
               ? t('orders.clientPaymentStatusReceived')
               : order.client_payment_confirmed === false
                 ? t('orders.clientPaymentStatusNotReceived')
@@ -800,7 +805,7 @@ const ClientOrderDetailScreen = () => {
                   ? t('orders.clientPaymentStatusReported')
                   : t('orders.clientPaymentStatusPending')}
           </Text>
-          {['in_progress', 'in_transit'].includes(order.status.code) && (
+          {!order.prepaid_funded && ['in_progress', 'in_transit'].includes(order.status.code) && (
             <View style={styles.offlinePaymentButtons}>
               {(order.remaining_amount ?? 0) > 0 && !order.is_fully_paid && (
                 <Button

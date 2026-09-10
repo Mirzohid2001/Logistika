@@ -26,6 +26,24 @@ def resolved_order_amount(order: Order) -> Decimal:
     return order.total_amount or Decimal('0')
 
 
+def resolved_order_amount_uzs(order: Order) -> Decimal:
+    """Return a reporting/payout amount normalized to UZS."""
+    reservations = getattr(order, '_prefetched_objects_cache', {}).get('balance_reservations')
+    if reservations is None:
+        reservations = order.balance_reservations.all()
+    reservation = next(
+        (
+            item for item in reservations
+            if item.purpose == 'client_order' and item.status == 'captured'
+        ),
+        None,
+    )
+    if not reservation:
+        return resolved_order_amount(order)
+    rate = reservation.settlement_uzs_rate or (Decimal('1') if reservation.currency == 'UZS' else Decimal('0'))
+    return reservation.amount * rate
+
+
 def settled_orders_q() -> Q:
     """Completed + client confirmed. Escrow-ledger orders are counted via wallet/escrow."""
     return Q(status__code='completed', client_payment_confirmed=True) & ~Q(
@@ -88,7 +106,9 @@ def _orders_for_amount_resolution(queryset):
     ``InvalidCursorName`` and masks the real error. Settled-order volumes are small
     enough that a normal fetch is safer and clearer.
     """
-    return queryset.select_related('advertisement', 'source_bid').only(
+    return queryset.select_related('advertisement', 'source_bid').prefetch_related(
+        'balance_reservations'
+    ).only(
         'id',
         'agreed_amount',
         'created_at',
@@ -105,7 +125,7 @@ def _orders_for_amount_resolution(queryset):
 def sum_order_amounts(queryset) -> Decimal:
     total = Decimal('0')
     for order in _orders_for_amount_resolution(queryset):
-        amount = resolved_order_amount(order)
+        amount = resolved_order_amount_uzs(order)
         if amount > 0:
             total += amount
     return total
@@ -114,7 +134,7 @@ def sum_order_amounts(queryset) -> Decimal:
 def count_positive_amount_orders(queryset) -> int:
     count = 0
     for order in _orders_for_amount_resolution(queryset):
-        if resolved_order_amount(order) > 0:
+        if resolved_order_amount_uzs(order) > 0:
             count += 1
     return count
 
@@ -201,8 +221,15 @@ def driver_gross_settled_earnings(
     *,
     date_from: date | None = None,
     date_to: date | None = None,
+    exclude_prepaid: bool = False,
 ) -> Decimal:
-    offline = sum_order_amounts(driver_settled_orders_qs(driver, date_from=date_from, date_to=date_to))
+    offline_qs = driver_settled_orders_qs(driver, date_from=date_from, date_to=date_to)
+    if exclude_prepaid:
+        offline_qs = offline_qs.exclude(
+            balance_reservations__purpose='client_order',
+            balance_reservations__status__in=('held', 'captured'),
+        )
+    offline = sum_order_amounts(offline_qs)
     platform = _sum_platform_payments_for_driver(driver, date_from=date_from, date_to=date_to)
     escrow = driver_escrow_released_earnings(driver, date_from=date_from, date_to=date_to)
     return offline + platform + escrow
@@ -341,7 +368,7 @@ def route_totals_from_settled_orders(orders_qs, *, amount_key: str, limit: int =
         to_city = getattr(advertisement.destination_city, 'name_uz', '') or ''
         key = (from_city, to_city)
         buckets[key]['count'] += 1
-        buckets[key]['total'] += resolved_order_amount(order)
+        buckets[key]['total'] += resolved_order_amount_uzs(order)
 
     sorted_routes = sorted(buckets.items(), key=lambda item: item[1]['count'], reverse=True)[:limit]
     return [

@@ -150,8 +150,8 @@ const ChatDetailScreen = () => {
   const openLinkedOrder = useCallback(() => {
     if (!chat) {return;}
     const orderId = chat.order.id;
-    if (user?.is_dispatcher || user?.is_updater) {
-      navigateRoleStack(navigation as any, 'DispatcherStack', 'DispatcherOrderDetail', { id: orderId });
+    if (user?.is_updater) {
+      navigateRoleStack(navigation as any, 'UpdaterStack', 'UpdaterOrderUpdate', { id: orderId });
       return;
     }
     if (user?.is_driver) {

@@ -208,6 +208,13 @@ class BidAcceptPriceView(APIView):
                 status=target_status,
                 **order_pricing_kwargs(bid=bid),
             )
+            from apps.payments.balances import InsufficientBalanceError, fund_order_assignment
+
+            try:
+                fund_order_assignment(advertisement, bid.driver, agreed_amount, order, actor=request.user)
+            except InsufficientBalanceError as exc:
+                transaction.set_rollback(True)
+                return Response(exc.payload(), status=status.HTTP_403_FORBIDDEN)
             from apps.orders.route_stops import ensure_default_route_stops
             ensure_default_route_stops(order)
             

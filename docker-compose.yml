@@ -39,6 +39,7 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       DEBUG: "False"
       PAYMENTS_ALLOW_MOCK: "${PAYMENTS_ALLOW_MOCK:-False}"
+      PREPAID_BALANCES_ENFORCED: "${PREPAID_BALANCES_ENFORCED:-True}"
       SUBSCRIPTIONS_ENFORCED: "${SUBSCRIPTIONS_ENFORCED:-False}"
       SECRET_KEY: ${SECRET_KEY:-compose-development-only-secret-change-before-production}
       SECURE_SSL_REDIRECT: "False"
@@ -76,6 +77,7 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       DEBUG: "False"
+      PREPAID_BALANCES_ENFORCED: "${PREPAID_BALANCES_ENFORCED:-True}"
       SECRET_KEY: ${SECRET_KEY:-compose-development-only-secret-change-before-production}
     depends_on:
       - db
@@ -95,6 +97,7 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       DEBUG: "False"
+      PREPAID_BALANCES_ENFORCED: "${PREPAID_BALANCES_ENFORCED:-True}"
       SECRET_KEY: ${SECRET_KEY:-compose-development-only-secret-change-before-production}
     depends_on:
       - redis

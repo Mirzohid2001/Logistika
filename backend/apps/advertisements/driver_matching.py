@@ -309,6 +309,7 @@ def _score_advertisement(ad: Advertisement, context: DriverMatchContext) -> dict
         'destination_city_id': ad.destination_city_id,
         'weight': float(ad.weight),
         'proposed_cost': float(ad.proposed_cost) if ad.proposed_cost else None,
+        'currency': ad.currency,
         'cargo_category': ad.cargo_category,
         'required_body_type': reqs['body'],
         'requires_adr': reqs['adr'],

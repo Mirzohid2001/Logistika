@@ -310,9 +310,9 @@ const AvailableAdvertisementsScreen = () => {
     }
   };
 
-  const formatPrice = (price?: number) => {
+  const formatPrice = (price?: number, currency = 'UZS') => {
     if (!price) {return t('advertisements.priceNegotiable');}
-    return `${price.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} so'm`;
+    return `${price.toLocaleString(currentLanguage === 'ru' ? 'ru-RU' : 'uz-UZ')} ${currency === 'USD' ? '$' : "so'm"}`;
   };
 
   const formatDate = (dateString: string) => {
@@ -360,7 +360,7 @@ const AvailableAdvertisementsScreen = () => {
           showClientMeta
           showLoadFit
           dateText={formatDate(item.created_at)}
-          priceText={formatPrice(item.proposed_cost)}
+          priceText={formatPrice(item.proposed_cost, item.currency)}
         />
       </AnimatedListItem>
     );

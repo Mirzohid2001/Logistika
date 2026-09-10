@@ -9,7 +9,6 @@ import {useChatBadge} from '../context/ChatBadgeContext';
 import {useTranslation} from '../hooks/useTranslation';
 import ClientNavigator from './ClientNavigator';
 import DriverNavigator from './DriverNavigator';
-import DispatcherNavigator from './DispatcherNavigator';
 import UpdaterNavigator from './UpdaterNavigator';
 import ProfileScreen from '../screens/ProfileScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
@@ -28,7 +27,6 @@ const MainNavigator = () => {
 
   const getPrimaryRole = () => {
     if (!user) {return null;}
-    if (user.is_dispatcher) {return 'dispatcher';}
     if (user.is_updater) {return 'updater';}
     if (activeMarketplaceRole) {return activeMarketplaceRole;}
     if (user.account?.role) {return user.account.role;}
@@ -42,7 +40,7 @@ const MainNavigator = () => {
   const { colors } = useAppTheme();
   const tabOptions = useMemo(() => getLogisticsTabOptions(colors), [colors]);
   const tabBarHeight = 64 + Math.max(insets.bottom, 8);
-  const showMarketplaceChats = primaryRole === 'client' || primaryRole === 'driver' || primaryRole === 'dispatcher';
+  const showMarketplaceChats = primaryRole === 'client' || primaryRole === 'driver';
   const chatBadge = chatUnreadCount > 0 ? (chatUnreadCount > 99 ? '99+' : chatUnreadCount) : undefined;
 
   return (
@@ -83,19 +81,6 @@ const MainNavigator = () => {
             tabBarAccessibilityLabel: t('dashboard.home'),
             tabBarIcon: ({ color, size }) => (
               <MaterialIcons name="home" size={size} color={color} />
-            ),
-          }}
-        />
-      )}
-      {primaryRole === 'dispatcher' && (
-        <Tab.Screen
-          name="DispatcherStack"
-          component={DispatcherNavigator}
-          options={{
-            title: t('profile.dispatcher'),
-            tabBarAccessibilityLabel: t('profile.dispatcher'),
-            tabBarIcon: ({ color, size }) => (
-              <MaterialIcons name="assignment" size={size} color={color} />
             ),
           }}
         />

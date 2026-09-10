@@ -19,6 +19,20 @@ from apps.common.openapi import EmptySerializer
 logger = logging.getLogger(__name__)
 
 
+def _advertisement_settlement_rate(advertisement):
+    from apps.payments.balances import get_exchange_rate_settings
+    from apps.payments.models import BalanceReservation
+
+    reservation = BalanceReservation.objects.filter(
+        advertisement=advertisement,
+        purpose=BalanceReservation.PURPOSE_CLIENT_ORDER,
+        settlement_uzs_rate__isnull=False,
+    ).order_by('-created_at').first()
+    if reservation:
+        return reservation.settlement_uzs_rate
+    return get_exchange_rate_settings().usd_to_uzs
+
+
 class AdvertisementListView(APIView):
     permission_classes = [AllowAny]
 
@@ -207,7 +221,16 @@ class AdvertisementListView(APIView):
 
         serializer = AdvertisementCreateSerializer(data=request.data)
         if serializer.is_valid():
-            advertisement = serializer.save(client=request.user)
+            from apps.payments.balances import InsufficientBalanceError, reserve_advertisement_balances
+
+            try:
+                with transaction.atomic():
+                    advertisement = serializer.save(client=request.user)
+                    reserve_advertisement_balances(advertisement)
+            except InsufficientBalanceError as exc:
+                return Response(exc.payload(), status=status.HTTP_403_FORBIDDEN)
+            except ValueError as exc:
+                return Response({'error': str(exc), 'code': 'invalid_balance_request'}, status=status.HTTP_400_BAD_REQUEST)
             return Response(AdvertisementDetailSerializer(advertisement, context={'request': request}).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -226,12 +249,13 @@ class AdvertisementDetailView(APIView):
             return Response({'error': 'Advertisement not found'}, status=status.HTTP_404_NOT_FOUND)
 
     @extend_schema(request=AdvertisementCreateSerializer, responses={200: AdvertisementDetailSerializer})
+    @transaction.atomic
     def put(self, request, pk):
         if not IsClient().has_permission(request, self):
             return Response({'error': 'Only clients can update advertisements'}, status=status.HTTP_403_FORBIDDEN)
         
         try:
-            advertisement = Advertisement.objects.get(pk=pk, client=request.user)
+            advertisement = Advertisement.objects.select_for_update().get(pk=pk, client=request.user)
             from apps.orders.services import advertisement_has_active_order
 
             if advertisement.is_closed or advertisement_has_active_order(advertisement.id):
@@ -241,18 +265,28 @@ class AdvertisementDetailView(APIView):
                 )
             serializer = AdvertisementCreateSerializer(advertisement, data=request.data, partial=True)
             if serializer.is_valid():
-                serializer.save()
+                from apps.payments.balances import InsufficientBalanceError, reserve_advertisement_balances
+
+                try:
+                    with transaction.atomic():
+                        serializer.save()
+                        reserve_advertisement_balances(advertisement)
+                except InsufficientBalanceError as exc:
+                    return Response(exc.payload(), status=status.HTTP_403_FORBIDDEN)
+                except ValueError as exc:
+                    return Response({'error': str(exc), 'code': 'invalid_balance_request'}, status=status.HTTP_400_BAD_REQUEST)
                 return Response(AdvertisementDetailSerializer(advertisement, context={'request': request}).data, status=status.HTTP_200_OK)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Advertisement.DoesNotExist:
             return Response({'error': 'Advertisement not found'}, status=status.HTTP_404_NOT_FOUND)
 
+    @transaction.atomic
     def delete(self, request, pk):
         if not IsClient().has_permission(request, self):
             return Response({'error': 'Only clients can delete advertisements'}, status=status.HTTP_403_FORBIDDEN)
         
         try:
-            advertisement = Advertisement.objects.get(pk=pk, client=request.user)
+            advertisement = Advertisement.objects.select_for_update().get(pk=pk, client=request.user)
             from apps.orders.services import advertisement_has_active_order
 
             if advertisement_has_active_order(advertisement.id):
@@ -260,6 +294,9 @@ class AdvertisementDetailView(APIView):
                     {'error': 'Faol buyurtmasi bor e\'lonni o\'chirib bo\'lmaydi.'},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+            from apps.payments.balances import release_advertisement_reservations
+
+            release_advertisement_reservations(advertisement, reason='Advertisement deleted')
             advertisement.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
         except Advertisement.DoesNotExist:
@@ -407,6 +444,13 @@ class AdvertisementAcceptView(APIView):
             status=pending_status,
             **order_pricing_kwargs(advertisement=advertisement),
         )
+        from apps.payments.balances import InsufficientBalanceError, fund_order_assignment
+
+        try:
+            fund_order_assignment(advertisement, request.user, agreed_amount, order, actor=request.user)
+        except InsufficientBalanceError as exc:
+            transaction.set_rollback(True)
+            return Response(exc.payload(), status=status.HTTP_403_FORBIDDEN)
         from apps.orders.route_stops import ensure_default_route_stops
         ensure_default_route_stops(order)
 
@@ -608,7 +652,10 @@ class PriceInsightView(APIView):
             except (InvalidOperation, TypeError, ValueError):
                 return Response({'error': 'weight noto\'g\'ri'}, status=status.HTTP_400_BAD_REQUEST)
 
-        payload = get_lane_price_insight(int(from_city), int(to_city), weight)
+        currency = str(request.query_params.get('currency') or 'UZS').upper()
+        if currency not in ('UZS', 'USD'):
+            return Response({'error': 'currency noto\'g\'ri'}, status=status.HTTP_400_BAD_REQUEST)
+        payload = get_lane_price_insight(int(from_city), int(to_city), weight, currency)
         return Response(payload, status=status.HTTP_200_OK)
 
 
@@ -652,7 +699,11 @@ class AdvertisementTripEstimateView(APIView):
         payload = estimate_trip_profit(
             advertisement.departure_city_id,
             advertisement.destination_city_id,
-            revenue,
+            (
+                revenue
+                if advertisement.currency == 'UZS'
+                else revenue * _advertisement_settlement_rate(advertisement)
+            ),
         )
         return Response(payload, status=status.HTTP_200_OK)
 
@@ -706,7 +757,14 @@ class AdvertisementReorderFromOrderView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        advertisement = duplicate_advertisement_from_order(order)
+        from apps.payments.balances import InsufficientBalanceError, reserve_advertisement_balances
+
+        try:
+            with transaction.atomic():
+                advertisement = duplicate_advertisement_from_order(order)
+                reserve_advertisement_balances(advertisement)
+        except InsufficientBalanceError as exc:
+            return Response(exc.payload(), status=status.HTTP_403_FORBIDDEN)
         return Response(
             AdvertisementDetailSerializer(advertisement, context={'request': request}).data,
             status=status.HTTP_201_CREATED,
@@ -766,12 +824,17 @@ class DuplicateRiskView(APIView):
             except (InvalidOperation, TypeError, ValueError):
                 return Response({'error': 'proposed_cost noto\'g\'ri'}, status=status.HTTP_400_BAD_REQUEST)
 
+        currency = str(request.query_params.get('currency') or 'UZS').upper()
+        if currency not in ('UZS', 'USD'):
+            return Response({'error': 'currency noto\'g\'ri'}, status=status.HTTP_400_BAD_REQUEST)
+
         payload = get_duplicate_risk(
             user=request.user,
             from_city_id=int(from_city),
             to_city_id=int(to_city),
             weight=weight,
             proposed_cost=proposed_cost,
+            currency=currency,
         )
         return Response(payload, status=status.HTTP_200_OK)
 

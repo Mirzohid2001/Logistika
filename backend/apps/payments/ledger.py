@@ -34,7 +34,10 @@ def seed_legacy_wallet(user: User, wallet: Wallet) -> Wallet:
 
     amount = ZERO
     if getattr(user, 'is_driver', False):
-        amount = money(driver_gross_settled_earnings(user) - driver_payout_reserved(user))
+        amount = money(
+            driver_gross_settled_earnings(user, exclude_prepaid=True)
+            - driver_payout_reserved(user)
+        )
         if amount > ZERO:
             _write_entry(
                 wallet=wallet,

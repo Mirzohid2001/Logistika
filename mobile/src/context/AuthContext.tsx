@@ -7,7 +7,7 @@ import { pushNotificationService } from '../services/pushNotificationService';
 import { ErrorCode } from '../services/errorService';
 import { authSessionService } from '../services/authSessionService';
 import { SUBSCRIPTIONS_ENFORCED } from '../config/appConfig';
-import { userCanAccessPlatform, userRequiresSubscription } from '../utils/account';
+import { isDispatcherAccount, userCanAccessPlatform, userRequiresSubscription } from '../utils/account';
 import {
   canSwitchMarketplaceRole,
   resolveActiveMarketplaceRole,
@@ -27,6 +27,11 @@ const isAuthError = (error: any): boolean =>
 
 const USER_REFRESH_MIN_INTERVAL_MS = 45_000;
 
+const createDispatcherAccessError = () => ({
+  code: ErrorCode.PERMISSION_DENIED,
+  message: i18n.t('auth.dispatcherLoginUnavailable'),
+});
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -35,6 +40,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const isLoadingRef = React.useRef<boolean>(true);
   const lastUserRefreshAtRef = React.useRef(0);
   const userRefreshInFlightRef = React.useRef<Promise<void> | null>(null);
+
+  const rejectDispatcherAccount = React.useCallback(async (candidate: User | null) => {
+    if (!isDispatcherAccount(candidate)) {
+      return false;
+    }
+    await authService.logout();
+    setUser(null);
+    setActiveMarketplaceRoleState(null);
+    return true;
+  }, []);
 
   const syncActiveMarketplaceRole = React.useCallback(async (nextUser: User | null) => {
     if (resolveStaffRole(nextUser)) {
@@ -63,11 +78,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       try {
         const currentUser = await authService.getCurrentUser();
+        if (await rejectDispatcherAccount(currentUser)) {
+          return;
+        }
         setUser(currentUser);
         await authService.saveUser(currentUser);
       } catch {
         const storedUser = await authService.getStoredUser();
-        if (storedUser) {
+        if (storedUser && !(await rejectDispatcherAccount(storedUser))) {
           const patched = {
             ...storedUser,
             subscription: storedUser.subscription
@@ -91,7 +109,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
 
     return unsubscribeSubscription;
-  }, []);
+  }, [rejectDispatcherAccount]);
 
   useEffect(() => {
     const unsubscribe = authSessionService.onSessionExpired(async () => {
@@ -112,6 +130,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (token) {
         try {
           const currentUser = await authService.getCurrentUser();
+          if (await rejectDispatcherAccount(currentUser)) {
+            return;
+          }
           setUser(currentUser);
           await authService.saveUser(currentUser);
           await syncActiveMarketplaceRole(currentUser);
@@ -134,15 +155,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             console.warn('Error fetching current user:', error);
           }
           const storedUser = await authService.getStoredUser();
-          if (storedUser) {
+          if (storedUser && !(await rejectDispatcherAccount(storedUser))) {
             setUser(storedUser);
             await syncActiveMarketplaceRole(storedUser);
           }
         }
       } else {
         const storedUser = await authService.getStoredUser();
-        if (storedUser) {
+        if (storedUser && !(await rejectDispatcherAccount(storedUser))) {
           setUser(storedUser);
+          await syncActiveMarketplaceRole(storedUser);
         }
       }
     } catch (error) {
@@ -152,7 +174,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       setIsLoading(false);
     }
-  }, [syncActiveMarketplaceRole]);
+  }, [rejectDispatcherAccount, syncActiveMarketplaceRole]);
 
   useEffect(() => {
     void loadUser();
@@ -160,6 +182,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (phone: string, password: string) => {
     const response = await authService.login(phone, password);
+    if (await rejectDispatcherAccount(response.user)) {
+      throw createDispatcherAccessError();
+    }
     setUser(response.user);
     await authService.saveUser(response.user);
     await syncActiveMarketplaceRole(response.user);
@@ -171,6 +196,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const completeTelegramAuth = async (ticket: string) => {
     const response = await authService.completeTelegramAuth(ticket);
+    if (await rejectDispatcherAccount(response.user)) {
+      throw createDispatcherAccessError();
+    }
     setUser(response.user);
     await authService.saveUser(response.user);
     await syncActiveMarketplaceRole(response.user);
@@ -207,6 +235,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const refreshPromise = (async () => {
       try {
         const currentUser = await authService.getCurrentUser();
+        if (await rejectDispatcherAccount(currentUser)) {
+          return;
+        }
         lastUserRefreshAtRef.current = Date.now();
         setUser(currentUser);
         await authService.saveUser(currentUser);
@@ -230,7 +261,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     userRefreshInFlightRef.current = refreshPromise;
     return refreshPromise;
-  }, [syncActiveMarketplaceRole]);
+  }, [rejectDispatcherAccount, syncActiveMarketplaceRole]);
 
   useEffect(() => {
     const unsubscribe = authSessionService.onServiceFeeRequired(() => {

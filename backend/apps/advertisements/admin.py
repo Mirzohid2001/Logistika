@@ -15,7 +15,7 @@ from .models import (
 @admin.register(Advertisement, site=admin_site)
 class AdvertisementAdmin(OperatorMixin, admin.ModelAdmin):
     list_display = [
-        'title_ru', 'client', 'proposed_cost', 'departure_city', 'destination_city',
+        'title_ru', 'client', 'proposed_cost', 'currency', 'departure_city', 'destination_city',
         'required_body_type', 'is_closed', 'photo_display', 'created_at',
     ]
     list_filter = [
